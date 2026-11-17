@@ -8,7 +8,7 @@
    ========================================================================== */
 
 window.FW_SUPABASE_CONFIG = {
-  url: '',
-  anonKey: '',
+  url: 'https://dvxehkgwyzuiufefepku.supabase.co',
+  anonKey: 'sb_publishable_4m_ZO4PKYZ-tpaEVXW1vAg_hhN9TzaA',
   worldId: 'main'
 };
