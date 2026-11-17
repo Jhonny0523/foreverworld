@@ -22,6 +22,20 @@ window.FW_CLOUD = (() => {
   let pushing = false;
   let pushQueued = false;
   let handlers = {};
+  let onlinePlayers = [];
+  let currentPresence = { id: '', name: 'Visitante', at: Date.now() };
+  const clientId = (() => {
+    try {
+      let id = sessionStorage.getItem('fw_client_id');
+      if (!id) {
+        id = 'c-' + Math.random().toString(36).slice(2, 10);
+        sessionStorage.setItem('fw_client_id', id);
+      }
+      return id;
+    } catch {
+      return 'c-' + Math.random().toString(36).slice(2, 10);
+    }
+  })();
 
   function safeGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
   function safeSet(k, v) { try { localStorage.setItem(k, v); return true; } catch { return false; } }
@@ -134,6 +148,7 @@ window.FW_CLOUD = (() => {
     }
     channel = null;
     client = null;
+    onlinePlayers = [];
   }
 
   async function fetchRemoteRow() {
@@ -153,7 +168,9 @@ window.FW_CLOUD = (() => {
       channel = null;
     }
     channel = client
-      .channel(`fw-world-${activeCfg.worldId}`)
+      .channel(`fw-world-${activeCfg.worldId}`, {
+        config: { presence: { key: clientId } }
+      })
       .on(
         'postgres_changes',
         {
@@ -169,11 +186,34 @@ window.FW_CLOUD = (() => {
           applyIncomingRow(row, true);
         }
       )
-      .subscribe(stateName => {
-        if (stateName === 'CHANNEL_ERROR' || stateName === 'TIMED_OUT') {
+      .on('presence', { event: 'sync' }, () => {
+        const stateMap = channel ? channel.presenceState() : {};
+        const list = [];
+        Object.values(stateMap).forEach(arr => {
+          if (Array.isArray(arr) && arr.length) list.push(arr[0]);
+        });
+        onlinePlayers = list;
+        if (typeof handlers.onPresence === 'function') handlers.onPresence(onlinePlayers);
+        emitStatus();
+      })
+      .subscribe(async stateName => {
+        if (stateName === 'SUBSCRIBED') {
+          try { await channel.track(currentPresence); } catch { /* noop */ }
+        } else if (stateName === 'CHANNEL_ERROR' || stateName === 'TIMED_OUT') {
           if (status === 'synced') setStatus('error', 'Realtime desconectado; usa Sincronizar ahora.');
         }
       });
+  }
+
+  async function setPresence(info) {
+    currentPresence = {
+      id: (info && info.id) || '',
+      name: (info && info.name) || 'Visitante',
+      at: Date.now()
+    };
+    if (channel) {
+      try { await channel.track(currentPresence); } catch { /* noop */ }
+    }
   }
 
   function applyIncomingRow(row, fromRealtime) {
@@ -457,7 +497,8 @@ window.FW_CLOUD = (() => {
       rev: currentRev,
       lastSyncAt,
       lastSyncBy,
-      conflictRow
+      conflictRow,
+      onlinePlayers: [...onlinePlayers]
     };
   }
 
@@ -466,6 +507,7 @@ window.FW_CLOUD = (() => {
     pushState,
     schedulePush,
     pullNow,
+    setPresence,
     saveSnapshot,
     listSnapshots,
     fetchSnapshot,

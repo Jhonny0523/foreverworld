@@ -92,6 +92,7 @@
   let state = loadState();
   const isFreshStart = !safeGet(STORAGE_KEY);
   let me = safeGet(ME_KEY) || '';
+  let preferredMe = me;
 
   function save(skipCloud = false) {
     state.updatedAt = Date.now();
@@ -259,7 +260,7 @@
       ? (Math.abs(r - 1) < 0.02 ? 'Paridad' : r > 1 ? `${nat('myth').currency} fuerte` : `${nat('scad').currency} fuerte`)
       : `${state.settings.bankName}: sin fundar`;
     const sel = $('me-select');
-    sel.innerHTML = `<option value="">— elegir —</option>` + peopleOpts(me);
+    sel.innerHTML = `<option value="">— elegir —</option>` + peopleOpts(me) + `<option value="__new__">+ Agregar invitado...</option>`;
     document.title = `${state.world.worldName || 'Forever World'} — ${nat('myth').nation} & ${nat('scad').nation}`;
     renderCloudPill();
   }
@@ -275,13 +276,15 @@
       return;
     }
     const info = CLOUD.getInfo();
+    const onlineCount = (info.onlinePlayers || []).length;
+    const onlineTxt = onlineCount > 0 ? `${onlineCount} en línea` : (info.lastSyncAt ? when(info.lastSyncAt) : 'En línea');
     const map = {
-      unconfigured: ['Nube', 'text-muted', 'Solo local'],
-      connecting: ['Nube', 'text-gold', 'Conectando...'],
-      synced: ['Nube OK', 'text-emerald', info.lastSyncAt ? when(info.lastSyncAt) : 'En línea'],
-      syncing: ['Nube', 'text-diamond', 'Guardando...'],
+      unconfigured: ['Nube', 'text-muted', 'Sin configurar'],
+      connecting: ['Supabase', 'text-gold', 'Conectando...'],
+      synced: ['Supabase', 'text-emerald', onlineTxt],
+      syncing: ['Supabase', 'text-diamond', 'Guardando...'],
       conflict: ['Conflicto', 'text-redstone', 'Revisar copia'],
-      error: ['Nube err', 'text-redstone', 'Toca para ver'],
+      error: ['Error nube', 'text-redstone', 'Toca para ver'],
       offline: ['Offline', 'text-gold', 'Solo local']
     };
     const [t, cls, s] = map[info.status] || map.unconfigured;
@@ -438,7 +441,7 @@
     const mega = state.mega;
     return panel(`
       ${head('ERA ∞', 'emerald', 'LA ERA PERPETUA: TEMPORADAS',
-        `Lo que hace que el mundo sea realmente <em>forever</em>. Cada temporada (la duración la deciden ustedes, sugerido 1 mes real) tiene una lista fija de cosas por hacer y tres sorteos: un reto cruzado, una expedición y una restricción. ${unlocked ? '' : '<strong class="text-gold">Se desbloquea al completar la ${D.ERAS[D.ERAS.length - 1].code} (${esc(D.ERAS[D.ERAS.length - 1].name)})</strong>, pero pueden mirarla desde ya.'}`)}
+        `Lo que hace que el mundo sea realmente <em>forever</em>. Cada temporada (la duración la deciden ustedes, sugerido 1 mes real) tiene una lista fija de cosas por hacer y tres sorteos: un reto cruzado, una expedición y una restricción. ${unlocked ? '' : `<strong class="text-gold">Se desbloquea al completar la ${D.ERAS[D.ERAS.length - 1].code} (${esc(D.ERAS[D.ERAS.length - 1].name)})</strong>, pero pueden mirarla desde ya.`}`)}
       <div class="grid-2">
         <div class="mc-panel-dark p-md">
           <div class="flex-between" style="margin-bottom:10px;">
@@ -1283,12 +1286,12 @@
       </ol>`);
 
     const sync = panel(`
-      ${head('USO', 'slate', 'SINCRONIZAR ENTRE DOS PCS (SUPABASE)')}
+      ${head('USO', 'slate', 'SINCRONIZAR CON SUPABASE')}
       <ol class="text-xs text-muted" style="margin:0;padding-left:18px;line-height:1.7;">
-        <li><strong>Con Supabase conectado:</strong> todo lo que cambies se guarda en la nube y le aparece en vivo al otro jugador (el indicador de arriba dirá <strong>Nube OK</strong>).</li>
-        <li><strong>Primera vez:</strong> entra a "Guardar / Cargar" → <em>Configurar Supabase</em>, pega la URL y Anon Key del proyecto (o déjalas en <code>supabase-config.js</code>) y comparte el enlace de invitación.</li>
-        <li><strong>Sin internet o sin Supabase:</strong> sigue funcionando 100% en local y puedes pasar la partida con "Descargar archivo" / "Cargar archivo".</li>
-        <li>Elijan "Soy" arriba en cada PC: así la app sabe quién audita, firma y guarda cada cambio.</li>
+        <li><strong>Todo va directo a Supabase:</strong> ya no hace falta descargar ni pasarse archivos JSON. Cada cambio se guarda en la nube y le llega en vivo al otro jugador.</li>
+        <li><strong>Elijan "Soy:" arriba en cada PC:</strong> así la app registra en Supabase quién está conectado en línea, quién audita, quién firma y quién hizo el último cambio.</li>
+        <li><strong>Invitados nuevos:</strong> puedes agregarlos desde "Soy: → + Agregar invitado..." o en Estados y Leyes; se sincronizan para todos.</li>
+        <li><strong>Puntos de restauración:</strong> en el botón de Supabase arriba a la derecha puedes guardar snapshots en la nube y volver atrás si hace falta.</li>
       </ol>`);
 
     const glossary = panel(`
@@ -1716,30 +1719,8 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       toast('Mundo reiniciado', 'Todo volvió al día 0.', 'redstone');
     },
     'open-backup': () => {
-      $('backup-json-area').value = JSON.stringify(state, null, 2);
       renderCloudPanel(true);
-      const autos = readAutoBackups().slice().reverse();
-      $('backup-meta').innerHTML = `Copia de este navegador: guardada ${when(state.updatedAt)}${state.updatedBy ? ' por ' + esc(state.updatedBy) : ''}.
-        <div class="mc-panel-dark p-sm" style="margin-top:10px;">
-          <div class="text-xs text-white" style="font-weight:700;margin-bottom:6px;">Copias automáticas en este navegador</div>
-          ${autos.length ? autos.map((a, i) => `<div class="flex-between text-xs" style="padding:3px 0;"><span class="text-muted">${when(a.t)} · ${esc(a.label)}</span>
-            <button class="mc-btn" style="padding:2px 7px;" data-action="auto-restore" data-i="${autos.length - 1 - i}">Restaurar</button></div>`).join('')
-            : '<span class="text-xs text-dim">Todavía no hay. Se crea una cada 10 minutos de uso.</span>'}
-          <div class="text-xs text-dim" style="margin-top:6px;">Si Supabase está conectado, los cambios se sincronizan solos. También puedes usar archivos JSON como respaldo manual.</div>
-        </div>`;
       $('modal-backup').classList.add('open');
-    },
-    'auto-restore': async el => {
-      const a = readAutoBackups()[Number(el.dataset.i)];
-      if (!a || !await askConfirm(`¿Restaurar la copia del ${when(a.t)}? Lo actual se guarda antes como copia, por si acaso.`)) return;
-      autoBackup(true, 'Antes de restaurar');
-      const ui = state.ui;
-      state = merge(defaultState(), JSON.parse(a.data));
-      state.ui = ui;
-      save();
-      closeModals();
-      renderAll();
-      toast('Copia restaurada', when(a.t), 'emerald');
     },
     'cloud-pull': async () => {
       if (!CLOUD) return;
@@ -1810,17 +1791,6 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       copyText(CLOUD.buildConfigFileSnippet());
       toast('Código copiado', 'Pégalo en supabase-config.js y súbelo al repo.', 'emerald');
     },
-    'download-json': () => {
-      const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
-      const a = document.createElement('a');
-      const d = new Date();
-      a.href = URL.createObjectURL(blob);
-      a.download = `forever-world-${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}.json`;
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    },
-    'copy-json': () => { copyText($('backup-json-area').value); toast('Copiado', 'Pégalo donde quieras.', 'emerald'); },
-    'import-text': () => importJSON($('backup-json-area').value),
     'open-report': () => { $('report-area').value = buildReport(); $('modal-report').classList.add('open'); },
     'copy-report': () => { copyText($('report-area').value); toast('Copiado', 'Listo para Discord.', 'emerald'); },
     'close-modal': () => closeModals()
@@ -1891,8 +1861,8 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
 
   /* ---------- Deshacer (guarda copias del estado antes de cada acción) ---------- */
   const UNDO_KEY = 'forever_world_undo';
-  const NO_UNDO = new Set(['form', 'shop-edit', 'mode-simple', 'mode-advanced', 'auto-restore', 'tip', 'filter', 'works-filter', 'price-buy', 'price-challenge', 'open-reset', 'confirm-reset', 'open-backup',
-    'download-json', 'copy-json', 'import-text', 'open-report', 'copy-report', 'close-modal', 'undo',
+  const NO_UNDO = new Set(['form', 'shop-edit', 'mode-simple', 'mode-advanced', 'tip', 'filter', 'works-filter', 'price-buy', 'price-challenge', 'open-reset', 'confirm-reset', 'open-backup',
+    'open-report', 'copy-report', 'close-modal', 'undo',
     'cloud-pull', 'cloud-push-force', 'cloud-snapshot', 'cloud-restore-snap', 'cloud-save-cfg', 'cloud-reset-cfg', 'cloud-copy-link', 'cloud-copy-snippet']);
   const UNDO_LABELS = {
     'law-add': 'Nueva ley', 'law-sign': 'Firma de ley', 'law-repeal': 'Derogar ley', 'law-del': 'Borrar ley', 'law-defaults': 'Leyes sugeridas', 'law-move': 'Mover ley',
@@ -2060,27 +2030,6 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).catch(() => {});
   }
 
-  async function importJSON(text) {
-    let data;
-    try { data = JSON.parse(text); } catch { return fail('El texto no es un JSON válido.'); }
-    if (!data || typeof data !== 'object' || !data.economy || !data.settings || !data.economy.holdings) {
-      return fail('Ese archivo no es de esta versión de la app (falta economía o configuración).');
-    }
-    if (data.updatedAt && state.updatedAt && data.updatedAt < state.updatedAt &&
-      !await askConfirm(`El archivo es de ${when(data.updatedAt)} y tu copia es más nueva (${when(state.updatedAt)}). ¿Reemplazar igual?`)) return;
-    autoBackup(true, 'Antes de cargar archivo');
-    const keepUi = state.ui;
-    state = merge(defaultState(), data);
-    state.ui = { ...state.ui, tab: keepUi.tab };
-    save(true);
-    closeModals();
-    renderAll();
-    if (CLOUD && CLOUD.getInfo().configured) {
-      await CLOUD.pushState(state, true);
-    }
-    toast('Partida cargada', `Guardada ${when(state.updatedAt)}${state.updatedBy ? ' por ' + state.updatedBy : ''}.`, 'emerald');
-  }
-
   let pendingRemoteRow = null;
 
   function isEditingField() {
@@ -2101,7 +2050,10 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     state = merge(defaultState(), mergedRemote);
     state.updatedAt = Number(row.updated_at) || state.updatedAt || Date.now();
     state.updatedBy = row.updated_by || state.updatedBy || '';
+    if (preferredMe && participants().includes(preferredMe)) me = preferredMe;
+    else if (me && !participants().includes(me)) me = '';
     safeSet(STORAGE_KEY, JSON.stringify(state));
+    if (CLOUD) CLOUD.setPresence({ id: me, name: me ? pname(me) : 'Visitante' });
     renderAll();
     if ($('modal-backup') && $('modal-backup').classList.contains('open')) renderCloudPanel(false);
     if (meta.fromRealtime) {
@@ -2149,25 +2101,32 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     };
     const [tagCls, tagText] = statusMap[info.status] || statusMap.unconfigured;
 
+    const online = (info.onlinePlayers || []).map(p => p.name || 'Visitante');
+    const onlineTxt = online.length ? online.join(', ') : (me ? pname(me) : 'Solo tú');
+
     box.innerHTML = `
       <div class="flex-between" style="margin-bottom:6px;">
         <div class="flex-row-wrap" style="gap:6px;">
-          <strong class="text-xs text-white">NUBE · SUPABASE</strong>
+          <strong class="text-xs text-white">ESTADO DE LA NUBE</strong>
           <span class="mc-tag ${tagCls}">${esc(tagText)}</span>
         </div>
         ${info.configured ? `<span class="text-xs font-mono text-muted">Sala: ${esc(cfg.worldId || 'main')}</span>` : ''}
       </div>
       ${info.statusDetail ? `<div class="text-xs text-gold" style="margin-bottom:6px;">${esc(info.statusDetail)}</div>` : ''}
-      ${info.configured && info.lastSyncAt ? `<div class="text-xs text-muted" style="margin-bottom:8px;">Última copia en nube: ${when(info.lastSyncAt)}${info.lastSyncBy ? ' por ' + esc(info.lastSyncBy) : ''}.</div>` : ''}
+      ${info.configured && info.lastSyncAt ? `<div class="text-xs text-muted" style="margin-bottom:4px;">Última actualización: ${when(info.lastSyncAt)}${info.lastSyncBy ? ' por ' + esc(info.lastSyncBy) : ''}.</div>` : ''}
+      ${info.configured ? `<div class="text-xs text-emerald" style="margin-bottom:8px;">En línea ahora: ${esc(onlineTxt)}</div>` : ''}
       ${info.configured ? `
-        <div class="flex-row-wrap" style="gap:6px;margin-bottom:8px;">
+        <div class="flex-row-wrap" style="gap:6px;margin-bottom:10px;">
           <button class="mc-btn mc-btn-diamond" style="padding:4px 8px;" data-action="cloud-pull">🔄 Sincronizar</button>
-          <button class="mc-btn mc-btn-gold" style="padding:4px 8px;" data-action="cloud-push-force">⬆ Subir mi copia</button>
           <button class="mc-btn mc-btn-emerald" style="padding:4px 8px;" data-action="cloud-snapshot">📸 Guardar punto</button>
+          <button class="mc-btn mc-btn-gold" style="padding:4px 8px;" data-action="cloud-push-force">⬆ Forzar subida</button>
           <button class="mc-btn" style="padding:4px 8px;" data-action="cloud-copy-link">🔗 Copiar enlace</button>
         </div>
-        <div id="cloud-snapshots-list" style="margin-bottom:8px;"></div>
-      ` : `<p class="text-xs text-muted" style="margin:0 0 8px 0;">Conecta tu proyecto de Supabase para sincronizar automáticamente entre jugadores en GitHub Pages.</p>`}
+        <div style="margin-bottom:8px;">
+          <div class="text-xs text-white" style="font-weight:700;margin-bottom:4px;">Puntos de restauración en Supabase</div>
+          <div id="cloud-snapshots-list"></div>
+        </div>
+      ` : `<p class="text-xs text-muted" style="margin:0 0 8px 0;">Conecta tu proyecto de Supabase para sincronizar automáticamente entre jugadores.</p>`}
       <details class="mc-details" ${info.configured ? '' : 'open'}>
         <summary class="text-xs font-mono">Configurar Supabase</summary>
         <div class="section-stack" style="margin-top:8px;">
@@ -2249,11 +2208,38 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       if (e.target.classList.contains('mc-modal-backdrop')) closeModals();
     });
 
-    document.addEventListener('change', e => {
+    document.addEventListener('change', async e => {
       const t = e.target;
       if (t.id === 'me-select') {
-        me = t.value; safeSet(ME_KEY, me);
-        toast('Identidad', me ? `Ahora eres ${pname(me)} en este navegador.` : 'Sin identidad.', 'compass');
+        if (t.value === '__new__') {
+          const nickRaw = await askText('¿Cómo te llamas en el servidor? (Se guarda en Supabase para todos):');
+          const nick = (nickRaw || '').trim();
+          if (!nick) { t.value = me; return; }
+          const existing = participants().find(pid => pname(pid).toLowerCase() === nick.toLowerCase());
+          if (existing) {
+            me = existing;
+          } else {
+            const id = uid('inv');
+            state.guests.push({ id, nick });
+            E.holdings(state, id);
+            log('Invitado', `${nick} se une como invitado.`);
+            me = id;
+            preferredMe = me;
+            safeSet(ME_KEY, me);
+            commit();
+          }
+          preferredMe = me;
+          safeSet(ME_KEY, me);
+          if (CLOUD) CLOUD.setPresence({ id: me, name: pname(me) });
+          toast('Identidad', `Ahora eres ${pname(me)} (sincronizado en Supabase).`, 'compass');
+          renderAll();
+          return;
+        }
+        me = t.value;
+        preferredMe = me;
+        safeSet(ME_KEY, me);
+        if (CLOUD) CLOUD.setPresence({ id: me, name: me ? pname(me) : 'Visitante' });
+        toast('Identidad', me ? `Ahora eres ${pname(me)} en Supabase.` : 'Sin identidad.', 'compass');
         renderAll();
         return;
       }
@@ -2275,13 +2261,6 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
         if (t.checked) book[q.id] = true; else delete book[q.id];
         commit('roadmap', 'state');
         if (t.checked) toast('Misión cumplida', `${pname(t.dataset.g)}: ${q.title}`, 'compass');
-        return;
-      }
-      if (t.id === 'import-file' && t.files && t.files[0]) {
-        const reader = new FileReader();
-        reader.onload = () => importJSON(String(reader.result));
-        reader.readAsText(t.files[0]);
-        t.value = '';
         return;
       }
       if (t.dataset.bind) {
@@ -2412,6 +2391,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     renderAll();
 
     if (CLOUD) {
+      CLOUD.setPresence({ id: me, name: me ? pname(me) : 'Visitante' });
       CLOUD.init({
         getState: () => state,
         isFreshStart: () => isFreshStart,
@@ -2419,19 +2399,23 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
           renderCloudPill();
           if ($('modal-backup') && $('modal-backup').classList.contains('open')) renderCloudPanel(false);
         },
+        onPresence: () => {
+          renderCloudPill();
+          if ($('modal-backup') && $('modal-backup').classList.contains('open')) renderCloudPanel(false);
+        },
         onRemoteState: (row, meta) => applyRemoteRow(row, meta),
         onConflict: row => {
           renderCloudPill();
-          toast('Conflicto en la nube', `${row.updated_by || 'Otro jugador'} guardó cambios. Abre Guardar / Cargar.`, 'redstone');
+          toast('Conflicto en la nube', `${row.updated_by || 'Otro jugador'} guardó cambios. Toca Supabase arriba.`, 'redstone');
         },
         onInitialMismatch: async row => {
           renderCloudPill();
-          const ok = await askConfirm(`Ya existe una partida en Supabase (guardada ${when(row.updated_at || Date.now())}${row.updated_by ? ' por ' + row.updated_by : ''}) y también tienes datos locales.\n\n¿Quieres cargar la partida de la nube? (Se guardará una copia automática de lo tuyo antes.)`);
+          const ok = await askConfirm(`Ya existe una partida en Supabase (guardada ${when(row.updated_at || Date.now())}${row.updated_by ? ' por ' + row.updated_by : ''}) y también tienes datos locales.\n\n¿Quieres cargar la partida de la nube?`);
           if (ok) {
             await CLOUD.pullNow();
             toast('Partida sincronizada', 'Se cargó la copia de Supabase.', 'emerald');
           } else {
-            toast('Copia local conservada', 'Para subirla, entra a Guardar / Cargar → Subir mi copia.', 'gold');
+            toast('Copia local conservada', 'Para subirla, toca Supabase arriba → Forzar subida.', 'gold');
           }
         }
       });
