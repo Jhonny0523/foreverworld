@@ -1058,9 +1058,9 @@
             <span class="mc-tag ${status === 'vigente' ? 'tag-emerald' : status === 'derogada' ? 'tag-slate' : 'tag-gold'}">${status}</span></div>
           <div class="flex-row-wrap" style="gap:4px;">
             ${STATES.map(s => `<button class="mc-btn ${l.signs[s] ? 'mc-btn-emerald' : ''}" style="padding:3px 7px;" data-action="law-sign" data-id="${l.id}" data-s="${s}">${l.signs[s] ? '✔' : '✍'} ${esc(nat(s).player)}</button>`).join('')}
-            <button class="mc-btn" style="padding:3px 7px;" data-action="law-move" data-id="${l.id}" title="${rp ? 'Mover a reglas del servidor' : 'Mover a leyes del mundo'}">↔</button>
+            <button class="mc-btn" style="padding:3px 7px;" data-action="law-move" data-id="${l.id}" title="${rp ? 'Mover a reglas del servidor' : 'Mover a leyes del mundo'}">${rp ? '→ Reglas' : '→ Leyes'}</button>
             <button class="mc-btn" style="padding:3px 7px;" data-action="law-repeal" data-id="${l.id}">${l.repealed ? 'Restaurar' : 'Derogar'}</button>
-            <button class="mc-btn mc-btn-redstone" style="padding:3px 7px;" data-action="law-del" data-id="${l.id}">✕</button>
+            <button class="mc-btn mc-btn-redstone" style="padding:3px 7px;" data-action="law-del" data-id="${l.id}" title="Borrar esta ley">🗑 Borrar</button>
           </div>
         </div>
         <p class="text-xs text-muted" style="margin:8px 0 0 0;white-space:pre-wrap;line-height:1.6;">${esc(l.text)}</p>
@@ -1108,7 +1108,8 @@
 
     const vigentes = k => state.laws.filter(l => (l.kind || 'servidor') === k && !l.repealed && l.signs.myth && l.signs.scad).length;
     const total = k => state.laws.filter(l => (l.kind || 'servidor') === k).length;
-    $('view-state').innerHTML = lawsRol
+    $('view-state').innerHTML = `<div data-undo-slot style="margin-bottom:12px;"></div>`
+      + lawsRol
       + fold('srv', `⚙️ Reglas del servidor <span class="text-xs text-muted">(${vigentes('servidor')}/${total('servidor')} vigentes)</span>`, lawsSrv)
       + fold('pact', '🤝 Pacto de monopolios y reparto de aldeanos', pact)
       + fold('guests', `🧑‍🤝‍🧑 Invitados <span class="text-xs text-muted">(${state.guests.length})</span>`, guests)
@@ -1158,7 +1159,7 @@
           <p class="text-xs text-muted" style="margin:4px 0 0 0;white-space:pre-wrap;">${esc(c.body)}</p></div>`).join('') : empty('El archivo está vacío.')}
       </div>`);
 
-    $('view-lore').innerHTML = chron + world
+    $('view-lore').innerHTML = `<div data-undo-slot style="margin-bottom:12px;"></div>` + chron + world
       + fold('nations', `🏛️ Ficha de ${esc(nat('myth').nation)} y ${esc(nat('scad').nation)}`, nations)
       + fold('eraAnswers', '📜 Respuestas a las preguntas de cada era', eraAnswers);
   }
@@ -1666,7 +1667,15 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       commit('state');
     },
     'law-repeal': el => { const l = state.laws.find(x => x.id === el.dataset.id); if (l) { l.repealed = !l.repealed; commit('state'); } },
-    'law-del': async el => { if (await askConfirm('¿Borrar la ley? (Derogar la conserva en el historial.)')) { state.laws = state.laws.filter(x => x.id !== el.dataset.id); commit('state'); } },
+    'law-del': async el => {
+      const l = state.laws.find(x => x.id === el.dataset.id);
+      if (!l) return;
+      if (await askConfirm(`¿Seguro que quieres BORRAR "${l.title}"?\n\nSi solo quieres que deje de aplicar sin perderla, pulsa Cancelar y usa "Derogar".\n(También puedes recuperarla luego con el botón Deshacer de arriba.)`)) {
+        state.laws = state.laws.filter(x => x.id !== el.dataset.id);
+        commit('state');
+        toast('Ley borrada', `Se borró "${l.title}". Puedes recuperarla con Deshacer.`, 'gold');
+      }
+    },
 
     'chron-add': () => {
       const title = val('ch-title');
@@ -1699,8 +1708,15 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     'vg-cure': el => { const v = state.villagers.find(x => x.id === el.dataset.id); if (v) { v.cured = !v.cured; commit('territory'); } },
     'vg-del': el => { state.villagers = state.villagers.filter(x => x.id !== el.dataset.id); commit('territory'); },
 
-    'open-reset': () => $('modal-reset').classList.add('open'),
+    'open-reset': () => {
+      if ($('reset-confirm-input')) $('reset-confirm-input').value = '';
+      $('modal-reset').classList.add('open');
+      setTimeout(() => { if ($('reset-confirm-input')) $('reset-confirm-input').focus(); }, 30);
+    },
     'confirm-reset': async () => {
+      if (val('reset-confirm-input').toUpperCase() !== 'BORRAR') {
+        return fail('Escribe BORRAR en el cuadro para confirmar el reinicio.');
+      }
       autoBackup(true, 'Antes de reiniciar');
       if (CLOUD && CLOUD.getInfo().configured) {
         await CLOUD.saveSnapshot('Antes de reiniciar', state, me ? pname(me) : '');
@@ -1849,11 +1865,11 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       input.style.display = withInput ? 'block' : 'none';
       input.value = initial || '';
       box.classList.add('open');
-      setTimeout(() => (withInput ? input : $('ask-yes')).focus(), 30);
+      setTimeout(() => (withInput ? input : $('ask-no')).focus(), 30);
       const done = v => { box.classList.remove('open'); $('ask-yes').onclick = $('ask-no').onclick = null; box.onkeydown = null; resolve(v); };
       $('ask-yes').onclick = ev => { ev.stopPropagation(); done(withInput ? input.value : true); };
       $('ask-no').onclick = ev => { ev.stopPropagation(); done(withInput ? null : false); };
-      box.onkeydown = ev => { if (ev.key === 'Escape') done(withInput ? null : false); if (ev.key === 'Enter' && !withInput) { ev.preventDefault(); done(ev.target.id !== 'ask-no'); } };
+      box.onkeydown = ev => { if (ev.key === 'Escape') done(withInput ? null : false); if (ev.key === 'Enter' && !withInput) { ev.preventDefault(); done(ev.target.id === 'ask-yes'); } };
     });
   }
   const askConfirm = msg => ask(msg, false);
@@ -2357,7 +2373,8 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     // Las leyes viejas (sin tipo) eran reglas del servidor
     const lawsBefore = JSON.stringify(state.laws) + state.ui.rpLawsSeeded;
     const profsBefore = { ...state.professions };
-    state.laws.forEach(l => { if (!l.kind) l.kind = 'servidor'; });
+    const rpTitles = new Set((D.DEFAULT_RP_LAWS || []).map(x => x.title.toLowerCase()));
+    state.laws.forEach(l => { if (!l.kind) l.kind = rpTitles.has((l.title || '').toLowerCase()) ? 'rol' : 'servidor'; });
     if (state.laws.length === 0) addDefaultLaws('servidor');
     if (!state.ui.rpLawsSeeded) { addDefaultLaws('rol'); state.ui.rpLawsSeeded = true; }
     // Regla del día cero: agricultura solo Mythstorm, ganadería y pesca solo Scadrial

@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20261117185000" />
+  <link rel="stylesheet" href="styles.css?v=20261117190000" />
 </head>
 <body>
 
@@ -79,8 +79,10 @@
   <!-- Modal: reiniciar -->
   <div id="modal-reset" class="mc-modal-backdrop">
     <div class="mc-panel mc-modal p-lg">
-      <h3 class="font-pixel text-redstone text-base" style="margin: 0 0 8px 0;">¿BORRAR TODO?</h3>
-      <p class="text-xs text-muted" style="margin: 0 0 16px 0;">Se reinician hitos, economía, leyes, lore y censo en Supabase y en este navegador. Antes se guarda un punto de restauración en Supabase.</p>
+      <h3 class="font-pixel text-redstone text-base" style="margin: 0 0 8px 0;">¿BORRAR TODO EL MUNDO?</h3>
+      <p class="text-xs text-muted" style="margin: 0 0 10px 0;">Se reinician hitos, economía, leyes, lore y censo en Supabase para TODOS. Antes se guarda un punto de restauración en Supabase.</p>
+      <label class="text-xs font-mono text-white" style="display:block;margin-bottom:6px;">Para evitar clics por error, escribe <strong>BORRAR</strong>:</label>
+      <input id="reset-confirm-input" class="mc-input font-mono" style="margin-bottom:14px;" placeholder="Escribe BORRAR" autocomplete="off" />
       <div class="flex-row-wrap" style="justify-content: flex-end; gap: 8px;">
         <button class="mc-btn" data-action="close-modal">Cancelar</button>
         <button class="mc-btn mc-btn-redstone" data-action="confirm-reset">Sí, borrar todo</button>
@@ -116,12 +118,12 @@
   <div id="toast-container"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase-config.js?v=20261117185000"></script>
-  <script src="cloud.js?v=20261117185000"></script>
-  <script src="icons.js?v=20261117185000"></script>
-  <script src="eras.js?v=20261117185000"></script>
-  <script src="data.js?v=20261117185000"></script>
-  <script src="engine.js?v=20261117185000"></script>
-  <script src="app.js?v=20261117185000"></script>
+  <script src="supabase-config.js?v=20261117190000"></script>
+  <script src="cloud.js?v=20261117190000"></script>
+  <script src="icons.js?v=20261117190000"></script>
+  <script src="eras.js?v=20261117190000"></script>
+  <script src="data.js?v=20261117190000"></script>
+  <script src="engine.js?v=20261117190000"></script>
+  <script src="app.js?v=20261117190000"></script>
 </body>
 </html>
