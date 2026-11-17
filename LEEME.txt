@@ -1,0 +1,26 @@
+FOREVER WORLD — Roadmap y economía
+====================================
+
+CÓMO ABRIRLA
+1. Descomprime la carpeta completa (no abras los archivos desde dentro del zip).
+2. Doble clic en index.html (mejor en Chrome o Edge).
+   Necesita internet solo para cargar las fuentes pixeladas; sin internet funciona igual con otra letra.
+3. Arriba, en "Soy:", elige quién eres (Mythstorm, Scadrial o un invitado).
+
+DÓNDE SE GUARDA
+- En la nube (Supabase): si está configurado en supabase-config.js o desde "Guardar / Cargar",
+  la partida se guarda y sincroniza en tiempo real entre todos los jugadores.
+- En local: también se guarda una copia en el navegador de cada PC (con 10 copias automáticas
+  y exportación/importación en archivo .json).
+
+ARCHIVOS
+index.html         la página
+styles.css         el aspecto (estilo menús de Minecraft)
+icons.js           iconos pixel
+eras.js            el roadmap: 14 eras + Era ∞
+data.js            leyes sugeridas, precios, glosario y las 43 misiones de invitados
+engine.js          el motor económico (cambio, préstamos, acciones)
+supabase-config.js URL y clave pública (anon key) de tu proyecto Supabase
+cloud.js           sincronización en tiempo real y snapshots en Supabase
+supabase.sql       tablas, políticas RLS y Realtime para ejecutar en Supabase
+app.js             la interfaz
