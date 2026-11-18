@@ -306,15 +306,58 @@
     const f = state.ui.filter;
     if (state.ui.track && t.track !== state.ui.track) return false;
     if (f === 'all') return true;
+    if (f === 'guests') return false;
     if (f === 'pending') return !state.tasks[t.id];
     if (f === 'req') return t.req;
     if (f === 'ambos') return t.who === 'ambos';
     return t.who === f || t.who === 'ambos';
   }
 
+  function guestQuestCard(q, gid, locked) {
+    const done = state.guestTasks[gid] || {};
+    const checked = Boolean(done[q.id]);
+    const track = D.TRACKS[q.track] || { tag: 'slate', name: q.track };
+    const eraCode = D.ERAS[q.era] ? D.ERAS[q.era].code : '';
+    return `<label class="task-card p-md ${checked ? 'completed enchanted-glint' : ''} ${locked ? 'locked' : ''}" style="display:flex;gap:12px;cursor:${locked ? 'not-allowed' : 'pointer'};border-left:4px solid ${q.who === '3' ? '#ffaa00' : '#23a3b0'};" ${locked ? 'title="Era bloqueada"' : ''}>
+      <div class="mc-check-wrap"><input type="checkbox" class="guest-check" data-g="${gid}" data-q="${q.id}" ${checked ? 'checked' : ''} ${locked ? 'disabled' : ''}/>
+        <div class="mc-check-box"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8.5L6.5 12L13 4.5" stroke="#ffffff" stroke-width="2.5" stroke-linecap="square"/></svg></div></div>
+      <div style="flex:1;min-width:0;">
+        <div class="flex-row-wrap" style="gap:5px;margin-bottom:5px;">
+          ${locked ? '<span class="mc-tag tag-slate">🔒</span>' : ''}
+          <span class="mc-tag tag-cyan">${esc(pname(gid))}</span>
+          <span class="mc-tag tag-slate">${esc(eraCode)}</span>
+          ${q.who === '3' ? '<span class="mc-tag tag-gold">Los 3</span>' : ''}
+          <span class="mc-tag tag-${track.tag}">${esc(track.name)}</span>
+        </div>
+        <div class="task-title text-sm text-white" style="font-weight:700;margin-bottom:4px;">${esc(tx(q.title))}</div>
+        <p class="text-xs text-muted" style="margin:0 0 6px 0;line-height:1.45;">${esc(tx(q.desc))}</p>
+        <div class="text-xs text-dim"><strong class="text-diamond">Prueba:</strong> ${esc(tx(q.proof))}</div>
+      </div></label>`;
+  }
+
   function renderRoadmap() {
     const curIdx = currentEraIndex();
-    const filters = [['all', 'Todos'], ['myth', nat('myth').player], ['scad', nat('scad').player], ['ambos', 'Ambos'], ['pending', 'Pendientes']];
+    const activeGid = state.guests.length
+      ? (state.guests.some(g => g.id === state.ui.guestSel) ? state.ui.guestSel : state.guests[0].id)
+      : '';
+    const guestLabel = activeGid ? pname(activeGid) : 'Invitados';
+    const filters = [
+      ['all', 'Todos'],
+      ['myth', nat('myth').player],
+      ['scad', nat('scad').player],
+      ...(activeGid ? [['guests', guestLabel]] : []),
+      ['ambos', 'Ambos / Los 3'],
+      ['pending', 'Pendientes']
+    ];
+    const guestQuestVisible = q => {
+      if (!activeGid) return false;
+      const f = state.ui.filter;
+      if (state.ui.track && q.track !== state.ui.track) return false;
+      if (f === 'all' || f === 'guests') return true;
+      if (f === 'pending') return !(state.guestTasks[activeGid] || {})[q.id];
+      if (f === 'ambos' || f === 'myth' || f === 'scad') return q.who === '3';
+      return false;
+    };
     const intro = panel(`
       ${head('CÓMO SE USA', 'cyan', 'ROADMAP DEL FOREVER WORLD',
         `Cada era tiene <strong>reglas técnicas</strong> (qué se desbloquea), <strong>hitos</strong> y <strong>preguntas de lore</strong> que responden ustedes. Para pasar de era hay que cumplir <strong class="text-gold">todos los hitos</strong> salvo los marcados como <em>Extra</em>. Las eras siguientes quedan bloqueadas hasta entonces. Nada de la historia está escrita: la escriben ustedes.`)}
@@ -333,8 +376,15 @@
       const status = s.complete ? `<span class="mc-tag tag-emerald">✔ COMPLETADA</span>` : i === curIdx ? `<span class="mc-tag tag-gold">▶ ERA ACTUAL</span>` : `<span class="mc-tag tag-slate">🔒 BLOQUEADA</span>`;
       const open = state.ui.open[era.id] ?? (i === curIdx);
       const tasks = era.tasks.filter(taskVisible);
+      const eraGuestsAll = activeGid ? (D.GUEST_QUESTS || []).filter(q => q.era === i) : [];
+      const eraGuests = eraGuestsAll.filter(guestQuestVisible);
+      const eraGuestDone = activeGid ? eraGuestsAll.filter(q => (state.guestTasks[activeGid] || {})[q.id]).length : 0;
       const pct = Math.round((s.done / s.total) * 100);
       const loreAns = state.lore[era.id] || {};
+      const cardsHtml = [
+        ...tasks.map(t => taskCard(t, i > curIdx)),
+        ...eraGuests.map(q => guestQuestCard(q, activeGid, i > curIdx))
+      ].join('');
       return `
       <details class="mc-panel p-lg era-card ${s.complete ? 'era-done' : i > curIdx ? 'era-locked' : ''}" data-era="${era.id}" ${open ? 'open' : ''}>
         <summary class="flex-between" style="cursor:pointer;list-style:none;">
@@ -342,7 +392,7 @@
             <div class="mc-slot" style="width:38px;height:38px;display:flex;align-items:center;justify-content:center;">${ICONS[era.icon] || ''}</div>
             <div>
               <div class="flex-row-wrap" style="gap:8px;"><span class="mc-tag tag-slate">${era.code}</span><h2 class="font-pixel text-white text-base" style="margin:0;">${esc(tx(era.name))}</h2>${status}</div>
-              <p class="text-xs text-muted" style="margin:3px 0 0 0;">Obligatorios ${s.reqDone}/${s.reqTotal} · Total ${s.done}/${s.total}</p>
+              <p class="text-xs text-muted" style="margin:3px 0 0 0;">Obligatorios ${s.reqDone}/${s.reqTotal} · Total ${s.done}/${s.total}${eraGuestsAll.length ? ` · ${esc(guestLabel)} ${eraGuestDone}/${eraGuestsAll.length}` : ''}</p>
             </div>
           </div>
           <div style="min-width:160px;"><div class="boss-bar-track"><div class="boss-bar-fill" style="width:${pct}%;background:${s.complete ? '#55ff55' : i === curIdx ? '#ffaa00' : '#8c8c8c'};"></div></div></div>
@@ -356,7 +406,7 @@
               <ul class="mc-list">${era.banned.map(x => `<li><span class="text-redstone">✖</span><span class="text-muted">${esc(tx(x))}</span></li>`).join('')}</ul>
             </div>
           </div>
-          ${i > curIdx ? `<div class="mc-slot p-sm text-xs text-gold" style="margin-bottom:10px;">🔒 Era bloqueada: completen los obligatorios de ${D.ERAS[curIdx] ? D.ERAS[curIdx].code : 'la era actual'} para poder marcar estos hitos.</div>` : ''}${tasks.length ? `<div class="grid-2" style="gap:10px;">${tasks.map(t => taskCard(t, i > curIdx)).join('')}</div>` : empty('Ningún hito coincide con el filtro en esta era.')}
+          ${i > curIdx ? `<div class="mc-slot p-sm text-xs text-gold" style="margin-bottom:10px;">🔒 Era bloqueada: completen los obligatorios de ${D.ERAS[curIdx] ? D.ERAS[curIdx].code : 'la era actual'} para poder marcar estos hitos.</div>` : ''}${cardsHtml ? `<div class="grid-2" style="gap:10px;">${cardsHtml}</div>` : empty('Ningún hito coincide con el filtro en esta era.')}
           <details class="mc-details" style="margin-top:14px;" ${Object.values(loreAns).some(Boolean) ? '' : ''}>
             <summary class="font-mono text-xs text-amethyst" style="font-weight:700;">▸ Preguntas de lore de ${era.code} (las responden ustedes)</summary>
             <div class="section-stack" style="margin-top:10px;">
@@ -1091,7 +1141,15 @@
       if (rev.status === 'approved') return `<span class="mc-tag tag-emerald">✔ Avalada (${esc(revName)})</span>`;
       return '';
     };
-    const revActLabel = a => ({ submitted: 'Enviada a revisión', resubmitted: 'Reenviada tras correcciones', returned: 'Devuelta con anotaciones', approved: 'Avalada por revisor', edited: 'Norma editada' }[a] || a);
+    const revActLabel = a => ({
+      submitted: 'Enviada a revisión',
+      resubmitted: 'Reenviada tras correcciones',
+      returned: 'Devuelta con anotaciones',
+      approved: 'Avalada por revisor',
+      edited: 'Norma editada',
+      repealed: 'Derogada',
+      restored: 'Restaurada tras edición'
+    }[a] || a);
     const renderReviewBox = rev => {
       if (rev.status === 'none' && !rev.notes.length) return '';
       const latest = rev.notes[0];
@@ -1132,6 +1190,7 @@
                 ${rev.status !== 'approved' ? `<button class="mc-btn mc-btn-emerald" style="padding:3px 7px;" data-action="law-approve-rev" data-id="${l.id}" title="Avalar como ${esc(revName)}">✔ Avalar</button>` : ''}
                 <button class="mc-btn mc-btn-gold" style="padding:3px 7px;" data-action="law-return" data-id="${l.id}" title="Devolver con anotaciones como ${esc(revName)}">↩ Devolver con anotaciones</button>
               ` : ''}
+              <button class="mc-btn ${l.repealed ? '' : 'mc-btn-redstone'}" style="padding:3px 7px;" data-action="law-repeal" data-id="${l.id}">${l.repealed ? '♻ Restaurar' : '🚫 Derogar'}</button>
               <button class="mc-btn" style="padding:3px 7px;" data-action="law-book" data-id="${l.id}" title="Copiar texto formateado para Libro de Minecraft">📖 Libro</button>
             ` : `
               ${STATES.map(s => `<button class="mc-btn ${l.signs[s] ? 'mc-btn-emerald' : ''}" style="padding:3px 7px;" data-action="law-sign" data-id="${l.id}" data-s="${s}">${l.signs[s] ? '✔' : '✍'} ${esc(nat(s).player)}</button>`).join('')}
@@ -1139,13 +1198,18 @@
               <button class="mc-btn" style="padding:3px 7px;" data-action="law-edit" data-id="${l.id}" title="Editar artículos o agregar parágrafo">✎ Editar</button>
               <button class="mc-btn" style="padding:3px 7px;" data-action="law-book" data-id="${l.id}" title="Copiar texto formateado para Libro de Minecraft">📖 Libro</button>
               <button class="mc-btn" style="padding:3px 7px;" data-action="law-move" data-id="${l.id}" title="${rp ? 'Mover a reglas del servidor' : 'Mover a leyes del mundo'}">${rp ? '→ Reglas' : '→ Leyes'}</button>
-              <button class="mc-btn" style="padding:3px 7px;" data-action="law-repeal" data-id="${l.id}">${l.repealed ? 'Restaurar' : 'Derogar'}</button>
+              <button class="mc-btn" style="padding:3px 7px;" data-action="law-repeal" data-id="${l.id}">${l.repealed ? '♻ Restaurar' : '🚫 Derogar'}</button>
               <button class="mc-btn mc-btn-redstone" style="padding:3px 7px;" data-action="law-del" data-id="${l.id}" title="Borrar esta norma">🗑 Borrar</button>
             `}
           </div>
         </div>
         ${formatNormBody(l.text)}
         ${l.sanction ? `<div class="text-xs font-mono text-gold" style="margin-top:6px;">${rp ? 'Pena / Sanción' : 'Sanción'}: ${esc(l.sanction)}</div>` : ''}
+        ${l.repealed ? `<div class="norm-review-box rev-returned">
+          <div><strong class="text-white">🚫 Norma derogada</strong>${l.repealedBy ? ` · <span class="text-muted">${esc(l.repealedBy)}${l.repealedAt ? ' (' + when(l.repealedAt) + ')' : ''}</span>` : ''}</div>
+          ${l.repealReason ? `<div class="text-gold" style="margin-top:2px;white-space:pre-wrap;">"${esc(l.repealReason)}"</div>` : ''}
+          <div class="text-xs ${l.repealEdited ? 'text-emerald' : 'text-muted'}" style="margin-top:4px;">${l.repealEdited ? '✔ Modificada tras derogación — ya se puede restaurar como borrador.' : '🔒 No se puede restaurar sin modificarla primero con "✎ Editar".'}</div>
+        </div>` : ''}
         ${rp ? renderReviewBox(rev) : ''}
       </div>`;
     };
@@ -1895,11 +1959,18 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       const l = state.laws.find(x => x.id === el.dataset.id);
       if (!l) return;
       const nextText = await askText(`Editar "${l.title}" (puedes agregar Artículo o Parágrafo nuevo):`, l.text);
-      if (nextText === null || nextText === l.text) return;
+      if (nextText === null) return;
+      if (nextText.trim() === (l.text || '').trim()) {
+        if (l.repealed) fail('Para poder restaurar una norma derogada debes modificar su contenido.');
+        return;
+      }
       l.text = nextText;
       l.editedAt = Date.now();
       const rev = ensureLawReview(l);
-      if (l.signs.myth || l.signs.scad || rev.status === 'approved') {
+      if (l.repealed) {
+        l.repealEdited = true;
+        pushReviewNote(l, 'edited', 'Modificada tras derogación; lista para restaurar.');
+      } else if (l.signs.myth || l.signs.scad || rev.status === 'approved') {
         l.signs = { myth: false, scad: false };
         if (rev.status === 'approved') rev.status = 'pending';
         pushReviewNote(l, 'edited', 'Texto modificado; requiere nueva aprobación/firmas.');
@@ -1907,7 +1978,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
         pushReviewNote(l, 'edited', 'Texto corregido; listo para reenviar a revisión.');
       }
       commit('state');
-      toast('Norma actualizada', rev.status === 'returned' ? 'Editada. Pulsa "📤 Reenviar a revisión" cuando esté lista.' : l.title, 'gavel');
+      toast('Norma actualizada', l.repealed ? 'Editada. Ya puedes pulsar "♻ Restaurar".' : (rev.status === 'returned' ? 'Editada. Pulsa "📤 Reenviar a revisión" cuando esté lista.' : l.title), 'gavel');
     },
     'law-book': el => {
       const l = state.laws.find(x => x.id === el.dataset.id);
@@ -1969,7 +2040,38 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       state.trd = state.trd.filter(t => t.code !== code);
       commit('state');
     },
-    'law-repeal': el => { const l = state.laws.find(x => x.id === el.dataset.id); if (l) { l.repealed = !l.repealed; commit('state'); } },
+    'law-repeal': async el => {
+      const l = state.laws.find(x => x.id === el.dataset.id);
+      if (!l) return;
+      if (!l.repealed) {
+        const reason = await askText(`Motivo / comentario obligatorio para derogar "${l.title}":`, '');
+        if (reason === null) return;
+        if (!reason.trim()) return fail('Para derogar una norma es obligatorio escribir el motivo.');
+        l.repealed = true;
+        l.repealReason = reason.trim();
+        l.repealedBy = me ? pname(me) : 'Sistema';
+        l.repealedAt = Date.now();
+        l.repealEdited = false;
+        l.signs = { myth: false, scad: false };
+        const rev = ensureLawReview(l);
+        if (reviewerId() && me === reviewerId()) rev.status = 'returned';
+        pushReviewNote(l, 'repealed', l.repealReason);
+        commit('state');
+        toast('Norma derogada', `${l.title} dejó de estar vigente.`, 'gold');
+        return;
+      }
+      if (!l.repealEdited) {
+        return fail('No se puede restaurar sin hacer cambios. Edita la norma primero con "✎ Editar".');
+      }
+      l.repealed = false;
+      l.repealEdited = false;
+      l.signs = { myth: false, scad: false };
+      const rev = ensureLawReview(l);
+      if (rev.status === 'approved') rev.status = 'pending';
+      pushReviewNote(l, 'restored', 'Restaurada tras edición; vuelve como borrador.');
+      commit('state');
+      toast('Norma restaurada', `${l.title} volvió como borrador para aprobación.`, 'emerald');
+    },
     'law-del': async el => {
       const l = state.laws.find(x => x.id === el.dataset.id);
       if (!l) return;
@@ -2388,6 +2490,20 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     }
   }
 
+  function applyMergedCloudState(mergedCloud, row) {
+    if (!mergedCloud) return;
+    const keptUi = state.ui;
+    const merged = CLOUD ? CLOUD.mergeCloudUiWithLocal(mergedCloud, keptUi) : mergedCloud;
+    state = merge(defaultState(), merged);
+    state.updatedAt = Math.max(Number(state.updatedAt) || 0, Number(row && row.updated_at) || 0) || Date.now();
+    state.updatedBy = (me ? pname(me) : '') || (row && row.updated_by) || state.updatedBy || '';
+    if (preferredMe && participants().includes(preferredMe)) me = preferredMe;
+    else if (me && !participants().includes(me)) me = '';
+    safeSet(STORAGE_KEY, JSON.stringify(state));
+    if (!isEditingField()) renderAll();
+    if ($('modal-backup') && $('modal-backup').classList.contains('open')) renderCloudPanel(false);
+  }
+
   async function loadCloudSnapshots() {
     const box = $('cloud-snapshots-list');
     if (!box || !CLOUD) return;
@@ -2736,6 +2852,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
           if ($('modal-backup') && $('modal-backup').classList.contains('open')) renderCloudPanel(false);
         },
         onRemoteState: (row, meta) => applyRemoteRow(row, meta),
+        onMergedState: (mergedCloud, row) => applyMergedCloudState(mergedCloud, row),
         onConflict: row => {
           renderCloudPill();
           toast('Conflicto en la nube', `${row.updated_by || 'Otro jugador'} guardó cambios. Toca Supabase arriba.`, 'redstone');

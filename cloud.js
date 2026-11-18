@@ -1,5 +1,5 @@
 /* ==========================================================================
-   FOREVER WORLD — Sincronización en la nube con Supabase
+   FOREVER WORLD — Sincronización en tiempo real y merge 3-way con Supabase
    ========================================================================== */
 
 window.FW_CLOUD = (() => {
@@ -7,6 +7,7 @@ window.FW_CLOUD = (() => {
 
   const CFG_KEY = 'forever_world_supabase_cfg';
   const REV_PREFIX = 'forever_world_cloud_rev_';
+  const BASE_PREFIX = 'forever_world_cloud_base_';
   const WORLD_UI_KEYS = ['rpLawsSeeded', 'foodRuleV1', 'guestSeedV1'];
 
   let client = null;
@@ -17,13 +18,17 @@ window.FW_CLOUD = (() => {
   let lastSyncAt = 0;
   let lastSyncBy = '';
   let currentRev = null;
+  let baseState = null;
   let conflictRow = null;
   let pushTimer = null;
+  let heartbeatTimer = null;
   let pushing = false;
   let pushQueued = false;
+  let bufferedRealtimeRow = null;
   let handlers = {};
   let onlinePlayers = [];
   let currentPresence = { id: '', name: 'Visitante', at: Date.now() };
+
   const clientId = (() => {
     try {
       let id = sessionStorage.getItem('fw_client_id');
@@ -37,11 +42,14 @@ window.FW_CLOUD = (() => {
     }
   })();
 
+  const cloneObj = o => JSON.parse(JSON.stringify(o));
   function safeGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
   function safeSet(k, v) { try { localStorage.setItem(k, v); return true; } catch { return false; } }
   function safeDel(k) { try { localStorage.removeItem(k); } catch { /* noop */ } }
 
   function revKey(worldId) { return REV_PREFIX + (worldId || 'main'); }
+  function baseKey(worldId) { return BASE_PREFIX + (worldId || 'main'); }
+
   function readSavedRev(worldId) {
     const raw = safeGet(revKey(worldId));
     const n = Number(raw);
@@ -51,6 +59,18 @@ window.FW_CLOUD = (() => {
     currentRev = rev;
     if (rev) safeSet(revKey(worldId), String(rev));
     else safeDel(revKey(worldId));
+  }
+
+  function readSavedBase(worldId) {
+    try {
+      const raw = safeGet(baseKey(worldId));
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  }
+  function writeSavedBase(worldId, cloudState) {
+    baseState = cloudState ? cloneObj(cloudState) : null;
+    if (baseState) safeSet(baseKey(worldId), JSON.stringify(baseState));
+    else safeDel(baseKey(worldId));
   }
 
   function cleanUrl(u) {
@@ -116,7 +136,7 @@ window.FW_CLOUD = (() => {
 
   // Solo sincronizamos los flags globales del mundo dentro de `ui`; las vistas abiertas son por navegador
   function prepareStateForCloud(state) {
-    const clone = JSON.parse(JSON.stringify(state));
+    const clone = cloneObj(state);
     const worldUi = {};
     WORLD_UI_KEYS.forEach(k => {
       if (clone.ui && clone.ui[k] !== undefined) worldUi[k] = clone.ui[k];
@@ -126,7 +146,7 @@ window.FW_CLOUD = (() => {
   }
 
   function mergeCloudUiWithLocal(remoteState, localUi) {
-    const out = JSON.parse(JSON.stringify(remoteState || {}));
+    const out = cloneObj(remoteState || {});
     const remoteUi = (out.ui && typeof out.ui === 'object') ? out.ui : {};
     const keptLocal = (localUi && typeof localUi === 'object') ? { ...localUi } : {};
     WORLD_UI_KEYS.forEach(k => {
@@ -136,6 +156,141 @@ window.FW_CLOUD = (() => {
     return out;
   }
 
+  /* ======================== Merge 3-way para edición concurrente ======================== */
+
+  function isPlainObj(x) {
+    return Boolean(x) && typeof x === 'object' && !Array.isArray(x);
+  }
+
+  function deepEqual(a, b) {
+    if (a === b) return true;
+    if (typeof a !== typeof b || a === null || b === null) return false;
+    if (Array.isArray(a) || Array.isArray(b)) {
+      if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+      for (let i = 0; i < a.length; i++) if (!deepEqual(a[i], b[i])) return false;
+      return true;
+    }
+    if (typeof a === 'object') {
+      const ka = Object.keys(a), kb = Object.keys(b);
+      if (ka.length !== kb.length) return false;
+      for (const k of ka) {
+        if (!Object.prototype.hasOwnProperty.call(b, k) || !deepEqual(a[k], b[k])) return false;
+      }
+      return true;
+    }
+    return false;
+  }
+
+  function itemKeyProp(arrA, arrB) {
+    const sample = [...(arrA || []), ...(arrB || [])].find(x => isPlainObj(x));
+    if (!sample) return null;
+    if ('id' in sample) return 'id';
+    if ('code' in sample) return 'code';
+    return null;
+  }
+
+  function mergeKeyedArrays(baseArr, localArr, remoteArr, keyProp, path) {
+    const bMap = new Map((Array.isArray(baseArr) ? baseArr : []).map(x => [x[keyProp], x]));
+    const lMap = new Map((Array.isArray(localArr) ? localArr : []).map(x => [x[keyProp], x]));
+    const rMap = new Map((Array.isArray(remoteArr) ? remoteArr : []).map(x => [x[keyProp], x]));
+
+    const order = [];
+    const seen = new Set();
+    const pushKey = k => { if (!seen.has(k)) { seen.add(k); order.push(k); } };
+    (Array.isArray(remoteArr) ? remoteArr : []).forEach(x => pushKey(x[keyProp]));
+    (Array.isArray(localArr) ? localArr : []).forEach(x => pushKey(x[keyProp]));
+
+    const out = [];
+    for (const k of order) {
+      const inB = bMap.has(k), b = bMap.get(k);
+      const inL = lMap.has(k), l = lMap.get(k);
+      const inR = rMap.has(k), r = rMap.get(k);
+
+      if (inL && inR) {
+        out.push(threeWayMerge(b, l, r, `${path}[]`));
+      } else if (inL && !inR) {
+        // Conserva si es nuevo en local o si se modificó localmente mientras otro lo borró
+        if (!inB || !deepEqual(l, b)) out.push(cloneObj(l));
+      } else if (inR && !inL) {
+        // Conserva si es nuevo en remoto o si se modificó remotamente mientras local lo borró
+        if (!inB || !deepEqual(r, b)) out.push(cloneObj(r));
+      }
+    }
+
+    if (path === 'economy.ledger' || path.endsWith('.notes')) {
+      out.sort((a, b) => (Number(b.t || b.at) || 0) - (Number(a.t || a.at) || 0));
+    }
+    return out;
+  }
+
+  function mergeFxHistory(localArr, remoteArr) {
+    const seen = new Set();
+    const all = [...(Array.isArray(remoteArr) ? remoteArr : []), ...(Array.isArray(localArr) ? localArr : [])]
+      .filter(x => x && Number.isFinite(Number(x.t)))
+      .sort((a, b) => Number(a.t) - Number(b.t))
+      .filter(x => {
+        const k = `${x.t}|${x.r}`;
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      });
+    return all.length > 300 ? all.slice(all.length - 300) : all;
+  }
+
+  function isAdditivePath(path) {
+    return /^economy\.holdings\.[^.]+\.(M|S)$/.test(path)
+      || path === 'economy.bank.M'
+      || path === 'economy.bank.S'
+      || path === 'railBlocks';
+  }
+
+  function threeWayMerge(base, local, remote, path = '') {
+    if (deepEqual(local, remote)) return cloneObj(remote);
+    if (deepEqual(local, base)) return cloneObj(remote);
+    if (deepEqual(remote, base)) return cloneObj(local);
+
+    if (path === 'updatedAt') {
+      return Math.max(Number(local) || 0, Number(remote) || 0);
+    }
+    if (path === 'updatedBy') {
+      return local || remote || '';
+    }
+
+    if (isAdditivePath(path) && typeof base === 'number' && typeof local === 'number' && typeof remote === 'number') {
+      const sum = Math.round((base + (local - base) + (remote - base)) * 100) / 100;
+      return local >= 0 && remote >= 0 ? Math.max(0, sum) : sum;
+    }
+
+    if (Array.isArray(local) && Array.isArray(remote)) {
+      if (path === 'economy.fxHistory') return mergeFxHistory(local, remote);
+      const keyProp = itemKeyProp(local, remote) || itemKeyProp(base, []);
+      if (keyProp) return mergeKeyedArrays(base, local, remote, keyProp, path);
+      return !deepEqual(local, base) ? cloneObj(local) : cloneObj(remote);
+    }
+
+    if (isPlainObj(local) && isPlainObj(remote)) {
+      const bObj = isPlainObj(base) ? base : {};
+      const keys = new Set([...Object.keys(bObj), ...Object.keys(remote), ...Object.keys(local)]);
+      const out = {};
+      for (const k of keys) {
+        const inB = Object.prototype.hasOwnProperty.call(bObj, k);
+        const inL = Object.prototype.hasOwnProperty.call(local, k);
+        const inR = Object.prototype.hasOwnProperty.call(remote, k);
+        const childPath = path ? `${path}.${k}` : k;
+        if (inL && inR) {
+          out[k] = threeWayMerge(bObj[k], local[k], remote[k], childPath);
+        } else if (inL && !inR) {
+          if (!inB || !deepEqual(local[k], bObj[k])) out[k] = cloneObj(local[k]);
+        } else if (inR && !inL) {
+          if (!inB || !deepEqual(remote[k], bObj[k])) out[k] = cloneObj(remote[k]);
+        }
+      }
+      return out;
+    }
+
+    return !deepEqual(local, base) ? cloneObj(local) : cloneObj(remote);
+  }
+
   function hasLibrary() {
     return Boolean(window.supabase && typeof window.supabase.createClient === 'function');
   }
@@ -143,6 +298,9 @@ window.FW_CLOUD = (() => {
   async function disconnect() {
     clearTimeout(pushTimer);
     pushTimer = null;
+    clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
+    bufferedRealtimeRow = null;
     if (channel && client) {
       try { await client.removeChannel(channel); } catch { /* noop */ }
     }
@@ -159,6 +317,38 @@ window.FW_CLOUD = (() => {
       .eq('id', activeCfg.worldId)
       .maybeSingle();
     return { data, error };
+  }
+
+  async function checkForUpdates() {
+    if (!client || pushing || pushTimer || status === 'unconfigured' || status === 'offline') return;
+    if (channel && (channel.state === 'closed' || channel.state === 'errored')) {
+      subscribeRealtime();
+    }
+    try {
+      const { data, error } = await client
+        .from('fw_worlds')
+        .select('rev')
+        .eq('id', activeCfg.worldId)
+        .maybeSingle();
+      if (error || !data) return;
+      if (currentRev === null || Number(data.rev) > Number(currentRev)) {
+        await pullNow();
+      }
+    } catch { /* noop */ }
+  }
+
+  function startHeartbeat() {
+    clearInterval(heartbeatTimer);
+    heartbeatTimer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      checkForUpdates();
+    }, 15000);
+  }
+
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) checkForUpdates();
+    });
   }
 
   function subscribeRealtime() {
@@ -182,6 +372,12 @@ window.FW_CLOUD = (() => {
         payload => {
           const row = payload && payload.new;
           if (!row || !row.state) return;
+          if (pushing) {
+            if (!bufferedRealtimeRow || Number(row.rev) > Number(bufferedRealtimeRow.rev)) {
+              bufferedRealtimeRow = row;
+            }
+            return;
+          }
           if (currentRev !== null && Number(row.rev) <= Number(currentRev)) return;
           applyIncomingRow(row, true);
         }
@@ -200,7 +396,7 @@ window.FW_CLOUD = (() => {
         if (stateName === 'SUBSCRIBED') {
           try { await channel.track(currentPresence); } catch { /* noop */ }
         } else if (stateName === 'CHANNEL_ERROR' || stateName === 'TIMED_OUT') {
-          if (status === 'synced') setStatus('error', 'Realtime desconectado; usa Sincronizar ahora.');
+          if (status === 'synced') setStatus('error', 'Realtime desconectado; sincronizando cada 15s.');
         }
       });
   }
@@ -219,10 +415,21 @@ window.FW_CLOUD = (() => {
   function applyIncomingRow(row, fromRealtime) {
     if (!row || !row.state) return;
     conflictRow = null;
+    const prevBase = baseState;
     writeSavedRev(activeCfg.worldId, Number(row.rev));
+    writeSavedBase(activeCfg.worldId, row.state);
     lastSyncAt = Number(row.updated_at) || Date.now();
     lastSyncBy = row.updated_by || '';
     setStatus('synced', '');
+
+    // Si hay cambios locales en cola (por debounce), fusionarlos con el remoto antes de renderizar
+    if (fromRealtime && pushTimer && typeof handlers.getState === 'function' && typeof handlers.onMergedState === 'function') {
+      const localCloud = prepareStateForCloud(handlers.getState());
+      const merged = threeWayMerge(prevBase || row.state, localCloud, row.state);
+      handlers.onMergedState(merged, row);
+      return;
+    }
+
     if (typeof handlers.onRemoteState === 'function') {
       handlers.onRemoteState(row, { fromRealtime });
     }
@@ -235,10 +442,11 @@ window.FW_CLOUD = (() => {
 
     activeCfg = resolveConfig();
     currentRev = readSavedRev(activeCfg.worldId);
+    baseState = readSavedBase(activeCfg.worldId);
     conflictRow = null;
 
     if (!activeCfg.url || !activeCfg.anonKey) {
-      setStatus('unconfigured', 'Configura Supabase en Guardar / Cargar.');
+      setStatus('unconfigured', 'Configura Supabase en el modal de la nube.');
       return getInfo();
     }
 
@@ -270,6 +478,7 @@ window.FW_CLOUD = (() => {
         if (isFresh) {
           applyIncomingRow(row, false);
         } else if (currentRev !== null && remoteRev === currentRev) {
+          writeSavedBase(activeCfg.worldId, row.state);
           lastSyncAt = remoteAt;
           lastSyncBy = row.updated_by || '';
           setStatus('synced', '');
@@ -277,7 +486,19 @@ window.FW_CLOUD = (() => {
             await pushState(localState, false);
           }
         } else if (currentRev !== null && remoteRev !== currentRev) {
-          if (remoteAt >= localAt) {
+          if (baseState && localState && typeof handlers.onMergedState === 'function') {
+            const merged = threeWayMerge(baseState, prepareStateForCloud(localState), row.state);
+            writeSavedRev(activeCfg.worldId, remoteRev);
+            writeSavedBase(activeCfg.worldId, row.state);
+            lastSyncAt = remoteAt;
+            lastSyncBy = row.updated_by || '';
+            handlers.onMergedState(merged, row);
+            if (!deepEqual(merged, row.state)) {
+              await pushState(handlers.getState(), false);
+            } else {
+              setStatus('synced', '');
+            }
+          } else if (remoteAt >= localAt) {
             applyIncomingRow(row, false);
           } else {
             conflictRow = row;
@@ -285,7 +506,6 @@ window.FW_CLOUD = (() => {
             if (typeof handlers.onConflict === 'function') handlers.onConflict(row);
           }
         } else {
-          // Navegador con datos previos sin historial de revisión en la nube
           if (typeof handlers.onInitialMismatch === 'function') {
             lastSyncAt = remoteAt;
             lastSyncBy = row.updated_by || '';
@@ -297,6 +517,7 @@ window.FW_CLOUD = (() => {
         }
       } else {
         writeSavedRev(activeCfg.worldId, null);
+        writeSavedBase(activeCfg.worldId, null);
         if (!isFresh && localState) {
           await pushState(localState, true);
         } else {
@@ -305,6 +526,7 @@ window.FW_CLOUD = (() => {
       }
 
       subscribeRealtime();
+      startHeartbeat();
       return getInfo();
     } catch (err) {
       setStatus('error', err && err.message ? err.message : 'Error al conectar.');
@@ -312,13 +534,13 @@ window.FW_CLOUD = (() => {
     }
   }
 
-  async function pushState(state, force = false) {
+  async function pushState(state, force = false, attempt = 0) {
     if (!client || !activeCfg.url || !activeCfg.anonKey) return { ok: false, reason: 'unconfigured' };
-    if (pushing) {
+    if (pushing && attempt === 0) {
       pushQueued = true;
       return { ok: false, reason: 'queued' };
     }
-    pushing = true;
+    if (attempt === 0) pushing = true;
     setStatus('syncing', 'Guardando en Supabase...');
 
     try {
@@ -340,6 +562,7 @@ window.FW_CLOUD = (() => {
       if (data && data.ok) {
         conflictRow = null;
         writeSavedRev(activeCfg.worldId, Number(data.rev));
+        writeSavedBase(activeCfg.worldId, payload);
         lastSyncAt = Number(data.updated_at) || Date.now();
         lastSyncBy = data.updated_by || '';
         setStatus('synced', '');
@@ -347,13 +570,22 @@ window.FW_CLOUD = (() => {
       }
 
       if (data && data.reason === 'conflict') {
-        conflictRow = {
+        const remoteRow = {
           id: activeCfg.worldId,
           state: data.state,
           updated_at: data.updated_at,
           updated_by: data.updated_by,
           rev: data.rev
         };
+        if (!force && attempt < 4 && data.state && typeof handlers.onMergedState === 'function') {
+          const mergedCloud = threeWayMerge(baseState || data.state, payload, data.state);
+          writeSavedRev(activeCfg.worldId, Number(data.rev));
+          writeSavedBase(activeCfg.worldId, data.state);
+          handlers.onMergedState(mergedCloud, remoteRow);
+          const nextState = typeof handlers.getState === 'function' ? handlers.getState() : mergedCloud;
+          return await pushState(nextState, false, attempt + 1);
+        }
+        conflictRow = remoteRow;
         setStatus('conflict', `Conflicto: ${data.updated_by || 'otro jugador'} guardó antes.`);
         if (typeof handlers.onConflict === 'function') handlers.onConflict(conflictRow);
         return { ok: false, reason: 'conflict', row: conflictRow };
@@ -365,11 +597,18 @@ window.FW_CLOUD = (() => {
       setStatus('error', err && err.message ? err.message : 'Error de red.');
       return { ok: false, reason: 'network', error: err };
     } finally {
-      pushing = false;
-      if (pushQueued) {
-        pushQueued = false;
-        if (typeof handlers.getState === 'function' && status !== 'conflict') {
-          pushState(handlers.getState(), false);
+      if (attempt === 0) {
+        pushing = false;
+        const buffered = bufferedRealtimeRow;
+        bufferedRealtimeRow = null;
+        if (buffered && (currentRev === null || Number(buffered.rev) > Number(currentRev))) {
+          applyIncomingRow(buffered, true);
+        }
+        if (pushQueued) {
+          pushQueued = false;
+          if (typeof handlers.getState === 'function' && status !== 'conflict') {
+            pushState(handlers.getState(), false, 0);
+          }
         }
       }
     }
@@ -382,7 +621,7 @@ window.FW_CLOUD = (() => {
       pushTimer = null;
       const st = typeof getStateFn === 'function' ? getStateFn() : (handlers.getState ? handlers.getState() : null);
       if (st) pushState(st, false);
-    }, 450);
+    }, 320);
   }
 
   async function pullNow() {
@@ -395,6 +634,7 @@ window.FW_CLOUD = (() => {
     }
     if (!row || !row.state) {
       writeSavedRev(activeCfg.worldId, null);
+      writeSavedBase(activeCfg.worldId, null);
       setStatus('synced', 'No hay partida guardada todavía en esta sala.');
       return { ok: true, empty: true };
     }
@@ -516,6 +756,7 @@ window.FW_CLOUD = (() => {
     buildInviteUrl,
     buildConfigFileSnippet,
     mergeCloudUiWithLocal,
+    threeWayMerge,
     getInfo
   };
 })();
