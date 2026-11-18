@@ -225,10 +225,29 @@
 
   /* ======================== Progreso y eras ======================== */
 
+  function taskActorDone(t, actor) {
+    const v = state.tasks[t.id];
+    if (v && typeof v === 'object') return Boolean(v[actor]);
+    return Boolean(v);
+  }
+  function isTaskDone(t) {
+    if (t.who === 'ambos') return taskActorDone(t, 'myth') && taskActorDone(t, 'scad');
+    return taskActorDone(t, t.who);
+  }
+  function guestActorDone(q, gid, actorKey) {
+    const v = (state.guestTasks[gid] || {})[q.id];
+    if (v && typeof v === 'object') return Boolean(v[actorKey]);
+    return Boolean(v);
+  }
+  function isGuestQuestDone(q, gid) {
+    if (q.who === '3') return guestActorDone(q, gid, 'myth') && guestActorDone(q, gid, 'scad') && guestActorDone(q, gid, 'guest');
+    return guestActorDone(q, gid, 'guest');
+  }
+
   function eraStats(era) {
-    const done = era.tasks.filter(t => state.tasks[t.id]).length;
+    const done = era.tasks.filter(isTaskDone).length;
     const req = era.tasks.filter(t => t.req);
-    const reqDone = req.filter(t => state.tasks[t.id]).length;
+    const reqDone = req.filter(isTaskDone).length;
     return { done, total: era.tasks.length, reqDone, reqTotal: req.length, complete: reqDone === req.length };
   }
   // Era actual = primera era con obligatorios pendientes (D.ERAS.length = Era ∞)
@@ -249,7 +268,7 @@
 
   function renderHUD() {
     const all = D.ERAS.flatMap(e => e.tasks);
-    const done = all.filter(t => state.tasks[t.id]).length;
+    const done = all.filter(isTaskDone).length;
     const pct = Math.round((done / all.length) * 100);
     $('hud-title').textContent = (state.world.worldName || 'Forever World').toUpperCase();
     $('hud-sub').innerHTML = `<strong class="text-royal">${esc(nat('myth').nation)}</strong> (${esc(nat('myth').player)}) &times; <strong class="text-emerald">${esc(nat('scad').nation)}</strong> (${esc(nat('scad').player)})`;
@@ -313,32 +332,46 @@
     if (state.ui.track && t.track !== state.ui.track) return false;
     if (f === 'all') return true;
     if (f === 'guests') return false;
-    if (f === 'pending') return !state.tasks[t.id];
+    if (f === 'pending') return !isTaskDone(t);
     if (f === 'req') return t.req;
     if (f === 'ambos') return t.who === 'ambos';
     return t.who === f || t.who === 'ambos';
   }
 
   function guestQuestCard(q, gid, locked) {
-    const done = state.guestTasks[gid] || {};
-    const checked = Boolean(done[q.id]);
+    const checked = isGuestQuestDone(q, gid);
     const track = D.TRACKS[q.track] || { tag: 'slate', name: q.track };
     const eraCode = D.ERAS[q.era] ? D.ERAS[q.era].code : '';
-    return `<label class="task-card p-md ${checked ? 'completed enchanted-glint' : ''} ${locked ? 'locked' : ''}" style="display:flex;gap:12px;cursor:${locked ? 'not-allowed' : 'pointer'};border-left:4px solid ${q.who === '3' ? '#ffaa00' : '#23a3b0'};" ${locked ? 'title="Era bloqueada"' : ''}>
-      <div class="mc-check-wrap"><input type="checkbox" class="guest-check" data-g="${gid}" data-q="${q.id}" ${checked ? 'checked' : ''} ${locked ? 'disabled' : ''}/>
-        <div class="mc-check-box"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8.5L6.5 12L13 4.5" stroke="#ffffff" stroke-width="2.5" stroke-linecap="square"/></svg></div></div>
-      <div style="flex:1;min-width:0;">
-        <div class="flex-row-wrap" style="gap:5px;margin-bottom:5px;">
-          ${locked ? '<span class="mc-tag tag-slate">🔒</span>' : ''}
-          <span class="mc-tag tag-cyan">${esc(pname(gid))}</span>
-          <span class="mc-tag tag-slate">${esc(eraCode)}</span>
-          ${q.who === '3' ? '<span class="mc-tag tag-gold">Los 3</span>' : ''}
-          <span class="mc-tag tag-${track.tag}">${esc(track.name)}</span>
+    const actors = q.who === '3'
+      ? [{ pid: 'myth', key: 'myth' }, { pid: 'scad', key: 'scad' }, { pid: gid, key: 'guest' }]
+      : [{ pid: gid, key: 'guest' }];
+    const checksHtml = actors.map(a => {
+      const aDone = guestActorDone(q, gid, a.key);
+      const canToggle = !locked && me === a.pid;
+      const tip = locked ? 'Era bloqueada' : canToggle ? `Marcar por ${pname(a.pid)}` : `Solo ${pname(a.pid)} puede marcar su casilla (selecciona en "Soy:")`;
+      return `<label class="flex-row-wrap" style="gap:6px;align-items:center;cursor:${canToggle ? 'pointer' : 'not-allowed'};opacity:${canToggle || aDone ? '1' : '.62'};" title="${esc(tip)}">
+        <div class="mc-check-wrap"><input type="checkbox" class="guest-check" data-g="${gid}" data-q="${q.id}" data-actor="${a.key}" data-pid="${a.pid}" ${aDone ? 'checked' : ''} ${canToggle ? '' : 'disabled'}/>
+          <div class="mc-check-box"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8.5L6.5 12L13 4.5" stroke="#ffffff" stroke-width="2.5" stroke-linecap="square"/></svg></div></div>
+        ${actors.length > 1 ? `<span class="mc-tag ${aDone ? 'tag-emerald' : 'tag-slate'}" style="font-size:10px;">${esc(pname(a.pid))}</span>` : ''}
+      </label>`;
+    }).join('');
+    return `<div class="task-card p-md ${checked ? 'completed enchanted-glint' : ''} ${locked ? 'locked' : ''}" style="display:flex;flex-direction:column;gap:8px;border-left:4px solid ${q.who === '3' ? '#ffaa00' : '#23a3b0'};" ${locked ? 'title="Era bloqueada"' : ''}>
+      <div style="display:flex;gap:12px;align-items:flex-start;">
+        ${actors.length === 1 ? checksHtml : ''}
+        <div style="flex:1;min-width:0;">
+          <div class="flex-row-wrap" style="gap:5px;margin-bottom:5px;">
+            ${locked ? '<span class="mc-tag tag-slate">🔒</span>' : ''}
+            <span class="mc-tag tag-cyan">${esc(pname(gid))}</span>
+            <span class="mc-tag tag-slate">${esc(eraCode)}</span>
+            ${q.who === '3' ? '<span class="mc-tag tag-gold">Los 3 (3 casillas)</span>' : ''}
+            <span class="mc-tag tag-${track.tag}">${esc(track.name)}</span>
+          </div>
+          <div class="task-title text-sm text-white" style="font-weight:700;margin-bottom:4px;">${esc(tx(q.title))}</div>
+          <p class="text-xs text-muted" style="margin:0 0 6px 0;line-height:1.45;">${esc(tx(q.desc))}</p>
+          <div class="text-xs text-dim"><strong class="text-diamond">Prueba:</strong> ${esc(tx(q.proof))}</div>
+          ${actors.length > 1 ? `<div class="flex-row-wrap" style="gap:10px;margin-top:8px;padding-top:6px;border-top:1px dashed rgba(255,255,255,0.12);">${checksHtml}</div>` : ''}
         </div>
-        <div class="task-title text-sm text-white" style="font-weight:700;margin-bottom:4px;">${esc(tx(q.title))}</div>
-        <p class="text-xs text-muted" style="margin:0 0 6px 0;line-height:1.45;">${esc(tx(q.desc))}</p>
-        <div class="text-xs text-dim"><strong class="text-diamond">Prueba:</strong> ${esc(tx(q.proof))}</div>
-      </div></label>`;
+      </div></div>`;
   }
 
   function renderRoadmap() {
@@ -360,7 +393,7 @@
       const f = state.ui.filter;
       if (state.ui.track && q.track !== state.ui.track) return false;
       if (f === 'all' || f === 'guests') return true;
-      if (f === 'pending') return !(state.guestTasks[activeGid] || {})[q.id];
+      if (f === 'pending') return !isGuestQuestDone(q, activeGid);
       if (f === 'ambos' || f === 'myth' || f === 'scad') return q.who === '3';
       return false;
     };
@@ -395,7 +428,7 @@
       const tasks = era.tasks.filter(taskVisible);
       const eraGuestsAll = activeGid ? (D.GUEST_QUESTS || []).filter(q => q.era === i) : [];
       const eraGuests = eraGuestsAll.filter(guestQuestVisible);
-      const eraGuestDone = activeGid ? eraGuestsAll.filter(q => (state.guestTasks[activeGid] || {})[q.id]).length : 0;
+      const eraGuestDone = activeGid ? eraGuestsAll.filter(q => isGuestQuestDone(q, activeGid)).length : 0;
       const pct = Math.round((s.done / s.total) * 100);
       const loreAns = state.lore[era.id] || {};
       const stateCardsHtml = tasks.map(t => taskCard(t, i > curIdx)).join('');
@@ -446,52 +479,48 @@
   }
 
   function taskCard(t, locked) {
-    const checked = Boolean(state.tasks[t.id]);
+    const checked = isTaskDone(t);
     const track = D.TRACKS[t.track];
-    return `
-      <label class="task-card p-md ${checked ? 'completed enchanted-glint' : ''} ${locked ? 'locked' : ''}" style="display:flex;gap:12px;cursor:${locked ? 'not-allowed' : 'pointer'};border-left:4px solid ${t.who === 'ambos' ? '#8b8b8b' : stateBorder(t.who)};" ${locked ? 'title="Era bloqueada"' : ''}>
+    const actors = t.who === 'ambos' ? ['myth', 'scad'] : [t.who];
+    const checksHtml = actors.map(a => {
+      const aDone = taskActorDone(t, a);
+      const canToggle = !locked && me === a;
+      const tip = locked ? 'Era bloqueada' : canToggle ? `Marcar por ${pname(a)}` : `Solo ${pname(a)} puede marcar su casilla (selecciona en "Soy:")`;
+      return `<label class="flex-row-wrap" style="gap:6px;align-items:center;cursor:${canToggle ? 'pointer' : 'not-allowed'};opacity:${canToggle || aDone ? '1' : '.62'};" title="${esc(tip)}">
         <div class="mc-check-wrap">
-          <input type="checkbox" class="task-check" data-task="${t.id}" ${checked ? 'checked' : ''} ${locked ? 'disabled' : ''} />
+          <input type="checkbox" class="task-check" data-task="${t.id}" data-actor="${a}" ${aDone ? 'checked' : ''} ${canToggle ? '' : 'disabled'} />
           <div class="mc-check-box"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8.5L6.5 12L13 4.5" stroke="#ffffff" stroke-width="2.5" stroke-linecap="square"/></svg></div>
         </div>
+        ${actors.length > 1 ? `<span class="mc-tag ${aDone ? `tag-${stateColor(a)}` : 'tag-slate'}" style="font-size:10px;">${esc(nat(a).player)}</span>` : ''}
+      </label>`;
+    }).join('');
+    return `
+      <div class="task-card p-md ${checked ? 'completed enchanted-glint' : ''} ${locked ? 'locked' : ''}" style="display:flex;gap:12px;border-left:4px solid ${t.who === 'ambos' ? '#8b8b8b' : stateBorder(t.who)};" ${locked ? 'title="Era bloqueada"' : ''}>
+        ${actors.length === 1 ? checksHtml : ''}
         <div style="flex:1;min-width:0;">
           <div class="flex-row-wrap" style="gap:5px;margin-bottom:5px;">
-            ${locked ? '<span class="mc-tag tag-slate">🔒</span>' : ''}${whoTag(t.who)}<span class="mc-tag tag-${track.tag}">${esc(track.name)}</span>${t.req ? '' : '<span class="mc-tag tag-neutral">Extra</span>'}
+            ${locked ? '<span class="mc-tag tag-slate">🔒</span>' : ''}${whoTag(t.who)}${actors.length > 1 ? '<span class="mc-tag tag-slate">2 casillas</span>' : ''}<span class="mc-tag tag-${track.tag}">${esc(track.name)}</span>${t.req ? '' : '<span class="mc-tag tag-neutral">Extra</span>'}
           </div>
           <div class="task-title text-sm text-white" style="font-weight:700;margin-bottom:4px;">${esc(tx(t.title))}</div>
           <p class="text-xs text-muted" style="margin:0 0 6px 0;line-height:1.45;">${esc(tx(t.desc))}</p>
           <div class="text-xs font-mono text-dim"><strong class="text-diamond">Prueba:</strong> ${esc(tx(t.proof))}</div>
+          ${actors.length > 1 ? `<div class="flex-row-wrap" style="gap:10px;margin-top:8px;padding-top:6px;border-top:1px dashed rgba(255,255,255,0.12);">${checksHtml}</div>` : ''}
         </div>
-      </label>`;
+      </div>`;
   }
 
   // Misiones para invitados (jugadores sin Estado)
-  function guestDone(gid) { return (D.GUEST_QUESTS || []).filter(q => (state.guestTasks[gid] || {})[q.id]).length; }
+  function guestDone(gid) { return (D.GUEST_QUESTS || []).filter(q => isGuestQuestDone(q, gid)).length; }
   function renderGuestQuests(curIdx) {
     const Q = D.GUEST_QUESTS || [];
     const addForm = `<div class="flex-row-wrap" style="gap:6px;"><input id="guest-nick-rm" class="mc-input" style="flex:1;min-width:160px;" placeholder="Nick del invitado"/><button class="mc-btn mc-btn-diamond" data-action="guest-add" data-input="guest-nick-rm">+ Agregar invitado</button></div>`;
     const intro = head('INVITADOS (OPCIONAL)', 'cyan', 'MISIONES DE INVITADOS',
-      `Para quien juega sin Estado: <strong>construir</strong> por encargo, <strong>pelear</strong> (purgas, raids y jefes), <strong>explorar</strong> y <strong>archivar</strong>. <strong>Sus misiones no cuentan ni bloquean el paso de Era de los Estados</strong>; solo se desbloquean al ritmo del mundo. Las marcadas <span class="mc-tag tag-gold">Los 3</span> se hacen entre los tres.`);
+      `Para quien juega sin Estado: <strong>construir</strong> por encargo, <strong>pelear</strong> (purgas, raids y jefes), <strong>explorar</strong> y <strong>archivar</strong>. <strong>Sus misiones no cuentan ni bloquean el paso de Era de los Estados</strong>; solo se desbloquean al ritmo del mundo. Las marcadas <span class="mc-tag tag-gold">Los 3</span> llevan una casilla por jugador.`);
     if (!state.guests.length) return panel(`${intro}${empty('Todavía no hay invitados.')}<div style="margin-top:10px;">${addForm}</div>`);
     const gid = state.guests.some(g => g.id === state.ui.guestSel) ? state.ui.guestSel : state.guests[0].id;
-    const done = state.guestTasks[gid] || {};
     const n = guestDone(gid);
     const pct = Math.round((n / Q.length) * 100);
-    const cards = Q.map(q => {
-      const locked = q.era > curIdx;
-      const checked = Boolean(done[q.id]);
-      const track = D.TRACKS[q.track] || { tag: 'slate', name: q.track };
-      const eraCode = D.ERAS[q.era] ? D.ERAS[q.era].code : '';
-      return `<label class="task-card p-md ${checked ? 'completed enchanted-glint' : ''} ${locked ? 'locked' : ''}" style="display:flex;gap:12px;cursor:${locked ? 'not-allowed' : 'pointer'};border-left:4px solid ${q.who === '3' ? '#ffaa00' : '#23a3b0'};">
-        <div class="mc-check-wrap"><input type="checkbox" class="guest-check" data-g="${gid}" data-q="${q.id}" ${checked ? 'checked' : ''} ${locked ? 'disabled' : ''}/>
-          <div class="mc-check-box"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8.5L6.5 12L13 4.5" stroke="#ffffff" stroke-width="2.5" stroke-linecap="square"/></svg></div></div>
-        <div style="flex:1;min-width:0;">
-          <div class="flex-row-wrap" style="gap:5px;margin-bottom:5px;">${locked ? '<span class="mc-tag tag-slate">🔒</span>' : ''}<span class="mc-tag tag-slate">${esc(eraCode)}</span>${q.who === '3' ? '<span class="mc-tag tag-gold">Los 3</span>' : ''}<span class="mc-tag tag-${track.tag}">${esc(track.name)}</span></div>
-          <div class="task-title text-sm text-white" style="font-weight:700;margin-bottom:4px;">${esc(tx(q.title))}</div>
-          <p class="text-xs text-muted" style="margin:0 0 6px 0;line-height:1.45;">${esc(tx(q.desc))}</p>
-          <div class="text-xs text-dim"><strong class="text-diamond">Prueba:</strong> ${esc(tx(q.proof))}</div>
-        </div></label>`;
-    }).join('');
+    const cards = Q.map(q => guestQuestCard(q, gid, q.era > curIdx)).join('');
     return panel(`${intro}
       <div class="flex-between" style="margin-bottom:12px;">
         <div class="flex-row-wrap" style="gap:8px;">
@@ -1352,7 +1381,7 @@
           </div>
           <div class="flex-between" style="margin-bottom:6px;">
             <span class="text-xs text-muted">Estructura: Epígrafe → Considerando → Dispone → Artículos/Parágrafos → Concordancias → Vigencia</span>
-            <button type="button" class="mc-btn" style="padding:3px 8px;font-size:11px;" data-action="law-template" data-target="law-text">📋 Plantilla Acto Colombiano</button>
+            <button type="button" class="mc-btn" style="padding:3px 8px;font-size:11px;" data-action="law-template" data-target="law-text">📋 Plantilla Acto de Miscolandia</button>
           </div>
           <textarea id="law-text" rows="5" class="mc-textarea" placeholder="EPÍGRAFE: Por medio de la cual se...&#10;CONSIDERANDO:&#10;1. Que...&#10;DISPONE:&#10;Artículo 1. ...&#10;Concordancias: Ley 001 (TRD 100-01).&#10;Vigencia: Rige desde su firma bilateral." style="margin-bottom:8px;"></textarea>
           <button class="mc-btn mc-btn-redstone" data-action="law-add">Radicar y proponer</button>
@@ -2187,7 +2216,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
         'Concordancias: Ley 001 (TRD 100-01); Manual 001 (TRD 110-05).',
         'Vigencia: Rige a partir de su firma bilateral y deroga las disposiciones contrarias.'
       ].join('\n');
-      if (target.value.trim() && !confirm('¿Reemplazar el borrador actual por la plantilla formal colombiana?')) return;
+      if (target.value.trim() && !confirm('¿Reemplazar el borrador actual por la plantilla formal de Miscolandia?')) return;
       target.value = tpl;
       target.focus();
     },
@@ -3080,7 +3109,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
 
   function buildReport() {
     const all = D.ERAS.flatMap(e => e.tasks);
-    const done = all.filter(t => state.tasks[t.id]).length;
+    const done = all.filter(isTaskDone).length;
     const r = E.rate(state);
     const line = s => {
       const c = curOf(s), h = E.holdings(state, s);
@@ -3170,22 +3199,46 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       }
       if (t.classList.contains('task-check')) {
         const eraIdx = D.ERAS.findIndex(er => er.tasks.some(x => x.id === t.dataset.task));
-        if (eraIdx > currentEraIndex()) { t.checked = !t.checked; return fail('Esa era está bloqueada todavía.'); }
-        state.tasks[t.dataset.task] = t.checked;
-        if (!t.checked) delete state.tasks[t.dataset.task];
+        const taskObj = eraIdx >= 0 ? D.ERAS[eraIdx].tasks.find(x => x.id === t.dataset.task) : null;
+        if (eraIdx > currentEraIndex() || !taskObj) { t.checked = !t.checked; return fail('Esa era está bloqueada todavía.'); }
+        const actor = t.dataset.actor || taskObj.who;
+        if (!requireMe(actor, 'marcar este hito')) { t.checked = !t.checked; return; }
+        if (taskObj.who === 'ambos') {
+          const prev = state.tasks[taskObj.id];
+          const cur = (prev && typeof prev === 'object') ? { ...prev } : { myth: Boolean(prev), scad: Boolean(prev) };
+          cur[actor] = t.checked;
+          if (!cur.myth && !cur.scad) delete state.tasks[taskObj.id];
+          else state.tasks[taskObj.id] = cur;
+        } else {
+          if (t.checked) state.tasks[taskObj.id] = true;
+          else delete state.tasks[taskObj.id];
+        }
         const before = $('hud-era').textContent;
         commit('roadmap');
-        if (t.checked) toast('Hito cumplido', 'Progreso registrado.', 'emerald');
+        if (t.checked) toast('Hito marcado', `${pname(actor)}: ${isTaskDone(taskObj) ? 'hito completado.' : 'tu parte quedó lista.'}`, 'emerald');
         if ($('hud-era').textContent !== before) toast('¡Nueva era!', $('hud-era').textContent, 'beacon');
         return;
       }
       if (t.classList.contains('guest-check')) {
         const q = (D.GUEST_QUESTS || []).find(x => x.id === t.dataset.q);
         if (!q || q.era > currentEraIndex()) { t.checked = !t.checked; return fail('Esa misión se abre con una era posterior.'); }
-        const book = state.guestTasks[t.dataset.g] = state.guestTasks[t.dataset.g] || {};
-        if (t.checked) book[q.id] = true; else delete book[q.id];
+        const gid = t.dataset.g;
+        const pid = t.dataset.pid || gid;
+        const actorKey = t.dataset.actor || 'guest';
+        if (!requireMe(pid, 'marcar esta misión')) { t.checked = !t.checked; return; }
+        const book = state.guestTasks[gid] = state.guestTasks[gid] || {};
+        if (q.who === '3') {
+          const prev = book[q.id];
+          const cur = (prev && typeof prev === 'object') ? { ...prev } : { myth: Boolean(prev), scad: Boolean(prev), guest: Boolean(prev) };
+          cur[actorKey] = t.checked;
+          if (!cur.myth && !cur.scad && !cur.guest) delete book[q.id];
+          else book[q.id] = cur;
+        } else {
+          if (t.checked) book[q.id] = true;
+          else delete book[q.id];
+        }
         commit('roadmap', 'state');
-        if (t.checked) toast('Misión cumplida', `${pname(t.dataset.g)}: ${q.title}`, 'compass');
+        if (t.checked) toast('Misión marcada', `${pname(pid)}: ${isGuestQuestDone(q, gid) ? q.title : 'tu parte quedó lista.'}`, 'compass');
         return;
       }
       if (t.dataset.bind) {
