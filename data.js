@@ -339,6 +339,86 @@ window.FW_DATA = (() => {
     { title: 'Ley del Archivo', text: 'Artículo 1. El Archivo guarda la historia oficial de ambos Estados.\nArtículo 2. Se registran: fundaciones, obras mayores, reliquias halladas o perdidas, tratados, sentencias y temporadas cerradas.\nArtículo 3. Cada Estado puede escribir su propia versión de un mismo hecho. Ninguna versión borra a la otra.', sanction: '' }
   ];
 
+  /* -------------------- Tipos de norma, Tabla de Retención (TRD) y Código Penal -------------------- */
+  const DOC_TYPES = {
+    ley: { id: 'ley', label: 'Ley del Mundo', prefix: 'LEY', tag: 'amethyst', trd: '100-01' },
+    codigo_penal: { id: 'codigo_penal', label: 'Código Penal', prefix: 'CP', tag: 'redstone', trd: '100-02' },
+    decreto: { id: 'decreto', label: 'Decreto', prefix: 'DEC', tag: 'gold', trd: '110-01' },
+    resolucion: { id: 'resolucion', label: 'Resolución', prefix: 'RES', tag: 'cyan', trd: '110-02' },
+    servidor: { id: 'servidor', label: 'Regla del Servidor', prefix: 'REG', tag: 'slate', trd: '160-01' }
+  };
+
+  const DEFAULT_TRD = [
+    { code: '100-01', series: 'Actos Legislativos y Leyes', subseries: 'Leyes bilaterales y tratados del mundo', support: 'App + Libro Firmado Original', gestion: 'Mientras rija', central: 'Permanente', disp: 'CT', proc: 'Consecutivo único; si se deroga pasa a histórico sin eliminarse.' },
+    { code: '100-02', series: 'Código Penal y Procesos', subseries: 'Tipos penales, parágrafos y sentencias', support: 'App + Libro de Sentencias', gestion: 'Temporada en curso', central: '3 temporadas', disp: 'CT', proc: 'Toda sentencia se radica como crónica Disputa con folio y prueba.' },
+    { code: '110-01', series: 'Decretos Ejecutivos', subseries: 'Decretos de gobierno, reserva y excepción', support: 'App + Sello Estatal', gestion: '1 temporada', central: '2 temporadas', disp: 'S', proc: 'Conservar decretos con impacto fiscal o territorial; resto a selección.' },
+    { code: '110-02', series: 'Resoluciones Administrativas', subseries: 'Aranceles, aduanas, radicación y trámite', support: 'App + Tablón Oficial', gestion: 'Hasta nueva resolución', central: '1 temporada', disp: 'M', proc: 'Archivar vigente en tablón público y pasar copia auténtica al Archivo.' },
+    { code: '120-01', series: 'Contratos y Obras Públicas', subseries: 'Obras registradas, auditorías y patentes', support: 'App + Coordenadas', gestion: 'Hasta auditoría y pago', central: 'Permanente', disp: 'CT', proc: 'Soporta la emisión de moneda y capitalización; prohibida su eliminación.' },
+    { code: '130-01', series: 'Contabilidad y Tesoro', subseries: 'Libro Mayor, préstamos y Oferta Sellada', support: 'App (Libro Mayor)', gestion: 'Temporada vigente', central: '2 temporadas', disp: 'CT', proc: 'Movimientos anulados se tachan (void); nunca se borra el asiento.' },
+    { code: '140-01', series: 'Archivo Histórico y Crónicas', subseries: 'Crónicas, relatos y versiones de hechos', support: 'App + Bóveda del Archivo', gestion: 'Permanente', central: 'Permanente', disp: 'CT', proc: 'Cada Estado conserva su versión; ninguna versión borra a la otra.' },
+    { code: '150-01', series: 'Censo y Extranjería', subseries: 'Ciudadanos aldeanos, permisos e invitados', support: 'App + Libro de Residencia', gestion: 'Mientras resida/viva', central: '1 temporada tras baja', disp: 'S', proc: 'Las muertes culposas de ciudadanos aldeanos dejan acta en el Archivo.' },
+    { code: '160-01', series: 'Normativa Técnica (OOC)', subseries: 'Reglas del servidor fuera de rol', support: 'App', gestion: 'Permanente', central: '1 temporada', disp: 'E', proc: 'Acuerdos fuera de rol; si ambos los derogan pueden depurarse.' }
+  ];
+
+  const DEFAULT_PENAL_PACK = [
+    {
+      docType: 'codigo_penal',
+      trdCode: '100-02',
+      title: 'Código Penal · Libro I: Propiedad, Bóvedas y Saqueo',
+      text: 'Artículo 1. Hurto simple: tomar ítems de cofres o cultivos ajenos sin permiso.\nArtículo 2. Hurto agravado: vulnerar bóvedas privadas, almacenes sellados o cofres de tesorería.\nArtículo 3. Saqueo sin aviso: abrir estructuras o cofres naturales en territorio reclamado sin notificar al dueño.\nArtículo 4. Receptación: comprar, guardar o blanquear botín sabiendo que es robado.\nParágrafo 1 (Flagrancia): si el infractor es sorprendido con los ítems en inventario, la multa sube 50%.\nParágrafo 2 (Devolución inmediata): si devuelve todo intacto antes de cerrar la sesión, la celda se conmuta por multa simple.\nParágrafo 3 (Fuero del préstamo involuntario): un fundador que alegue por escrito "pensé que era mi cofre" puede archivar el caso pagando fianza de 10 {OE} sin tacha en su hoja de vida (máximo 1 vez por temporada).',
+      sanction: 'Hurto simple: devolución + 10 {OE}. Agravado/bóveda: devolución + 30 {OE} + 10 min de celda. Saqueo/receptación: devolución + 15 {OE}.'
+    },
+    {
+      docType: 'codigo_penal',
+      trdCode: '100-02',
+      title: 'Código Penal · Libro II: Tesoro, Moneda y Fe Pública',
+      text: 'Artículo 1. Falsificación monetaria: hacer circular copias de libros firmados o papel renombrado como dinero.\nArtículo 2. Emisión clandestina: imprimir billetes sin registrar la emisión en la app en el mismo acto.\nArtículo 3. Cohecho y soborno: ofrecer o recibir pagos ocultos para inflar puntos de una auditoría o amañar un contrato.\nArtículo 4. Fraude en Oferta Sellada: espiar, deducir, filtrar o alterar el número antes de revelar.\nArtículo 5. Peculado: desviar fondos de {BANK} o de contratos públicos para uso privado sin respaldo.\nParágrafo 1 (Agravante por cargo): si el infractor actuaba como auditor o banquero de turno, la multa se duplica.\nParágrafo 2 (Error contable de buena fe): todo descuadre menor o igual a 15 {OE} se presume "error de digitación" si se reintegra con 10% de interés antes de la siguiente auditoría.\nParágrafo 3 (Reserva de sumario): las conciliaciones de cohecho pueden asentarse como "Gastos de representación" si ambas partes firman paz y salvo.',
+      sanction: 'Falsificación/emisión ilegal: quema de billetes + multa del doble. Cohecho/peculado: devolución + 40 {OE} + inhabilidad temporal para auditar. Oferta Sellada: precio del afectado + 25 {OE}.'
+    },
+    {
+      docType: 'codigo_penal',
+      trdCode: '100-02',
+      title: 'Código Penal · Libro III: Sabotaje, Aldeanos y Obras',
+      text: 'Artículo 1. Sabotaje: dañar vías férreas, puentes, estaciones, circuitos de redstone o granjas del otro Estado.\nArtículo 2. Tráfico de ciudadanos: trasladar, encerrar o comerciar con aldeanos censados ajenos sin tratado firmado.\nArtículo 3. Homicidio culposo de ciudadano: causar la muerte de un aldeano inscrito por trampa sin señalizar o descuido grave.\nArtículo 4. Espionaje industrial: copiar sin licencia un diseño patentado del socio.\nParágrafo 1 (Conmutación por obra): cada 5 minutos de celda pueden canjearse por 64 bloques de obra pública (muro, vía o estación) a favor del afectado, si la víctima acepta.\nParágrafo 2 (Reincidencia): el reincidente en la misma temporada cumple el doble de la pena y pierde el derecho a fianza.',
+      sanction: 'Sabotaje: reparación total + 25 {OE} + destierro de la capital por 1 sesión. Aldeanos: reposición/casa nueva + 15 {OE}. Espionaje: desmantelar o pagar doble licencia.'
+    },
+    {
+      docType: 'codigo_penal',
+      trdCode: '100-02',
+      title: 'Código Penal · Libro IV: Dosimetría Penal, Prescripción e Indultos',
+      text: 'Artículo 1. Faltas leves: multa de 5 a 15 {OE} o 5 minutos de celda.\nArtículo 2. Delitos graves: multa de 15 a 40 {OE}, de 10 a 20 minutos de celda y reparación integral.\nArtículo 3. Alta traición financiera o sabotaje mayor: multa de 40 a 100 {OE}, trabajos públicos y destierro de 1 a 2 sesiones.\nParágrafo 1 (Delación compensada): quien confiese antes de radicarse querella o entregue a un cómplice recibe rebaja del 50% de la multa.\nParágrafo 2 (Prescripción archivística): toda falta leve no radicada en el Archivo antes del cierre de temporada prescribe automáticamente.\nParágrafo 3 (Indulto bilateral): ambos gobernantes pueden indultar cualquier condena mediante Decreto conjunto pagando 5 {OE} de "tasa de perdón" a {BANK}.',
+      sanction: 'El incumplimiento de cualquier sentencia duplica la pena impuesta.'
+    },
+    {
+      docType: 'decreto',
+      trdCode: '110-01',
+      title: 'Decreto 001 · Gastos Reservados, Viáticos y Caja Menor',
+      text: 'Artículo 1. Se autorizan gastos diplomáticos, banquetes y viáticos de viaje con cargo al tesoro de cada Estado.\nArtículo 2. Los gastos sensibles de seguridad o protocolo pueden registrarse en el Libro Mayor como "Obra estratégica o representación".\nArtículo 3. Ningún Estado cuestionará los viáticos del otro mientras el saldo del tesoro siga positivo.\nParágrafo 1 (Soporte supletorio): a falta de recibo físico en cofre, basta la palabra jurada del gobernante de turno ("créanme, era necesario").\nParágrafo 2 (Pacto de caballeros): quien pida auditoría de viáticos ajenos abre automáticamente los propios a revisión.',
+      sanction: 'Sin multa mientras exista respaldo de caja; si genera déficit, se cubre con emisión auditada o préstamo.'
+    },
+    {
+      docType: 'decreto',
+      trdCode: '110-01',
+      title: 'Decreto 002 · Estado de Excepción Aduanera y Decomiso',
+      text: 'Artículo 1. En caso de contrabando o mora vencida, el Estado afectado puede decretar retención preventiva en aduana o puerto.\nArtículo 2. Toda mercancía retenida sin asiento de compra en el Libro Mayor entra en custodia por 1 sesión.\nArtículo 3. Vencido el plazo sin descargos, lo retenido pasa a subasta pública o tesoro del Estado captor.\nParágrafo Único (Costas procesales): el Estado que ejecuta el decomiso retiene el 20% por concepto de "bodegaje y custodia", aun si luego se ordena devolución.',
+      sanction: 'Decomiso preventivo + 20% por costas procesales.'
+    },
+    {
+      docType: 'resolucion',
+      trdCode: '110-02',
+      title: 'Resolución 001 · Radicación, Foliado y Tabla de Retención (TRD)',
+      text: 'Artículo 1. Todo acto normativo, sentencia, contrato o crónica debe asociarse a una Serie de la Tabla de Retención Documental (TRD).\nArtículo 2. Los documentos sin radicado ni clasificación TRD se consideran borradores informales sin fuerza probatoria en disputa.\nArtículo 3. Queda prohibida la eliminación de series con disposición final CT (Conservación Total), incluido el Libro Mayor y sentencias.\nParágrafo 1 (Sanción archivística): extraviar un libro firmado original de Conservación Total obliga a reescribirlo a mano y pagar multa.\nParágrafo 2 (Copia auténtica): toda certificación o copia de folio expedida por el Archivo para un juicio causa tasa oficial.',
+      sanction: 'Pérdida de folio CT: 10 {OE} + reposición manuscrita.'
+    },
+    {
+      docType: 'resolucion',
+      trdCode: '110-02',
+      title: 'Resolución 002 · Arancel de Trámites, Permisos y Peajes',
+      text: 'Artículo 1. Permiso de residencia para extranjeros e invitados (libro firmado): 5 {OE}.\nArtículo 2. Registro oficial de patente, contrato o certificado de obra: 3 {OE}.\nArtículo 3. Desarchivo y copia autenticada de sentencia o crónica: 2 {OE}.\nParágrafo Único (Trámite exprés): todo trámite solicitado con "urgencia en el mismo día" paga recargo del 50%, abonado directamente al Estado que firma el sello.',
+      sanction: 'Operar sin permiso o patente vigente: multa equivalente al triple del arancel.'
+    }
+  ];
+
   /* -------------------- Era ∞: Temporadas -------------------- */
   const SEASON_CHECKLIST = [
     { id: 's-mega', t: 'Avanzar una etapa del megaproyecto activo' },
@@ -477,6 +557,7 @@ window.FW_DATA = (() => {
   return {
     DEFAULT_BANK_NAME, DEFAULT_BASKET, DEFAULT_NATIONS, MONOPOLIES, PACT_RULES, PROFESSIONS, WORK_CATEGORIES,
     TRACKS, ERAS, SEASON_CHECKLIST, SEASON_POOLS, MEGAPROJECTS,
-    WORLD_PROMPTS, NATION_PROMPTS, GUEST_QUESTS, DEFAULT_LAWS, DEFAULT_RP_LAWS, PRICE_GUIDE, RELICS, GLOSSARY
+    WORLD_PROMPTS, NATION_PROMPTS, GUEST_QUESTS, DEFAULT_LAWS, DEFAULT_RP_LAWS,
+    DOC_TYPES, DEFAULT_TRD, DEFAULT_PENAL_PACK, PRICE_GUIDE, RELICS, GLOSSARY
   };
 })();

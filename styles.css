@@ -650,3 +650,13 @@ details.fold > .fold-body { margin-top: 8px; }
   .enchanted-glint::after { animation: none; }
   .mc-toast { animation: none; }
 }
+
+.norm-body { margin-top: 8px; font-size: 0.84rem; line-height: 1.6; color: #c4c4c4; }
+.norm-art { margin-top: 4px; }
+.norm-para {
+  margin-top: 6px;
+  padding: 5px 8px;
+  background: rgba(0, 0, 0, 0.28);
+  border-left: 3px solid var(--c-gold);
+  color: #e6e6e6;
+}

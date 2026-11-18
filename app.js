@@ -57,6 +57,7 @@
         sealed: { item: '', seller: 'myth', attempt: 1, last: null }
       },
       laws: [],
+      trd: clone(D.DEFAULT_TRD || []),
       chronicles: [],
       stations: [],
       portals: [],
@@ -1049,50 +1050,145 @@
         </div>
       </div>`);
 
+    const docTypeOf = l => l.docType || ((l.kind || 'servidor') === 'servidor' ? 'servidor' : 'ley');
+    const docMeta = l => (D.DOC_TYPES || {})[docTypeOf(l)] || { id: 'ley', label: 'Ley del Mundo', prefix: 'LEY', tag: 'amethyst', trd: '100-01' };
+    const trdList = () => (Array.isArray(state.trd) && state.trd.length ? state.trd : (D.DEFAULT_TRD || []));
+    const trdInfo = code => trdList().find(x => x.code === code) || { code: code || '100-01', series: 'Archivo General', disp: 'CT' };
+    const trdCodeOf = l => l.trdCode || docMeta(l).trd;
+    const trdDispTag = disp => ({ CT: 'tag-emerald', S: 'tag-gold', M: 'tag-cyan', E: 'tag-redstone' }[disp] || 'tag-slate');
+    const formatNormBody = text => {
+      const lines = String(text || '').split('\n').filter(x => x.trim() !== '');
+      if (!lines.length) return '';
+      return `<div class="norm-body">${lines.map(line => {
+        const s = esc(line);
+        if (/^par[áa]grafo\b/i.test(line.trim())) {
+          const m = s.match(/^(Par[áa]grafo[^:.\n]*[.:])(.*)$/i);
+          return `<div class="norm-para">${m ? `<strong class="text-gold">${m[1]}</strong>${m[2]}` : s}</div>`;
+        }
+        const m = s.match(/^(Art[íi]culo\s+[\w°º]+[.:])(.*)$/i);
+        return `<div class="norm-art">${m ? `<strong class="text-white">${m[1]}</strong>${m[2]}` : s}</div>`;
+      }).join('')}</div>`;
+    };
+    const trdCounts = () => {
+      const c = {};
+      const add = (code, n = 1) => { c[code] = (c[code] || 0) + n; };
+      state.laws.forEach(l => add(trdCodeOf(l), 1));
+      add('120-01', state.economy.works.length);
+      add('130-01', state.economy.ledger.length + state.economy.loans.length);
+      add('140-01', state.chronicles.length);
+      add('150-01', state.villagers.length + state.guests.length);
+      return c;
+    };
+
     const lawCard = l => {
       const status = l.repealed ? 'derogada' : l.signs.myth && l.signs.scad ? 'vigente' : 'borrador';
       const rp = l.kind === 'rol';
+      const meta = docMeta(l);
+      const tCode = trdCodeOf(l);
+      const tInfo = trdInfo(tCode);
       return `<div class="mc-panel-dark p-md" style="opacity:${status === 'derogada' ? '.55' : '1'};">
         <div class="flex-between">
-          <div class="flex-row-wrap" style="gap:6px;"><span class="mc-tag ${rp ? 'tag-amethyst' : 'tag-slate'}">${rp ? 'LEY' : 'REGLA'} ${l.num}</span><strong class="text-white text-sm">${esc(l.title)}</strong>
-            <span class="mc-tag ${status === 'vigente' ? 'tag-emerald' : status === 'derogada' ? 'tag-slate' : 'tag-gold'}">${status}</span></div>
+          <div class="flex-row-wrap" style="gap:6px;">
+            <span class="mc-tag tag-${meta.tag}">${esc(meta.prefix)} ${l.num}</span>
+            <strong class="text-white text-sm">${esc(l.title)}</strong>
+            <span class="mc-tag ${status === 'vigente' ? 'tag-emerald' : status === 'derogada' ? 'tag-slate' : 'tag-gold'}">${status}</span>
+            <span class="mc-tag ${trdDispTag(tInfo.disp)}" title="${esc(tInfo.series || '')}">TRD ${esc(tCode)} · ${esc(tInfo.disp)}</span>
+          </div>
           <div class="flex-row-wrap" style="gap:4px;">
             ${STATES.map(s => `<button class="mc-btn ${l.signs[s] ? 'mc-btn-emerald' : ''}" style="padding:3px 7px;" data-action="law-sign" data-id="${l.id}" data-s="${s}">${l.signs[s] ? '✔' : '✍'} ${esc(nat(s).player)}</button>`).join('')}
+            <button class="mc-btn" style="padding:3px 7px;" data-action="law-edit" data-id="${l.id}" title="Editar artículos o agregar parágrafo">✎ Editar</button>
+            <button class="mc-btn" style="padding:3px 7px;" data-action="law-book" data-id="${l.id}" title="Copiar texto formateado para Libro de Minecraft">📖 Libro</button>
             <button class="mc-btn" style="padding:3px 7px;" data-action="law-move" data-id="${l.id}" title="${rp ? 'Mover a reglas del servidor' : 'Mover a leyes del mundo'}">${rp ? '→ Reglas' : '→ Leyes'}</button>
             <button class="mc-btn" style="padding:3px 7px;" data-action="law-repeal" data-id="${l.id}">${l.repealed ? 'Restaurar' : 'Derogar'}</button>
-            <button class="mc-btn mc-btn-redstone" style="padding:3px 7px;" data-action="law-del" data-id="${l.id}" title="Borrar esta ley">🗑 Borrar</button>
+            <button class="mc-btn mc-btn-redstone" style="padding:3px 7px;" data-action="law-del" data-id="${l.id}" title="Borrar esta norma">🗑 Borrar</button>
           </div>
         </div>
-        <p class="text-xs text-muted" style="margin:8px 0 0 0;white-space:pre-wrap;line-height:1.6;">${esc(l.text)}</p>
-        ${l.sanction ? `<div class="text-xs font-mono text-gold" style="margin-top:6px;">${rp ? 'Pena' : 'Sanción'}: ${esc(l.sanction)}</div>` : ''}
+        ${formatNormBody(l.text)}
+        ${l.sanction ? `<div class="text-xs font-mono text-gold" style="margin-top:6px;">${rp ? 'Pena / Sanción' : 'Sanción'}: ${esc(l.sanction)}</div>` : ''}
       </div>`;
     };
+    const docFilter = state.ui.lawDocFilter || 'all';
     const lawList = kind => {
-      const list = state.laws.filter(l => (l.kind || 'servidor') === kind).sort((x, y) => x.num - y.num);
-      return list.length ? list.map(lawCard).join('') : empty(kind === 'rol' ? 'Sin leyes del mundo todavía.' : 'Sin reglas todavía.');
+      let list = state.laws.filter(l => (l.kind || 'servidor') === kind);
+      if (kind === 'rol' && docFilter !== 'all') list = list.filter(l => docTypeOf(l) === docFilter);
+      const order = { ley: 1, codigo_penal: 2, decreto: 3, resolucion: 4, servidor: 5 };
+      list.sort((x, y) => (order[docTypeOf(x)] || 9) - (order[docTypeOf(y)] || 9) || x.num - y.num);
+      return list.length ? list.map(lawCard).join('') : empty(kind === 'rol' ? 'Sin normas en esta categoría.' : 'Sin reglas todavía.');
     };
+    const rolCount = dt => state.laws.filter(l => (l.kind || 'servidor') === 'rol' && (dt === 'all' || docTypeOf(l) === dt)).length;
+    const docFilters = [
+      ['all', `Todas (${rolCount('all')})`],
+      ['ley', `Leyes (${rolCount('ley')})`],
+      ['codigo_penal', `Código Penal (${rolCount('codigo_penal')})`],
+      ['decreto', `Decretos (${rolCount('decreto')})`],
+      ['resolucion', `Resoluciones (${rolCount('resolucion')})`]
+    ];
     const lawsRol = panel(`
-      ${head('ROLEPLAY', 'amethyst', 'LEYES DEL MUNDO',
-        `Las leyes que existen <strong>dentro de la historia</strong> de ${esc(nat('myth').nation)} y ${esc(nat('scad').nation)}: ciudadanía, aduana, hallazgos, penas… Rigen cuando las firman ambos. Edítenlas a su gusto: son un punto de partida, no su historia.`)}
+      ${head('NORMATIVA Y CÓDIGO PENAL', 'amethyst', 'LEYES, CÓDIGO PENAL, DECRETOS Y RESOLUCIONES',
+        `Marco jurídico de ${esc(nat('myth').nation)} y ${esc(nat('scad').nation)}. Soporta <strong>Artículos</strong>, <strong>Parágrafos</strong>, penas desglosadas y clasificación en la <strong>Tabla de Retención Documental (TRD)</strong>.`)}
+      <div class="flex-row-wrap" style="gap:6px;margin-bottom:12px;">
+        ${docFilters.map(([v, t]) => `<button class="filter-pill ${docFilter === v ? 'active' : ''}" data-action="law-doc-filter" data-v="${v}">${esc(t)}</button>`).join('')}
+      </div>
       <details class="mc-panel-dark p-md" style="margin-bottom:12px;">
-        <summary class="font-mono text-xs text-emerald" style="cursor:pointer;font-weight:700;">+ Escribir una ley o regla nueva</summary>
+        <summary class="font-mono text-xs text-emerald" style="cursor:pointer;font-weight:700;">+ Radicar ley, código penal, decreto o resolución</summary>
         <div style="margin-top:10px;">
-          <div class="grid-3" style="gap:8px;margin-bottom:8px;">
-            <select id="law-kind" class="mc-select font-mono">${opts([['rol', 'Ley del mundo (roleplay)'], ['servidor', 'Regla del servidor']], 'rol')}</select>
-            <input id="law-title" class="mc-input" placeholder="Título"/>
+          <div class="grid-4" style="gap:8px;margin-bottom:8px;">
+            <select id="law-doc-type" class="mc-select font-mono">${opts([['ley', 'Ley del mundo'], ['codigo_penal', 'Código Penal'], ['decreto', 'Decreto'], ['resolucion', 'Resolución'], ['servidor', 'Regla del servidor']], 'ley')}</select>
+            <select id="law-trd" class="mc-select font-mono">${opts(trdList().map(t => [t.code, `TRD ${t.code} · ${t.series}`]), '100-01')}</select>
+            <input id="law-title" class="mc-input" placeholder="Título (ej. Decreto 003 · Viáticos)"/>
             <input id="law-sanction" class="mc-input" placeholder="Pena / sanción (opcional)"/>
           </div>
-          <textarea id="law-text" rows="3" class="mc-textarea" placeholder="Artículo 1. …" style="margin-bottom:8px;"></textarea>
-          <button class="mc-btn mc-btn-redstone" data-action="law-add">Proponer</button>
+          <textarea id="law-text" rows="4" class="mc-textarea" placeholder="Artículo 1. …&#10;Parágrafo 1. …" style="margin-bottom:8px;"></textarea>
+          <button class="mc-btn mc-btn-redstone" data-action="law-add">Radicar y proponer</button>
         </div>
       </details>
       <div class="section-stack" style="gap:8px;">${lawList('rol')}</div>
-      <div style="margin-top:10px;"><button class="mc-btn" data-action="law-defaults" data-kind="rol">Cargar leyes del mundo sugeridas</button></div>`);
+      <div class="flex-row-wrap" style="gap:8px;margin-top:12px;">
+        <button class="mc-btn" data-action="law-defaults" data-kind="rol">📜 Cargar leyes del mundo sugeridas</button>
+        <button class="mc-btn mc-btn-gold" data-action="law-defaults" data-kind="penal">⚖️ Cargar Código Penal, Decretos y Resoluciones</button>
+      </div>`);
     const lawsSrv = panel(`
       ${head('FUERA DEL ROL', 'slate', 'REGLAS DEL SERVIDOR',
         'Acuerdos entre ustedes como jugadores: backups, comandos, PvP, cómo se usa la app. No son parte de la historia.')}
       <div class="section-stack" style="gap:8px;">${lawList('servidor')}</div>
       <div style="margin-top:10px;"><button class="mc-btn" data-action="law-defaults" data-kind="servidor">Cargar reglas sugeridas</button></div>`);
+
+    const counts = trdCounts();
+    const trdPanel = panel(`
+      ${head('ARCHIVO OFICIAL', 'cyan', 'TABLA DE RETENCIÓN DOCUMENTAL (TRD)',
+        'Control archivístico de series documentales, tiempos de retención, disposición final (<strong>CT</strong> Conservación Total, <strong>S</strong> Selección, <strong>M</strong> Copia en Libro, <strong>E</strong> Eliminación) y folios vivos.')}
+      <div style="overflow-x:auto;margin-bottom:12px;">
+        <table class="mc-table">
+          <thead><tr><th>Código</th><th>Serie y Subserie</th><th>Soporte</th><th>Gestión</th><th>Central</th><th>Disp.</th><th>Folios</th><th>Procedimiento</th><th></th></tr></thead>
+          <tbody>
+            ${trdList().map(t => `<tr>
+              <td class="font-mono text-gold">${esc(t.code)}</td>
+              <td><strong class="text-white text-xs">${esc(t.series)}</strong><div class="text-xs text-muted">${esc(t.subseries || '')}</div></td>
+              <td class="text-xs text-muted">${esc(t.support || '')}</td>
+              <td class="text-xs text-muted">${esc(t.gestion || '')}</td>
+              <td class="text-xs text-muted">${esc(t.central || '')}</td>
+              <td><span class="mc-tag ${trdDispTag(t.disp)}">${esc(t.disp)}</span></td>
+              <td class="font-mono text-white" style="text-align:center;">${counts[t.code] || 0}</td>
+              <td class="text-xs text-muted">${esc(t.proc || '')}</td>
+              <td><button class="mc-btn" style="padding:2px 6px;" data-action="trd-del" data-code="${esc(t.code)}" title="Eliminar serie TRD">🗑</button></td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+      <details class="mc-panel-dark p-md">
+        <summary class="font-mono text-xs text-diamond" style="cursor:pointer;font-weight:700;">+ Agregar serie documental a la TRD</summary>
+        <div class="grid-4" style="gap:8px;margin-top:10px;">
+          <input id="trd-code" class="mc-input font-mono" placeholder="Código (ej. 170-01)"/>
+          <input id="trd-series" class="mc-input" placeholder="Nombre de la serie"/>
+          <input id="trd-sub" class="mc-input" placeholder="Subserie / contenido"/>
+          <select id="trd-disp" class="mc-select font-mono">${opts([['CT', 'CT · Conservación Total'], ['S', 'S · Selección'], ['M', 'M · Copia en Libro'], ['E', 'E · Eliminación']], 'CT')}</select>
+          <input id="trd-support" class="mc-input" placeholder="Soporte (App + Libro...)"/>
+          <input id="trd-gestion" class="mc-input" placeholder="Archivo gestión"/>
+          <input id="trd-central" class="mc-input" placeholder="Archivo central"/>
+          <input id="trd-proc" class="mc-input" placeholder="Procedimiento / nota"/>
+        </div>
+        <button class="mc-btn mc-btn-diamond" style="margin-top:8px;" data-action="trd-add">Agregar serie TRD</button>
+      </details>`);
 
     const adjRows = [...participants(), 'bank'].map(pid => {
       const h = pid === 'bank' ? state.economy.bank : E.holdings(state, pid);
@@ -1110,6 +1206,7 @@
     const total = k => state.laws.filter(l => (l.kind || 'servidor') === k).length;
     $('view-state').innerHTML = `<div data-undo-slot style="margin-bottom:12px;"></div>`
       + lawsRol
+      + fold('trd', `📚 Tabla de Retención Documental (TRD) del Archivo <span class="text-xs text-muted">(${trdList().length} series)</span>`, trdPanel)
       + fold('srv', `⚙️ Reglas del servidor <span class="text-xs text-muted">(${vigentes('servidor')}/${total('servidor')} vigentes)</span>`, lawsSrv)
       + fold('pact', '🤝 Pacto de monopolios y reparto de aldeanos', pact)
       + fold('guests', `🧑‍🤝‍🧑 Invitados <span class="text-xs text-muted">(${state.guests.length})</span>`, guests)
@@ -1153,7 +1250,7 @@
       </div></details>
       <div class="section-stack" style="gap:8px;">
         ${state.chronicles.length ? state.chronicles.map(c => `<div class="mc-panel-dark p-sm">
-          <div class="flex-between"><div class="flex-row-wrap" style="gap:6px;"><span class="mc-tag tag-slate">${esc(c.era)}</span><span class="mc-tag tag-amethyst">${esc(c.type)}</span>${ptag(c.author)}<span class="text-xs font-mono text-dim">${when(c.t)}</span></div>
+          <div class="flex-between"><div class="flex-row-wrap" style="gap:6px;"><span class="mc-tag tag-slate">${esc(c.era)}</span><span class="mc-tag tag-amethyst">${esc(c.type)}</span><span class="mc-tag tag-emerald">TRD 140-01 · CT</span>${ptag(c.author)}<span class="text-xs font-mono text-dim">${when(c.t)}</span></div>
           <button class="mc-btn" style="padding:2px 6px;" data-action="chron-del" data-id="${c.id}">✕</button></div>
           <div class="text-sm text-white" style="font-weight:700;margin-top:6px;">${esc(c.title)}</div>
           <p class="text-xs text-muted" style="margin:4px 0 0 0;white-space:pre-wrap;">${esc(c.body)}</p></div>`).join('') : empty('El archivo está vacío.')}
@@ -1639,31 +1736,87 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       commit();
     },
 
+    'law-doc-filter': el => {
+      state.ui.lawDocFilter = el.dataset.v || 'all';
+      save(true);
+      renderStatePage();
+    },
     'law-add': () => {
       const title = val('law-title');
-      if (!title) return fail('La ley necesita título.');
-      const kind = val('law-kind') || 'rol';
-      state.laws.push({ id: uid('ley'), kind, num: nextLawNum(kind), title, text: val('law-text'), sanction: val('law-sanction'), signs: { myth: false, scad: false }, repealed: false, t: Date.now() });
+      if (!title) return fail('La norma necesita título.');
+      const docType = val('law-doc-type') || 'ley';
+      const kind = docType === 'servidor' ? 'servidor' : 'rol';
+      const trdCode = val('law-trd') || ((D.DOC_TYPES || {})[docType] || {}).trd || '100-01';
+      state.laws.push({ id: uid('ley'), kind, docType, trdCode, num: nextLawNum(kind, docType), title, text: val('law-text'), sanction: val('law-sanction'), signs: { myth: false, scad: false }, repealed: false, t: Date.now() });
       commit('state');
     },
     'law-defaults': el => {
-      const added = addDefaultLaws(el.dataset.kind);
-      toast(el.dataset.kind === 'rol' ? 'Leyes del mundo' : 'Reglas del servidor', added ? `${added} borradores agregados. Rigen cuando firmen ambos.` : 'Ya estaban todas.', 'gavel');
+      const k = el.dataset.kind;
+      const added = addDefaultLaws(k);
+      const label = k === 'penal' ? 'Código Penal, Decretos y Resoluciones' : k === 'rol' ? 'Leyes del mundo' : 'Reglas del servidor';
+      toast(label, added ? `${added} documentos agregados. Rigen cuando firmen ambos.` : 'Ya estaban todos cargados.', 'gavel');
       commit('state');
+    },
+    'law-edit': async el => {
+      const l = state.laws.find(x => x.id === el.dataset.id);
+      if (!l) return;
+      const nextText = await askText(`Editar "${l.title}" (puedes agregar Artículo o Parágrafo nuevo):`, l.text);
+      if (nextText === null || nextText === l.text) return;
+      l.text = nextText;
+      l.editedAt = Date.now();
+      commit('state');
+      toast('Norma actualizada', l.title, 'gavel');
+    },
+    'law-book': el => {
+      const l = state.laws.find(x => x.id === el.dataset.id);
+      if (!l) return;
+      const dt = l.docType || ((l.kind || 'servidor') === 'servidor' ? 'servidor' : 'ley');
+      const meta = (D.DOC_TYPES || {})[dt] || { prefix: 'LEY', trd: '100-01' };
+      const trd = l.trdCode || meta.trd;
+      const out = `[${meta.prefix}-${String(l.num).padStart(3, '0')} · TRD ${trd}]\n${l.title}\n\n${l.text}${l.sanction ? `\n\nPena / Sanción: ${l.sanction}` : ''}`;
+      copyText(out);
+      toast('Copiado para Libro', `${meta.prefix}-${String(l.num).padStart(3, '0')} listo para pegar en Minecraft.`, 'book');
     },
     'law-sign': el => {
       const l = state.laws.find(x => x.id === el.dataset.id);
       const s = el.dataset.s;
       if (!l || !requireMe(s, 'firmar como este jugador')) return;
       l.signs[s] = !l.signs[s];
-      if (l.signs.myth && l.signs.scad) toast('Ley vigente', `Ley ${l.num}: ${l.title}`, 'gavel');
+      if (l.signs.myth && l.signs.scad) toast('Norma vigente', `${l.title}`, 'gavel');
       commit('state');
     },
     'law-move': el => {
       const l = state.laws.find(x => x.id === el.dataset.id);
       if (!l) return;
       l.kind = (l.kind || 'servidor') === 'rol' ? 'servidor' : 'rol';
-      l.num = nextLawNum(l.kind);
+      l.docType = l.kind === 'servidor' ? 'servidor' : (l.docType && l.docType !== 'servidor' ? l.docType : 'ley');
+      l.num = nextLawNum(l.kind, l.docType);
+      commit('state');
+    },
+    'trd-add': () => {
+      const code = val('trd-code');
+      const series = val('trd-series');
+      if (!code || !series) return fail('La serie TRD necesita código y nombre.');
+      if (!Array.isArray(state.trd) || !state.trd.length) state.trd = clone(D.DEFAULT_TRD || []);
+      if (state.trd.some(t => t.code === code)) return fail(`Ya existe la serie TRD ${code}.`);
+      state.trd.push({
+        code,
+        series,
+        subseries: val('trd-sub'),
+        support: val('trd-support') || 'App + Libro',
+        gestion: val('trd-gestion') || 'Temporada en curso',
+        central: val('trd-central') || 'Permanente',
+        disp: val('trd-disp') || 'CT',
+        proc: val('trd-proc') || ''
+      });
+      toast('Serie TRD agregada', `${code} · ${series}`, 'book');
+      commit('state');
+    },
+    'trd-del': async el => {
+      const code = el.dataset.code;
+      if (!Array.isArray(state.trd) || !state.trd.length) state.trd = clone(D.DEFAULT_TRD || []);
+      if (!await askConfirm(`¿Eliminar la serie TRD ${code} de la tabla? (Puedes recuperarla con Deshacer.)`)) return;
+      state.trd = state.trd.filter(t => t.code !== code);
       commit('state');
     },
     'law-repeal': el => { const l = state.laws.find(x => x.id === el.dataset.id); if (l) { l.repealed = !l.repealed; commit('state'); } },
@@ -1812,16 +1965,23 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     'close-modal': () => closeModals()
   };
 
-  // Agrega las leyes básicas que falten (como borradores sin firmar)
-  const nextLawNum = kind => state.laws.filter(l => (l.kind || 'servidor') === kind).reduce((m, l) => Math.max(m, l.num), 0) + 1;
+  // Agrega las leyes, código penal, decretos o resoluciones base que falten (como borradores sin firmar)
+  const nextLawNum = (kind, docType) => {
+    const dt = docType || (kind === 'servidor' ? 'servidor' : 'ley');
+    return state.laws.filter(l => (l.kind || 'servidor') === kind && (l.docType || ((l.kind || 'servidor') === 'servidor' ? 'servidor' : 'ley')) === dt)
+      .reduce((m, l) => Math.max(m, l.num), 0) + 1;
+  };
   function addDefaultLaws(kind = 'servidor') {
-    const source = kind === 'rol' ? (D.DEFAULT_RP_LAWS || []) : D.DEFAULT_LAWS;
+    const source = kind === 'penal' ? (D.DEFAULT_PENAL_PACK || []) : kind === 'rol' ? (D.DEFAULT_RP_LAWS || []) : D.DEFAULT_LAWS;
+    const targetKind = kind === 'servidor' ? 'servidor' : 'rol';
     const have = new Set(state.laws.map(l => l.title.toLowerCase()));
     let added = 0;
     source.forEach(d => {
       if (have.has(d.title.toLowerCase())) return;
       added += 1;
-      state.laws.push({ id: uid('ley'), kind, num: nextLawNum(kind), title: d.title, text: tx(d.text), sanction: tx(d.sanction), signs: { myth: false, scad: false }, repealed: false, t: Date.now() });
+      const docType = d.docType || (targetKind === 'servidor' ? 'servidor' : 'ley');
+      const trdCode = d.trdCode || ((D.DOC_TYPES || {})[docType] || {}).trd || '100-01';
+      state.laws.push({ id: uid('ley'), kind: targetKind, docType, trdCode, num: nextLawNum(targetKind, docType), title: d.title, text: tx(d.text), sanction: tx(d.sanction), signs: { myth: false, scad: false }, repealed: false, t: Date.now() });
     });
     return added;
   }
@@ -1877,11 +2037,12 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
 
   /* ---------- Deshacer (guarda copias del estado antes de cada acción) ---------- */
   const UNDO_KEY = 'forever_world_undo';
-  const NO_UNDO = new Set(['form', 'shop-edit', 'mode-simple', 'mode-advanced', 'tip', 'filter', 'works-filter', 'price-buy', 'price-challenge', 'open-reset', 'confirm-reset', 'open-backup',
+  const NO_UNDO = new Set(['form', 'shop-edit', 'mode-simple', 'mode-advanced', 'tip', 'filter', 'works-filter', 'law-doc-filter', 'law-book', 'price-buy', 'price-challenge', 'open-reset', 'confirm-reset', 'open-backup',
     'open-report', 'copy-report', 'close-modal', 'undo',
     'cloud-pull', 'cloud-push-force', 'cloud-snapshot', 'cloud-restore-snap', 'cloud-save-cfg', 'cloud-reset-cfg', 'cloud-copy-link', 'cloud-copy-snippet']);
   const UNDO_LABELS = {
-    'law-add': 'Nueva ley', 'law-sign': 'Firma de ley', 'law-repeal': 'Derogar ley', 'law-del': 'Borrar ley', 'law-defaults': 'Leyes sugeridas', 'law-move': 'Mover ley',
+    'law-add': 'Nueva norma', 'law-edit': 'Editar norma', 'law-sign': 'Firma de norma', 'law-repeal': 'Derogar norma', 'law-del': 'Borrar norma', 'law-defaults': 'Normas sugeridas', 'law-move': 'Mover norma',
+    'trd-add': 'Nueva serie TRD', 'trd-del': 'Borrar serie TRD',
     'chron-add': 'Nueva crónica', 'chron-del': 'Borrar crónica', 'guest-add': 'Nuevo invitado', 'guest-del': 'Borrar invitado',
     rail: 'Contador de vía', 'rail-set': 'Contador de vía', 'st-add': 'Nueva estación', 'st-del': 'Borrar estación',
     'pt-add': 'Nuevo portal', 'pt-del': 'Borrar portal', 'vg-add': 'Censar aldeano', 'vg-cure': 'Cura de aldeano', 'vg-del': 'Borrar aldeano',
@@ -2333,6 +2494,10 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     // selects que no disparan "input" en todos los navegadores
     document.addEventListener('change', e => {
       const id = e.target.id;
+      if (id === 'law-doc-type' && $('law-trd')) {
+        const meta = (D.DOC_TYPES || {})[e.target.value];
+        if (meta && meta.trd) $('law-trd').value = meta.trd;
+      }
       if (id === 'buy-buyer') updateBuyPreview();
       if (id === 'w-product') {
         const r = D.RELICS.find(x => x.name.toLowerCase() === e.target.value.trim().toLowerCase());
