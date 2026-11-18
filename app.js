@@ -1157,7 +1157,7 @@
     const revTag = rev => {
       if (rev.status === 'pending') return `<span class="mc-tag tag-cyan">⏳ En revisión (${esc(revName)})</span>`;
       if (rev.status === 'returned') return `<span class="mc-tag tag-redstone">↩ Devuelta con anotaciones</span>`;
-      if (rev.status === 'approved') return `<span class="mc-tag tag-emerald">✔ Avalada (${esc(revName)})</span>`;
+      if (rev.status === 'approved') return `<span class="mc-tag tag-emerald" title="Sellada por aval: solo modificable o derogable mediante acto superior">🔒 Avalada y Sellada (${esc(revName)})</span>`;
       return '';
     };
     const revActLabel = a => ({
@@ -1193,7 +1193,8 @@
       const tCode = trdCodeOf(l);
       const tInfo = trdInfo(tCode);
       const rev = reviewOf(l);
-      return `<div class="mc-panel-dark p-md" style="opacity:${status === 'derogada' ? '.88' : '1'};${l.repealed ? 'border-left:4px solid var(--c-red);' : ''}">
+      const sealed = Boolean(rp && !l.repealed && rev.status === 'approved');
+      return `<div class="mc-panel-dark p-md" style="opacity:${status === 'derogada' ? '.88' : '1'};${l.repealed ? 'border-left:4px solid var(--c-red);' : sealed ? 'border-left:4px solid var(--c-green);' : ''}">
         <div class="flex-between">
           <div class="flex-row-wrap" style="gap:6px;">
             <span class="mc-tag tag-${meta.tag}">${esc(meta.prefix)} ${l.num}</span>
@@ -1206,20 +1207,25 @@
           <div class="flex-row-wrap" style="gap:4px;">
             ${isRev ? `
               ${STATES.map(s => `<span class="mc-tag ${l.signs[s] ? 'tag-emerald' : 'tag-slate'}">${l.signs[s] ? '✔' : '·'} ${esc(nat(s).player)}</span>`).join('')}
-              ${rp && !l.repealed ? `
-                ${rev.status !== 'approved' ? `<button class="mc-btn mc-btn-emerald" style="padding:3px 7px;" data-action="law-approve-rev" data-id="${l.id}" title="Avalar como ${esc(revName)}">✔ Avalar</button>` : ''}
+              ${rp && !l.repealed && !sealed ? `
+                <button class="mc-btn mc-btn-emerald" style="padding:3px 7px;" data-action="law-approve-rev" data-id="${l.id}" title="Avalar y sellar como ${esc(revName)}">✔ Avalar</button>
                 <button class="mc-btn mc-btn-gold" style="padding:3px 7px;" data-action="law-return" data-id="${l.id}" title="Devolver con anotaciones como ${esc(revName)}">↩ Devolver con anotaciones</button>
               ` : ''}
-              <button class="mc-btn ${l.repealed ? '' : 'mc-btn-redstone'}" style="padding:3px 7px;" data-action="law-repeal" data-id="${l.id}">${l.repealed ? '♻ Restaurar' : '🚫 Derogar'}</button>
+              ${sealed ? '<span class="mc-tag tag-gold" title="Requiere nuevo acto superior para modificar o derogar">🔒 Solo acto superior</span>' : `<button class="mc-btn ${l.repealed ? '' : 'mc-btn-redstone'}" style="padding:3px 7px;" data-action="law-repeal" data-id="${l.id}">${l.repealed ? '♻ Restaurar' : '🚫 Derogar'}</button>`}
               <button class="mc-btn" style="padding:3px 7px;" data-action="law-book" data-id="${l.id}" title="Copiar texto formateado para Libro de Minecraft">📖 Libro</button>
             ` : `
               ${STATES.map(s => `<button class="mc-btn ${l.signs[s] ? 'mc-btn-emerald' : ''}" style="padding:3px 7px;" data-action="law-sign" data-id="${l.id}" data-s="${s}">${l.signs[s] ? '✔' : '✍'} ${esc(nat(s).player)}</button>`).join('')}
               ${rp && !l.repealed && (rev.status === 'none' || rev.status === 'returned') ? `<button class="mc-btn mc-btn-diamond" style="padding:3px 7px;" data-action="law-submit" data-id="${l.id}">${rev.status === 'returned' ? '📤 Reenviar a revisión' : '📤 Enviar a revisión'}</button>` : ''}
-              <button class="mc-btn" style="padding:3px 7px;" data-action="law-edit" data-id="${l.id}" title="Editar artículos o agregar parágrafo">✎ Editar</button>
-              <button class="mc-btn" style="padding:3px 7px;" data-action="law-book" data-id="${l.id}" title="Copiar texto formateado para Libro de Minecraft">📖 Libro</button>
-              <button class="mc-btn" style="padding:3px 7px;" data-action="law-move" data-id="${l.id}" title="${rp ? 'Mover a reglas del servidor' : 'Mover a leyes del mundo'}">${rp ? '→ Reglas' : '→ Leyes'}</button>
-              <button class="mc-btn" style="padding:3px 7px;" data-action="law-repeal" data-id="${l.id}">${l.repealed ? '♻ Restaurar' : '🚫 Derogar'}</button>
-              <button class="mc-btn mc-btn-redstone" style="padding:3px 7px;" data-action="law-del" data-id="${l.id}" title="Borrar esta norma">🗑 Borrar</button>
+              ${sealed ? `
+                <span class="mc-tag tag-gold" title="Norma sellada por Aval del Archivista: solo se modifica o deroga radicando un acto superior o modificatorio">🔒 Sellada (requiere acto superior)</span>
+                <button class="mc-btn" style="padding:3px 7px;" data-action="law-book" data-id="${l.id}" title="Copiar texto formateado para Libro de Minecraft">📖 Libro</button>
+              ` : `
+                <button class="mc-btn" style="padding:3px 7px;" data-action="law-edit" data-id="${l.id}" title="Editar artículos o agregar parágrafo">✎ Editar</button>
+                <button class="mc-btn" style="padding:3px 7px;" data-action="law-book" data-id="${l.id}" title="Copiar texto formateado para Libro de Minecraft">📖 Libro</button>
+                <button class="mc-btn" style="padding:3px 7px;" data-action="law-move" data-id="${l.id}" title="${rp ? 'Mover a reglas del servidor' : 'Mover a leyes del mundo'}">${rp ? '→ Reglas' : '→ Leyes'}</button>
+                <button class="mc-btn" style="padding:3px 7px;" data-action="law-repeal" data-id="${l.id}">${l.repealed ? '♻ Restaurar' : '🚫 Derogar'}</button>
+                <button class="mc-btn mc-btn-redstone" style="padding:3px 7px;" data-action="law-del" data-id="${l.id}" title="Borrar esta norma">🗑 Borrar</button>
+              `}
             `}
           </div>
         </div>
@@ -2186,7 +2192,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       target.focus();
     },
     'law-upgrade-pack': async () => {
-      if (!await askConfirm('Se actualizarán todas las leyes, códigos, decretos, resoluciones, manuales y reglas OOC a lenguaje claro e inclusivo con Concordancias y TRD, reactivando lo derogado y dejándolo firmado y vigente. ¿Continuar?')) return;
+      if (!await askConfirm('Se actualizarán todas las leyes, códigos, decretos, resoluciones, manuales y reglas OOC a lenguaje claro e inclusivo con Concordancias y TRD, reactivando lo derogado y dejándolas vigentes con firmas bilaterales (sin aval previo del Archivista). ¿Continuar?')) return;
       const icPacks = [
         ...(D.DEFAULT_RP_LAWS || []),
         ...(D.DEFAULT_PENAL_PACK || [])
@@ -2247,10 +2253,8 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
         delete existing.repealEdited;
         existing.signs = { myth: true, scad: true };
         existing.editedAt = Date.now();
-        if (isIc) {
-          const rev = ensureLawReview(existing);
-          rev.status = 'approved';
-          pushReviewNote(existing, 'approved', 'Reforma integral a lenguaje claro, Concordancias, separación IC/OOC y vigencia plena.');
+        if (isIc && (!existing.review || existing.review.status === 'approved')) {
+          existing.review = { status: 'none', notes: [] };
         }
       };
       icPacks.forEach(def => {
@@ -2268,7 +2272,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
           const created = {
             id: uid('ley'), kind: 'rol', docType, trdCode, num: nextLawNum('rol', docType),
             title: def.title, text: tx(def.text), sanction: tx(def.sanction || ''),
-            signs: { myth: true, scad: true }, review: { status: 'approved', notes: [{ action: 'approved', by: reviewerId() ? pname(reviewerId()) : 'Archivista', at: Date.now(), text: 'Incorporado y avalado en reforma integral.' }] },
+            signs: { myth: true, scad: true }, review: { status: 'none', notes: [] },
             repealed: false, t: Date.now()
           };
           state.laws.push(created);
@@ -2295,11 +2299,14 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
         else state.trd.push(clone(t));
       });
       commit('state');
-      toast('Reforma Integral Aplicada', `${updated} actos actualizados y ${added} agregados — todos vigentes y firmados.`, 'gavel');
+      toast('Reforma Integral Aplicada', `${updated} actos actualizados y ${added} agregados — vigentes y pendientes de aval del Archivista.`, 'gavel');
     },
     'law-edit': el => {
       const l = state.laws.find(x => x.id === el.dataset.id);
       if (!l) return;
+      if ((l.kind || 'servidor') === 'rol' && !l.repealed && l.review && l.review.status === 'approved') {
+        return fail('Esta norma ya fue avalada y sellada por el Archivista. Para modificarla debes radicar un nuevo acto de jerarquía igual o superior.');
+      }
       editingLawId = l.id;
       const dt = l.docType || ((l.kind || 'servidor') === 'servidor' ? 'servidor' : 'ley');
       const trdList = (Array.isArray(state.trd) && state.trd.length ? state.trd : (D.DEFAULT_TRD || []));
@@ -2315,6 +2322,10 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     'law-edit-save': () => {
       const l = state.laws.find(x => x.id === editingLawId);
       if (!l) return closeModals();
+      if ((l.kind || 'servidor') === 'rol' && !l.repealed && l.review && l.review.status === 'approved') {
+        closeModals();
+        return fail('Norma sellada por Aval del Archivista: radica un acto superior para modificarla.');
+      }
       const nextTitle = val('edit-law-title');
       const nextDocType = val('edit-law-doctype') || 'ley';
       const nextNum = Math.max(1, Math.round(num(val('edit-law-num'), l.num || 1)));
@@ -2386,6 +2397,9 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     'law-move': el => {
       const l = state.laws.find(x => x.id === el.dataset.id);
       if (!l) return;
+      if ((l.kind || 'servidor') === 'rol' && !l.repealed && l.review && l.review.status === 'approved') {
+        return fail('Norma sellada por Aval del Archivista: no puede reasignarse sin acto modificatorio.');
+      }
       l.kind = (l.kind || 'servidor') === 'rol' ? 'servidor' : 'rol';
       l.docType = l.kind === 'servidor' ? 'servidor' : (l.docType && l.docType !== 'servidor' ? l.docType : 'ley');
       l.num = nextLawNum(l.kind, l.docType);
@@ -2420,6 +2434,9 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     'law-repeal': async el => {
       const l = state.laws.find(x => x.id === el.dataset.id);
       if (!l) return;
+      if (!l.repealed && (l.kind || 'servidor') === 'rol' && l.review && l.review.status === 'approved') {
+        return fail('Esta norma ya fue avalada y sellada por el Archivista. Para derogarla o sustituirla debes radicar un nuevo acto de rango igual o superior.');
+      }
       if (!l.repealed) {
         const reason = await askText(`Motivo / comentario obligatorio para derogar "${l.title}":`, '');
         if (reason === null) return;
@@ -2452,6 +2469,9 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     'law-del': async el => {
       const l = state.laws.find(x => x.id === el.dataset.id);
       if (!l) return;
+      if ((l.kind || 'servidor') === 'rol' && !l.repealed && l.review && l.review.status === 'approved') {
+        return fail('Norma sellada por Aval del Archivista: no puede borrarse directamente; requiere acto superior.');
+      }
       if (await askConfirm(`¿Seguro que quieres BORRAR "${l.title}"?\n\nSi solo quieres que deje de aplicar sin perderla, pulsa Cancelar y usa "Derogar".\n(También puedes recuperarla luego con el botón Deshacer de arriba.)`)) {
         state.laws = state.laws.filter(x => x.id !== el.dataset.id);
         commit('state');
