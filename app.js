@@ -1122,6 +1122,12 @@
         if (/^(dispone|resuelve|decreta|acuerda)\s*:?$/i.test(trimmed)) {
           return `<div class="norm-dispone">${s.toUpperCase()}</div>`;
         }
+        if (/^concordancias\b/i.test(trimmed)) {
+          return `<div class="norm-concordancias">${s.replace(/^(Concordancias\s*:?)/i, '<strong class="text-diamond">🔗 $1</strong>')}</div>`;
+        }
+        if (/^[áa]mbito\b/i.test(trimmed)) {
+          return `<div class="norm-considerando" style="border-left-color:var(--c-slate);">${s.replace(/^([ÁA]mbito\s*:?)/i, '<strong class="text-white">$1</strong>')}</div>`;
+        }
         if (/^vigencia\b/i.test(trimmed)) {
           return `<div class="norm-vigencia">${s.replace(/^(Vigencia\s*:?)/i, '<strong class="text-emerald">$1</strong>')}</div>`;
         }
@@ -1191,6 +1197,7 @@
         <div class="flex-between">
           <div class="flex-row-wrap" style="gap:6px;">
             <span class="mc-tag tag-${meta.tag}">${esc(meta.prefix)} ${l.num}</span>
+            <span class="mc-tag ${rp ? 'tag-emerald' : 'tag-slate'}" title="${rp ? 'Norma dentro del rol (In Character)' : 'Regla técnica fuera de rol (Out of Character)'}">${rp ? 'IC · En Rol' : 'OOC · Fuera de Rol'}</span>
             <strong class="text-white text-sm">${esc(l.title)}</strong>
             <span class="mc-tag ${status === 'vigente' ? 'tag-emerald' : status === 'derogada' ? 'tag-slate' : 'tag-gold'}">${status}</span>
             ${rp && !l.repealed ? revTag(rev) : ''}
@@ -1240,7 +1247,7 @@
         if (docFilter !== 'all') list = list.filter(l => docTypeOf(l) === docFilter);
         if (revFilter !== 'all') list = list.filter(matchesRevFilter);
       }
-      const order = { ley: 1, codigo_penal: 2, decreto: 3, resolucion: 4, acuerdo: 5, circular: 6, servidor: 7 };
+      const order = { ley: 1, codigo_penal: 2, decreto: 3, resolucion: 4, acuerdo: 5, circular: 6, manual: 7, servidor: 8 };
       list.sort((x, y) => (order[docTypeOf(x)] || 9) - (order[docTypeOf(y)] || 9) || x.num - y.num);
       return list.length ? list.map(lawCard).join('') : empty(kind === 'rol' ? 'Sin normas en esta categoría.' : 'Sin reglas todavía.');
     };
@@ -1252,11 +1259,12 @@
     const docFilters = [
       ['all', `Todas (${rolCount('all')})`],
       ['ley', `Leyes (${rolCount('ley')})`],
-      ['codigo_penal', `Código Penal (${rolCount('codigo_penal')})`],
+      ['codigo_penal', `Código de Convivencia (${rolCount('codigo_penal')})`],
       ['decreto', `Decretos (${rolCount('decreto')})`],
       ['resolucion', `Resoluciones (${rolCount('resolucion')})`],
       ['acuerdo', `Acuerdos (${rolCount('acuerdo')})`],
-      ['circular', `Circulares (${rolCount('circular')})`]
+      ['circular', `Circulares (${rolCount('circular')})`],
+      ['manual', `Manuales y Guías (${rolCount('manual')})`]
     ];
     const revFilters = [
       ['all', 'Todo trámite'],
@@ -1312,8 +1320,8 @@
         }).join('')}
       </div>` : `<div class="text-xs text-muted">Todavía no hay comentarios de revisión ni normas derogadas.</div>`}`);
     const lawsRol = panel(`
-      ${head('NORMATIVA Y CÓDIGO PENAL', 'amethyst', 'LEYES, CÓDIGO PENAL, DECRETOS Y RESOLUCIONES',
-        `Marco jurídico de ${esc(nat('myth').nation)} y ${esc(nat('scad').nation)}. Soporta <strong>Artículos</strong>, <strong>Parágrafos</strong>, penas desglosadas, clasificación <strong>TRD</strong> y revisión por <strong>${esc(revName)}</strong>.`)}
+      ${head('NORMATIVA IC · DENTRO DEL ROL', 'amethyst', 'LEYES, CÓDIGO DE CONVIVENCIA, DECRETOS Y MANUALES',
+        `Ordenamiento interno (<strong>In Character</strong>) de ${esc(nat('myth').nation)} y ${esc(nat('scad').nation)} en lenguaje claro e inclusivo. Incluye <strong>Artículos</strong>, <strong>Parágrafos</strong>, <strong>Concordancias</strong> entre actos, <strong>Manuales/Guías</strong>, serie <strong>TRD</strong> y revisión por <strong>${esc(revName)}</strong>.`)}
       <div class="flex-between" style="margin-bottom:10px;gap:8px;">
         <div class="flex-row-wrap" style="gap:6px;">
           ${docFilters.map(([v, t]) => `<button class="filter-pill ${docFilter === v ? 'active' : ''}" data-action="law-doc-filter" data-v="${v}">${esc(t)}</button>`).join('')}
@@ -1328,33 +1336,33 @@
         ${revFilters.map(([v, t]) => `<button class="filter-pill ${revFilter === v ? 'active' : ''}" data-action="law-rev-filter" data-v="${v}">${esc(t)}</button>`).join('')}
       </div>
       <details class="mc-panel-dark p-md" style="margin-bottom:12px;">
-        <summary class="font-mono text-xs text-emerald" style="cursor:pointer;font-weight:700;">+ Radicar ley, código penal, decreto, resolución, acuerdo o circular</summary>
+        <summary class="font-mono text-xs text-emerald" style="cursor:pointer;font-weight:700;">+ Radicar ley, código, decreto, resolución, acuerdo, circular o manual</summary>
         <div style="margin-top:10px;">
           <div class="grid-4" style="gap:8px;margin-bottom:8px;">
-            <select id="law-doc-type" class="mc-select font-mono">${opts([['ley', 'Ley del mundo'], ['codigo_penal', 'Código Penal'], ['decreto', 'Decreto Ejecutivo'], ['resolucion', 'Resolución Administrativa'], ['acuerdo', 'Acuerdo Bilateral'], ['circular', 'Circular / Instructivo'], ['servidor', 'Regla del servidor (OOC)']], 'ley')}</select>
+            <select id="law-doc-type" class="mc-select font-mono">${opts([['ley', 'Ley del mundo (IC)'], ['codigo_penal', 'Código de Convivencia (IC)'], ['decreto', 'Decreto Ejecutivo (IC)'], ['resolucion', 'Resolución Administrativa (IC)'], ['acuerdo', 'Acuerdo Bilateral (IC)'], ['circular', 'Circular / Instructivo (IC)'], ['manual', 'Manual / Guía Oficial (IC)'], ['servidor', 'Regla del servidor (OOC)']], 'ley')}</select>
             <select id="law-trd" class="mc-select font-mono">${opts(trdList().map(t => [t.code, `TRD ${t.code} · ${t.series}`]), '100-01')}</select>
-            <input id="law-title" class="mc-input" placeholder="Título (ej. Decreto 003 · Viáticos)"/>
-            <input id="law-sanction" class="mc-input" placeholder="Pena / sanción (opcional)"/>
+            <input id="law-title" class="mc-input" placeholder="Título claro (ej. Decreto 003 · Ferias)"/>
+            <input id="law-sanction" class="mc-input" placeholder="Medida / sanción (opcional)"/>
           </div>
           <div class="flex-between" style="margin-bottom:6px;">
-            <span class="text-xs text-muted">Estructura recomendada: Epígrafe → Considerando → Dispone/Resuelve → Artículos y Parágrafos → Vigencia</span>
+            <span class="text-xs text-muted">Estructura: Epígrafe → Considerando → Dispone → Artículos/Parágrafos → Concordancias → Vigencia</span>
             <button type="button" class="mc-btn" style="padding:3px 8px;font-size:11px;" data-action="law-template" data-target="law-text">📋 Plantilla Acto Colombiano</button>
           </div>
-          <textarea id="law-text" rows="5" class="mc-textarea" placeholder="EPÍGRAFE: Por medio del cual se...&#10;CONSIDERANDO:&#10;1. Que...&#10;DISPONE:&#10;Artículo 1. ..." style="margin-bottom:8px;"></textarea>
+          <textarea id="law-text" rows="5" class="mc-textarea" placeholder="EPÍGRAFE: Por medio de la cual se...&#10;CONSIDERANDO:&#10;1. Que...&#10;DISPONE:&#10;Artículo 1. ...&#10;Concordancias: Ley 001 (TRD 100-01).&#10;Vigencia: Rige desde su firma bilateral." style="margin-bottom:8px;"></textarea>
           <button class="mc-btn mc-btn-redstone" data-action="law-add">Radicar y proponer</button>
         </div>
       </details>
       <div class="section-stack" style="gap:8px;">${lawList('rol')}</div>
       <div class="flex-row-wrap" style="gap:8px;margin-top:12px;">
-        <button class="mc-btn" data-action="law-defaults" data-kind="rol">📜 Cargar leyes del mundo sugeridas</button>
-        <button class="mc-btn mc-btn-gold" data-action="law-defaults" data-kind="penal">⚖️ Cargar Código Penal, Decretos, Resoluciones y Circular</button>
-        <button class="mc-btn mc-btn-emerald" data-action="law-upgrade-pack" title="Actualiza borradores o normas derogadas no vigentes a la nueva redacción técnica archivística sin tocar las ya firmadas">🏛️ Actualizar borradores a redacción archivística</button>
+        <button class="mc-btn" data-action="law-defaults" data-kind="rol">📜 Cargar leyes del mundo (IC)</button>
+        <button class="mc-btn mc-btn-gold" data-action="law-defaults" data-kind="penal">⚖️ Cargar Código, Decretos, Resoluciones y Manuales (IC)</button>
+        <button class="mc-btn mc-btn-emerald" data-action="law-upgrade-pack" title="Actualiza todas las normas y manuales (IC y OOC) a lenguaje claro, citas cruzadas, reactiva derogadas y deja todo vigente con ambas firmas">🏛️ Actualizar todo a lenguaje claro y firmar</button>
       </div>`);
     const lawsSrv = panel(`
-      ${head('FUERA DEL ROL', 'slate', 'REGLAS DEL SERVIDOR',
-        'Acuerdos entre ustedes como jugadores: backups, comandos, PvP, cómo se usa la app. No son parte de la historia.')}
+      ${head('OOC · FUERA DE ROL (TRD 160-01)', 'slate', 'REGLAS TÉCNICAS DEL SERVIDOR (OOC)',
+        'Acuerdos estrictamente fuera de rol (<strong>Out of Character</strong>): dificultad de juego, respaldos diarios, uso de la aplicación web, <code>Name Tag</code> y pausas por fallos técnicos. <strong>Separadas por completo de la historia IC.</strong>')}
       <div class="section-stack" style="gap:8px;">${lawList('servidor')}</div>
-      <div style="margin-top:10px;"><button class="mc-btn" data-action="law-defaults" data-kind="servidor">Cargar reglas sugeridas</button></div>`);
+      <div style="margin-top:10px;"><button class="mc-btn" data-action="law-defaults" data-kind="servidor">Cargar reglas OOC sugeridas</button></div>`);
 
     const counts = trdCounts();
     const trdPanel = panel(`
@@ -1473,7 +1481,61 @@
       + fold('eraAnswers', '📜 Respuestas a las preguntas de cada era', eraAnswers);
   }
 
-  /* ======================== Vista: Territorio ======================== */
+  /* ======================== Vista: Territorio y Cédulas (TRD 150-01) ======================== */
+
+  function censusOwnerOf(v) {
+    if (!v) return 'myth';
+    if (v.kind === 'animal') return v.owner || 'myth';
+    return (v.owner || (state.professions && state.professions[v.prof]) || 'myth');
+  }
+  function cedulaSeriesPrefix(kind, owner) {
+    const ser = kind === 'animal' ? 'CA' : 'CC';
+    const org = owner === 'scad' ? 'LUT' : 'NA';
+    return `${ser}-${org}-`;
+  }
+  function nextCedulaCode(kind, owner) {
+    const prefix = cedulaSeriesPrefix(kind, owner);
+    const max = state.villagers.reduce((m, x) => {
+      const code = String(x.cedula || '');
+      if (!code.startsWith(prefix)) return m;
+      const n = Number(code.slice(prefix.length)) || 0;
+      return Math.max(m, n);
+    }, 0);
+    return `${prefix}${String(max + 1).padStart(4, '0')}`;
+  }
+  function displayCedula(v, idx) {
+    if (v.cedula) return v.cedula;
+    const owner = censusOwnerOf(v);
+    return `${cedulaSeriesPrefix(v.kind === 'animal' ? 'animal' : 'villager', owner)}${String(idx + 1).padStart(4, '0')}`;
+  }
+  function formatCedulaCard(v, idx) {
+    const isAnim = v.kind === 'animal';
+    const owner = censusOwnerOf(v);
+    const code = displayCedula(v, idx);
+    const profObj = !isAnim ? (D.PROFESSIONS || []).find(p => p.id === v.prof) : null;
+    const specObj = isAnim ? (D.ANIMAL_SPECIES || []).find(a => a.id === v.species) : null;
+    const roleLabel = isAnim ? (specObj ? specObj.name : (v.species || 'Animal')) : (profObj ? profObj.name : (v.prof || 'Sin oficio'));
+    const issued = v.issuedAt ? new Date(v.issuedAt).toLocaleDateString('es-CO') : 'Registro vigente';
+    return [
+      `╔══════════════════════════════════════╗`,
+      `  REPÚBLICA / ARCHIVO NACIONAL · TRD 150-01`,
+      `  ${isAnim ? 'CÉDULA ANIMAL Y DE COMPAÑÍA (CA)' : 'CÉDULA DE CIUDADANÍA ALDEANA (CC)'}`,
+      `╚══════════════════════════════════════╝`,
+      `Número Oficial : ${code}`,
+      `Nombre Propio  : ${v.name}`,
+      `Rótulo Yunque  : ${v.name} [${code}]`,
+      `${isAnim ? 'Especie / Clase' : 'Oficio / Gremio'}: ${roleLabel}`,
+      `Jurisdicción   : ${nat(owner).nation} (${nat(owner).player})`,
+      `Morada / Sede  : ${v.home || 'Por asignar'}`,
+      `Detalle / Nota : ${v.offer || (isAnim ? 'Ejemplar protegido' : 'Comercio estándar')}`,
+      isAnim ? `Estado Vital   : ${v.deceased ? '† Archivo Histórico (Deceso)' : '♥ Vivo y Protegido'}` : `Curación Zombi : ${v.cured ? '1/1 Curado' : '0/1'} · ${v.deceased ? '† Archivo Histórico' : '♥ Vivo'}`,
+      `Etiqueta Física: ${v.tagged ? '✔ Portada en juego (Name Tag)' : '⚠ Pendiente de colocar en juego'}`,
+      `Expedición     : ${issued} · Sin costo (Ley 002 / Cir. 002)`,
+      ``,
+      `--- Texto compacto para Libro Firmado Original ---`,
+      `CEDULA ${code} | ${v.name} | ${roleLabel} | Estado: ${nat(owner).nation} | Morada: ${v.home || 'N/A'} | Tag: ${v.name} [${code}]`
+    ].join('\n');
+  }
 
   function renderTerritory() {
     const goal = railGoal();
@@ -1515,28 +1577,86 @@
           <button class="mc-btn" style="padding:2px 6px;" data-action="pt-del" data-id="${p.id}">✕</button></div>`).join('') : empty('Sin portales guardados.')}
       </div>`);
 
+    const cFilter = state.ui.censusFilter || 'all';
+    const vgKind = state.ui.vgAddKind || 'villager';
+    const isAnimForm = vgKind === 'animal';
+    const villCount = state.villagers.filter(v => v.kind !== 'animal').length;
+    const animCount = state.villagers.filter(v => v.kind === 'animal').length;
+    const untaggedCount = state.villagers.filter(v => !v.tagged && !v.deceased).length;
+    const missingCodeCount = state.villagers.filter(v => !v.cedula).length;
+    const filteredCensus = state.villagers.map((v, idx) => ({ v, idx })).filter(({ v }) => {
+      if (cFilter === 'villager') return v.kind !== 'animal';
+      if (cFilter === 'animal') return v.kind === 'animal';
+      if (cFilter === 'untagged') return !v.tagged && !v.deceased;
+      return true;
+    });
+
     const census = panel(`
-      ${head('CENSO', 'emerald', 'ALDEANOS', 'El Estado de cada aldeano lo define su profesión (reparto en Estados y Leyes).')}
-      <details class="mc-panel-dark p-md" style="margin-bottom:12px;"><summary class="font-mono text-sm text-emerald" style="cursor:pointer;font-weight:700;">+ Censar un aldeano</summary><div style="margin-top:10px;">
-        <div class="grid-4" style="gap:8px;align-items:end;">
-          ${field('Nombre (name tag)', '<input id="vg-name" class="mc-input"/>')}
-          ${field('Profesión', `<select id="vg-prof" class="mc-select">${opts(D.PROFESSIONS.map(p => [p.id, `${p.name} · ${nat(state.professions[p.id]).nation}`]), 'librarian')}</select>`)}
-          ${field('Edificio / barrio', '<input id="vg-home" class="mc-input"/>')}
-          ${field('Oferta clave', '<input id="vg-offer" class="mc-input" placeholder="Ej. Mending"/>')}
+      ${head('TRD 150-01 · REGISTRO CIVIL', 'emerald', 'CÉDULAS DE ALDEANOS (CC) Y ANIMALES (CA)',
+        'Identificación oficial de ciudadanía aldeana (<strong>CC</strong>) y animales, mascotas o monturas (<strong>CA</strong>). Gratuita según la <strong>Ley 002</strong> y la <strong>Circular 002</strong>; copia el rótulo exacto para tu Name Tag artesanal en el yunque.')}
+      <details class="mc-panel-dark p-md" style="margin-bottom:12px;" ${state.ui.vgFormOpen ? 'open' : ''}><summary class="font-mono text-sm text-emerald" style="cursor:pointer;font-weight:700;">+ Expedir nueva Cédula (Aldeano CC o Animal/Mascota CA)</summary><div style="margin-top:10px;">
+        <div class="flex-row-wrap" style="gap:6px;margin-bottom:10px;">
+          <button type="button" class="filter-pill ${!isAnimForm ? 'active' : ''}" data-action="vg-kind-btn" data-v="villager">🧑‍🌾 Ciudadano Aldeano (Cédula CC)</button>
+          <button type="button" class="filter-pill ${isAnimForm ? 'active' : ''}" data-action="vg-kind-btn" data-v="animal">🐾 Animal / Mascota / Montura (Cédula CA)</button>
         </div>
-        <div class="flex-row-wrap" style="gap:8px;margin-top:8px;"><label class="text-xs text-muted"><input id="vg-cured" type="checkbox"/> Ya curado (1/1)</label><button class="mc-btn mc-btn-emerald" data-action="vg-add" style="margin-left:auto;">+ Censar</button></div>
+        <div class="grid-4" style="gap:8px;align-items:end;">
+          ${field('Nombre propio', `<input id="vg-name" class="mc-input" placeholder="${isAnimForm ? 'Ej. Ceniza / Relámpago' : 'Ej. Mercurio'}"/>`)}
+          ${isAnimForm
+            ? field('Especie / Clase', `<select id="vg-species" class="mc-select">${opts((D.ANIMAL_SPECIES || []).map(a => [a.id, a.name]), 'lobo')}</select>`)
+            : field('Profesión (define Estado)', `<select id="vg-prof" class="mc-select">${opts(D.PROFESSIONS.map(p => [p.id, `${p.name} · ${nat(state.professions[p.id]).nation}`]), 'librarian')}</select>`)}
+          ${isAnimForm
+            ? field('Jurisdicción / Tutor', `<select id="vg-owner" class="mc-select">${opts(STATES.map(s => [s, `${nat(s).nation} (${nat(s).player})`]), 'myth')}</select>`)
+            : field('Morada / Edificio', '<input id="vg-home" class="mc-input" placeholder="Ej. Biblioteca Norte"/>')}
+          ${isAnimForm
+            ? field('Establo / Morada y Nota', '<div class="grid-2" style="gap:6px;"><input id="vg-home" class="mc-input" placeholder="Establo"/><input id="vg-offer" class="mc-input" placeholder="Rol / nota"/></div>')
+            : field('Oferta clave / Nota', '<input id="vg-offer" class="mc-input" placeholder="Ej. Mending 14 esm."/>')}
+        </div>
+        <div class="flex-row-wrap" style="gap:12px;margin-top:8px;">
+          ${!isAnimForm ? '<label class="text-xs text-muted"><input id="vg-cured" type="checkbox"/> Ya curado (1/1)</label>' : ''}
+          <label class="text-xs text-diamond"><input id="vg-tagged" type="checkbox"/> Ya tiene Name Tag colocada</label>
+          <button class="mc-btn mc-btn-emerald" data-action="vg-add" style="margin-left:auto;">🪪 Expedir Cédula ${isAnimForm ? 'CA' : 'CC'}</button>
+        </div>
       </div></details>
-      <div class="text-xs font-mono text-muted" style="margin-bottom:8px;">${STATES.map(s => `${nat(s).nation}: ${state.villagers.filter(v => state.professions[v.prof] === s).length}`).join(' · ')} · Total ${state.villagers.length}</div>
+
+      <div class="flex-between" style="margin-bottom:10px;gap:8px;">
+        <div class="flex-row-wrap" style="gap:6px;">
+          <button class="filter-pill ${cFilter === 'all' ? 'active' : ''}" data-action="vg-filter" data-v="all">Todos (${state.villagers.length})</button>
+          <button class="filter-pill ${cFilter === 'villager' ? 'active' : ''}" data-action="vg-filter" data-v="villager">🧑‍🌾 Aldeanos CC (${villCount})</button>
+          <button class="filter-pill ${cFilter === 'animal' ? 'active' : ''}" data-action="vg-filter" data-v="animal">🐾 Animales CA (${animCount})</button>
+          <button class="filter-pill ${cFilter === 'untagged' ? 'active' : ''}" data-action="vg-filter" data-v="untagged">⚠ Sin Tag puesta (${untaggedCount})</button>
+        </div>
+        <div class="flex-row-wrap" style="gap:6px;">
+          <span class="text-xs font-mono text-muted">${STATES.map(s => `${nat(s).nation}: ${state.villagers.filter(v => censusOwnerOf(v) === s).length}`).join(' · ')}</span>
+          ${missingCodeCount ? `<button class="mc-btn mc-btn-gold" style="padding:3px 8px;font-size:11px;" data-action="vg-issue-all">🪪 Asignar códigos (${missingCodeCount})</button>` : ''}
+        </div>
+      </div>
+
       <div style="overflow-x:auto;">
-        ${state.villagers.length ? `<table class="mc-table"><thead><tr><th>Nombre</th><th>Profesión</th><th>Estado</th><th>Hogar</th><th>Oferta</th><th>Cura</th><th></th></tr></thead><tbody>
-          ${state.villagers.map(v => {
-            const prof = D.PROFESSIONS.find(p => p.id === v.prof);
-            const owner = state.professions[v.prof];
-            return `<tr><td class="text-white" style="font-weight:700;">${esc(v.name)}</td><td class="text-xs">${esc(prof ? prof.name : v.prof)}</td><td>${owner ? ptag(owner) : ''}</td>
-              <td class="text-xs text-muted">${esc(v.home)}</td><td class="text-xs font-mono text-emerald">${esc(v.offer)}</td>
-              <td><button class="mc-btn ${v.cured ? 'mc-btn-gold' : ''}" style="padding:2px 6px;" data-action="vg-cure" data-id="${v.id}">${v.cured ? '1/1' : '0/1'}</button></td>
-              <td><button class="mc-btn mc-btn-redstone" style="padding:2px 6px;" data-action="vg-del" data-id="${v.id}">✕</button></td></tr>`;
-          }).join('')}</tbody></table>` : empty('Sin aldeanos censados (se desbloquean en la ERA V, Ciudadanía).')}
+        ${filteredCensus.length ? `<table class="mc-table"><thead><tr><th>Cédula</th><th>Nombre y Clase</th><th>Estado</th><th>Morada / Establo</th><th>Detalle</th><th>Name Tag</th><th>Vital</th><th>Ficha</th></tr></thead><tbody>
+          ${filteredCensus.map(({ v, idx }) => {
+            const isAnim = v.kind === 'animal';
+            const owner = censusOwnerOf(v);
+            const code = displayCedula(v, idx);
+            const prof = !isAnim ? D.PROFESSIONS.find(p => p.id === v.prof) : null;
+            const spec = isAnim ? (D.ANIMAL_SPECIES || []).find(a => a.id === v.species) : null;
+            const classLabel = isAnim ? `🐾 ${spec ? spec.name : (v.species || 'Animal')}` : `🧑‍🌾 ${prof ? prof.name : v.prof}`;
+            return `<tr style="${v.deceased ? 'opacity:.65;' : ''}">
+              <td class="font-mono"><span class="mc-tag ${isAnim ? 'tag-copper' : 'tag-emerald'}">${esc(code)}</span></td>
+              <td><div class="text-white" style="font-weight:700;">${esc(v.name)}</div><div class="text-xs text-muted">${esc(classLabel)}</div></td>
+              <td>${owner ? ptag(owner) : ''}</td>
+              <td class="text-xs text-muted">${esc(v.home || '—')}</td>
+              <td class="text-xs font-mono text-emerald">${esc(v.offer || '—')}</td>
+              <td><button class="mc-btn ${v.tagged ? 'mc-btn-emerald' : 'mc-btn-gold'}" style="padding:2px 6px;" data-action="vg-tag" data-id="${v.id}" title="Marcar si ya lleva Name Tag física">${v.tagged ? '🏷️ Puesta' : '⚠ Falta'}</button></td>
+              <td><div class="flex-row-wrap" style="gap:4px;">
+                ${!isAnim ? `<button class="mc-btn ${v.cured ? 'mc-btn-gold' : ''}" style="padding:2px 6px;" data-action="vg-cure" data-id="${v.id}" title="Única cura zombi">${v.cured ? '1/1' : '0/1'}</button>` : ''}
+                <button class="mc-btn ${v.deceased ? 'mc-btn-redstone' : ''}" style="padding:2px 6px;" data-action="vg-vital" data-id="${v.id}" title="Alternar estado vital / archivo histórico">${v.deceased ? '† Archivo' : '♥ Vivo'}</button>
+              </div></td>
+              <td><div class="flex-row-wrap" style="gap:4px;">
+                <button class="mc-btn" style="padding:2px 6px;" data-action="vg-copy-tag" data-id="${v.id}" title="Copiar rótulo para yunque">🪪</button>
+                <button class="mc-btn" style="padding:2px 6px;" data-action="vg-card" data-id="${v.id}" title="Ver ficha completa de Cédula (TRD 150-01)">📖</button>
+                <button class="mc-btn mc-btn-redstone" style="padding:2px 6px;" data-action="vg-del" data-id="${v.id}">✕</button>
+              </div></td></tr>`;
+          }).join('')}</tbody></table>` : empty(state.villagers.length ? 'Sin registros en este filtro.' : 'Sin cédulas expedidas todavía (se activan desde la ERA V o antes con papel + pepita).')}
       </div>`);
 
     $('view-territory').innerHTML = rail + census + fold('portals', '🔥 Calculadora de portales del Nether (÷8)', portals);
@@ -2004,7 +2124,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     'law-defaults': el => {
       const k = el.dataset.kind;
       const added = addDefaultLaws(k);
-      const label = k === 'penal' ? 'Código Penal, Decretos y Resoluciones' : k === 'rol' ? 'Leyes del mundo' : 'Reglas del servidor';
+      const label = k === 'penal' ? 'Código de Convivencia, Decretos, Resoluciones y Manuales' : k === 'rol' ? 'Leyes del mundo (IC)' : 'Reglas del servidor (OOC)';
       toast(label, added ? `${added} documentos agregados. Rigen cuando firmen ambos.` : 'Ya estaban todos cargados.', 'gavel');
       commit('state');
     },
@@ -2058,6 +2178,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
         'Artículo 2. Competencia y responsables.',
         'Parágrafo 1 (Excepciones y fuerza mayor):',
         'Artículo 3. Registro y custodia archivística (TRD).',
+        'Concordancias: Ley 001 (TRD 100-01); Manual 001 (TRD 110-05).',
         'Vigencia: Rige a partir de su firma bilateral y deroga las disposiciones contrarias.'
       ].join('\n');
       if (target.value.trim() && !confirm('¿Reemplazar el borrador actual por la plantilla formal colombiana?')) return;
@@ -2065,58 +2186,116 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       target.focus();
     },
     'law-upgrade-pack': async () => {
-      if (!await askConfirm('Se actualizarán las leyes y actos en borrador o derogados (sin firmar) a la nueva redacción archivística colombiana y se agregarán actos faltantes. Las normas ya firmadas por ambos no se tocan. ¿Continuar?')) return;
-      const allPacks = [
+      if (!await askConfirm('Se actualizarán todas las leyes, códigos, decretos, resoluciones, manuales y reglas OOC a lenguaje claro e inclusivo con Concordancias y TRD, reactivando lo derogado y dejándolo firmado y vigente. ¿Continuar?')) return;
+      const icPacks = [
         ...(D.DEFAULT_RP_LAWS || []),
         ...(D.DEFAULT_PENAL_PACK || [])
       ];
+      const oocPacks = (D.DEFAULT_LAWS || []).map((d, idx) => ({ ...d, oocIdx: idx + 1 }));
       let updated = 0;
       let added = 0;
       const matchMap = {
-        'ley de penas': 'Ley de Penas y Régimen Sancionatorio Bilateral',
-        'ley de ciudadanía': 'Ley de Ciudadanía y Protección Aldeana',
-        'ley de extranjería': 'Ley de Extranjería, Residencia y Permisos',
-        'ley de aduana y tránsito': 'Ley de Aduana, Fronteras y Tránsito',
-        'ley de hallazgos y patrimonio': 'Ley de Hallazgos, Reliquias y Patrimonio Nacional',
-        'ley de obras públicas': 'Ley de Obras Públicas y Servidumbres',
-        'ley de sabotaje': 'Ley de Protección contra Sabotaje y Propiedad Intelectual',
-        'ley de deudas y embargos': 'Ley de Obligaciones, Deudas y Embargos',
-        'ley de la mesa compartida': 'Ley de Seguridad Alimentaria y Mesa Compartida',
-        'ley del archivo': 'Ley Orgánica del Archivo Nacional y Memoria Histórica'
+        'ley de penas': 'Ley 001 · Régimen de Convivencia, Sanciones y Reparación Bilateral',
+        'ley de penas y régimen sancionatorio bilateral': 'Ley 001 · Régimen de Convivencia, Sanciones y Reparación Bilateral',
+        'ley de ciudadanía': 'Ley 002 · Ciudadanía, Cédulas (CC/CA) y Protección de Aldeanos y Animales',
+        'ley de ciudadanía y protección aldeana': 'Ley 002 · Ciudadanía, Cédulas (CC/CA) y Protección de Aldeanos y Animales',
+        'ley 002 · ciudadanía, vivienda digna y protección aldeana': 'Ley 002 · Ciudadanía, Cédulas (CC/CA) y Protección de Aldeanos y Animales',
+        'ley de extranjería': 'Ley 003 · Movilidad, Hospitalidad y Residencia para Visitantes',
+        'ley de extranjería, residencia y permisos': 'Ley 003 · Movilidad, Hospitalidad y Residencia para Visitantes',
+        'ley de aduana y tránsito': 'Ley 004 · Fronteras Abiertas, Aduanas y Servidumbres de Paso',
+        'ley de aduana, fronteras y tránsito': 'Ley 004 · Fronteras Abiertas, Aduanas y Servidumbres de Paso',
+        'ley de hallazgos y patrimonio': 'Ley 005 · Hallazgos, Reliquias y Patrimonio Histórico Nacional',
+        'ley de hallazgos, reliquias y patrimonio nacional': 'Ley 005 · Hallazgos, Reliquias y Patrimonio Histórico Nacional',
+        'ley de obras públicas': 'Ley 006 · Obras Públicas, Infraestructura y Servidumbres Comunes',
+        'ley de obras públicas y servidumbres': 'Ley 006 · Obras Públicas, Infraestructura y Servidumbres Comunes',
+        'ley de sabotaje': 'Ley 007 · Cuidado de Infraestructura, Ingeniería y Creaciones Propias',
+        'ley de protección contra sabotaje y propiedad intelectual': 'Ley 007 · Cuidado de Infraestructura, Ingeniería y Creaciones Propias',
+        'ley de deudas y embargos': 'Ley 008 · Contratos de Crédito, Obligaciones y Cobro Proporcional',
+        'ley de obligaciones, deudas y embargos': 'Ley 008 · Contratos de Crédito, Obligaciones y Cobro Proporcional',
+        'ley de duelos de honor': 'Ley 009 · Torneos, Justas y Duelos de Honor',
+        'ley de la mesa compartida': 'Ley 010 · Seguridad Alimentaria, Canasta Básica y Mesa Compartida',
+        'ley de seguridad alimentaria y mesa compartida': 'Ley 010 · Seguridad Alimentaria, Canasta Básica y Mesa Compartida',
+        'ley del archivo': 'Ley 011 · Ley Orgánica del Archivo Nacional, TRD y Memoria Plural',
+        'ley orgánica del archivo nacional y memoria histórica': 'Ley 011 · Ley Orgánica del Archivo Nacional, TRD y Memoria Plural',
+        'código penal · libro i: propiedad, bóvedas y saqueo': 'Libro I · Protección del Patrimonio, Bóvedas y Bienes Comunes',
+        'código penal · libro i: patrimonio, bóvedas y saqueo': 'Libro I · Protección del Patrimonio, Bóvedas y Bienes Comunes',
+        'código penal · libro ii: tesoro, moneda y fe pública': 'Libro II · Transparencia Fiscal, Moneda y Contratos Limpios',
+        'código penal · libro iii: sabotaje, aldeanos y obras': 'Libro III · Cuidado de Infraestructura, Habitantes y Creaciones',
+        'código penal · libro iii: infraestructura, aldeanos y patentes': 'Libro III · Cuidado de Infraestructura, Habitantes y Creaciones',
+        'código penal · libro iv: dosimetría penal, prescripción e indultos': 'Libro IV · Dosimetría Clara, Prescripción, Revisión e Indultos',
+        'código penal · libro iv: dosimetría, prescripción, apelación e indultos': 'Libro IV · Dosimetría Clara, Prescripción, Revisión e Indultos',
+        'decreto 001 · gastos reservados, viáticos y caja menor': 'Decreto 001 · Régimen de Viáticos, Representación y Caja Menor',
+        'decreto 002 · estado de excepción aduanera y decomiso': 'Decreto 002 · Control Aduanero, Custodia Preventiva y Remate',
+        'decreto 002 · control aduanero, retención preventiva y decomiso': 'Decreto 002 · Control Aduanero, Custodia Preventiva y Remate',
+        'resolución 001 · radicación, foliado y tabla de retención (trd)': 'Resolución 001 · Estándares de Radicación, Foliado y TRD',
+        'resolución 001 · manual de radicación, foliado y trd': 'Resolución 001 · Estándares de Radicación, Foliado y TRD',
+        'resolución 002 · arancel de trámites, permisos y peajes': 'Resolución 002 · Tarifas Claras de Trámites, Residencia y Certificaciones',
+        'resolución 002 · aranceles de trámites, permisos y certificaciones': 'Resolución 002 · Tarifas Claras de Trámites, Residencia y Certificaciones',
+        'circular 001 · lineamientos de revisión jurídica y subsanación': 'Circular 001 · Lineamientos de Revisión Jurídica y Lenguaje Claro'
       };
-      allPacks.forEach(def => {
+      const applyDef = (existing, def, isIc) => {
+        existing.title = def.title;
+        existing.text = tx(def.text);
+        existing.sanction = tx(def.sanction || '');
+        existing.docType = def.docType || existing.docType || (isIc ? 'ley' : 'servidor');
+        existing.kind = isIc ? 'rol' : 'servidor';
+        existing.trdCode = def.trdCode || existing.trdCode || (isIc ? '100-01' : '160-01');
+        existing.repealed = false;
+        delete existing.repealedAt;
+        delete existing.repealedBy;
+        delete existing.repealReason;
+        delete existing.repealEdited;
+        existing.signs = { myth: true, scad: true };
+        existing.editedAt = Date.now();
+        if (isIc) {
+          const rev = ensureLawReview(existing);
+          rev.status = 'approved';
+          pushReviewNote(existing, 'approved', 'Reforma integral a lenguaje claro, Concordancias, separación IC/OOC y vigencia plena.');
+        }
+      };
+      icPacks.forEach(def => {
         const defLower = def.title.toLowerCase();
         const existing = state.laws.find(l => {
           const lt = (l.title || '').toLowerCase();
           return lt === defLower || matchMap[lt] === def.title;
         });
         if (existing) {
-          if (!(existing.signs && existing.signs.myth && existing.signs.scad)) {
-            existing.title = def.title;
-            existing.text = tx(def.text);
-            existing.sanction = tx(def.sanction || '');
-            existing.docType = def.docType || existing.docType || 'ley';
-            existing.trdCode = def.trdCode || existing.trdCode || '100-01';
-            existing.editedAt = Date.now();
-            if (existing.repealed) {
-              existing.repealEdited = true;
-              pushReviewNote(existing, 'edited', 'Actualizada a redacción técnica archivística; lista para restaurar.');
-            }
-            updated++;
-          }
+          applyDef(existing, def, true);
+          updated++;
         } else {
           const docType = def.docType || 'ley';
           const trdCode = def.trdCode || ((D.DOC_TYPES || {})[docType] || {}).trd || '100-01';
-          state.laws.push({ id: uid('ley'), kind: 'rol', docType, trdCode, num: nextLawNum('rol', docType), title: def.title, text: tx(def.text), sanction: tx(def.sanction || ''), signs: { myth: false, scad: false }, review: { status: 'none', notes: [] }, repealed: false, t: Date.now() });
+          const created = {
+            id: uid('ley'), kind: 'rol', docType, trdCode, num: nextLawNum('rol', docType),
+            title: def.title, text: tx(def.text), sanction: tx(def.sanction || ''),
+            signs: { myth: true, scad: true }, review: { status: 'approved', notes: [{ action: 'approved', by: reviewerId() ? pname(reviewerId()) : 'Archivista', at: Date.now(), text: 'Incorporado y avalado en reforma integral.' }] },
+            repealed: false, t: Date.now()
+          };
+          state.laws.push(created);
           added++;
         }
       });
-      // Sincronizar también nuevas series TRD faltantes
+      const obsoleteOoc = new Set(['pvp y bromas', 'invitados', 'resolución de disputas', 'integridad de la oferta sellada', 'multas y reforma']);
+      state.laws = state.laws.filter(l => !((l.kind || 'servidor') === 'servidor' && obsoleteOoc.has((l.title || '').trim().toLowerCase())));
+      oocPacks.forEach(def => {
+        const defLower = def.title.toLowerCase();
+        const existing = state.laws.find(l => (l.kind || 'servidor') === 'servidor' && ((l.title || '').toLowerCase() === defLower || Number(l.num) === def.oocIdx));
+        if (existing) {
+          applyDef(existing, def, false);
+          updated++;
+        } else {
+          state.laws.push({ id: uid('ley'), kind: 'servidor', docType: 'servidor', trdCode: '160-01', num: def.oocIdx, title: def.title, text: tx(def.text), sanction: tx(def.sanction || ''), signs: { myth: true, scad: true }, repealed: false, t: Date.now() });
+          added++;
+        }
+      });
+      // Sincronizar también serie y lenguaje claro de la TRD
       (D.DEFAULT_TRD || []).forEach(t => {
-        if (!state.trd.some(x => x.code === t.code)) state.trd.push(clone(t));
+        const cur = state.trd.find(x => x.code === t.code);
+        if (cur) Object.assign(cur, clone(t));
+        else state.trd.push(clone(t));
       });
       commit('state');
-      toast('Actualización Archivística', `${updated} actos actualizados y ${added} agregados.`, 'gavel');
+      toast('Reforma Integral Aplicada', `${updated} actos actualizados y ${added} agregados — todos vigentes y firmados.`, 'gavel');
     },
     'law-edit': el => {
       const l = state.laws.find(x => x.id === el.dataset.id);
@@ -2125,7 +2304,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       const dt = l.docType || ((l.kind || 'servidor') === 'servidor' ? 'servidor' : 'ley');
       const trdList = (Array.isArray(state.trd) && state.trd.length ? state.trd : (D.DEFAULT_TRD || []));
       $('edit-law-title').value = l.title || '';
-      $('edit-law-doctype').innerHTML = opts([['ley', 'Ley del mundo'], ['codigo_penal', 'Código Penal'], ['decreto', 'Decreto Ejecutivo'], ['resolucion', 'Resolución Administrativa'], ['acuerdo', 'Acuerdo Bilateral'], ['circular', 'Circular / Instructivo'], ['servidor', 'Regla del servidor (OOC)']], dt);
+      $('edit-law-doctype').innerHTML = opts([['ley', 'Ley del mundo (IC)'], ['codigo_penal', 'Código de Convivencia (IC)'], ['decreto', 'Decreto Ejecutivo (IC)'], ['resolucion', 'Resolución Administrativa (IC)'], ['acuerdo', 'Acuerdo Bilateral (IC)'], ['circular', 'Circular / Instructivo (IC)'], ['manual', 'Manual / Guía Oficial (IC)'], ['servidor', 'Regla del servidor (OOC)']], dt);
       $('edit-law-num').value = l.num || 1;
       $('edit-law-trd').innerHTML = opts(trdList.map(t => [t.code, `TRD ${t.code} · ${t.series}`]), l.trdCode || ((D.DOC_TYPES || {})[dt] || {}).trd || '100-01');
       $('edit-law-text').value = l.text || '';
@@ -2302,13 +2481,88 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       commit('territory');
     },
     'pt-del': el => { state.portals = state.portals.filter(x => x.id !== el.dataset.id); commit('territory'); },
+    'vg-filter': el => {
+      state.ui.censusFilter = el.dataset.v || 'all';
+      save(true);
+      renderTerritory();
+    },
+    'vg-kind-btn': el => {
+      state.ui.vgAddKind = el.dataset.v === 'animal' ? 'animal' : 'villager';
+      state.ui.vgFormOpen = true;
+      save(true);
+      renderTerritory();
+    },
     'vg-add': () => {
       const name = val('vg-name');
-      if (!name) return fail('El aldeano necesita nombre.');
-      state.villagers.unshift({ id: uid('ald'), name, prof: val('vg-prof'), home: val('vg-home'), offer: val('vg-offer'), cured: $('vg-cured').checked });
+      if (!name) return fail('Toda cédula necesita un nombre propio.');
+      const kind = (state.ui.vgAddKind || 'villager') === 'animal' ? 'animal' : 'villager';
+      const prof = kind === 'villager' ? val('vg-prof') : '';
+      const species = kind === 'animal' ? val('vg-species') : '';
+      const owner = kind === 'animal' ? (val('vg-owner') || 'myth') : ((state.professions && state.professions[prof]) || 'myth');
+      const cedula = nextCedulaCode(kind, owner);
+      const tagged = Boolean($('vg-tagged') && $('vg-tagged').checked);
+      const cured = kind === 'villager' ? Boolean($('vg-cured') && $('vg-cured').checked) : false;
+      state.villagers.unshift({
+        id: uid(kind === 'animal' ? 'ani' : 'ald'),
+        kind,
+        cedula,
+        name,
+        prof,
+        species,
+        owner,
+        home: val('vg-home'),
+        offer: val('vg-offer'),
+        cured,
+        tagged,
+        deceased: false,
+        issuedAt: Date.now()
+      });
+      state.ui.vgFormOpen = false;
+      log('Registro Civil (TRD 150-01)', `Cédula ${cedula} expedida para ${name}.`);
       commit('territory');
+      toast('Cédula Expedida', `${name} · ${cedula}`, 'emerald');
+    },
+    'vg-issue-all': () => {
+      let issued = 0;
+      state.villagers.forEach(v => {
+        if (!v.cedula) {
+          const kind = v.kind === 'animal' ? 'animal' : 'villager';
+          v.kind = kind;
+          const owner = censusOwnerOf(v);
+          v.cedula = nextCedulaCode(kind, owner);
+          if (!v.issuedAt) v.issuedAt = Date.now();
+          issued++;
+        }
+      });
+      commit('territory');
+      toast('Cédulas Asignadas', `${issued} registros actualizados en TRD 150-01.`, 'emerald');
+    },
+    'vg-tag': el => {
+      const v = state.villagers.find(x => x.id === el.dataset.id);
+      if (v) { v.tagged = !v.tagged; commit('territory'); }
+    },
+    'vg-vital': el => {
+      const v = state.villagers.find(x => x.id === el.dataset.id);
+      if (v) { v.deceased = !v.deceased; commit('territory'); }
     },
     'vg-cure': el => { const v = state.villagers.find(x => x.id === el.dataset.id); if (v) { v.cured = !v.cured; commit('territory'); } },
+    'vg-copy-tag': el => {
+      const idx = state.villagers.findIndex(x => x.id === el.dataset.id);
+      if (idx < 0) return;
+      const v = state.villagers[idx];
+      const code = displayCedula(v, idx);
+      const tagStr = `${v.name} [${code}]`;
+      copyText(tagStr);
+      toast('Rótulo para Yunque copiado', `${tagStr} (listo para Ctrl+V en Name Tag).`, 'emerald');
+    },
+    'vg-card': el => {
+      const idx = state.villagers.findIndex(x => x.id === el.dataset.id);
+      if (idx < 0) return;
+      const v = state.villagers[idx];
+      if ($('report-modal-title')) $('report-modal-title').textContent = `🪪 CÉDULA OFICIAL · ${displayCedula(v, idx)}`;
+      $('report-area').value = formatCedulaCard(v, idx);
+      $('modal-report').classList.add('open');
+    },
     'vg-del': el => { state.villagers = state.villagers.filter(x => x.id !== el.dataset.id); commit('territory'); },
 
     'open-reset': () => {
@@ -2410,8 +2664,8 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       copyText(CLOUD.buildConfigFileSnippet());
       toast('Código copiado', 'Pégalo en supabase-config.js y súbelo al repo.', 'emerald');
     },
-    'open-report': () => { $('report-area').value = buildReport(); $('modal-report').classList.add('open'); },
-    'copy-report': () => { copyText($('report-area').value); toast('Copiado', 'Listo para Discord.', 'emerald'); },
+    'open-report': () => { if ($('report-modal-title')) $('report-modal-title').textContent = 'RESUMEN PARA DISCORD'; $('report-area').value = buildReport(); $('modal-report').classList.add('open'); },
+    'copy-report': () => { copyText($('report-area').value); toast('Copiado al portapapeles', 'Texto listo para pegar.', 'emerald'); },
     'close-modal': () => closeModals()
   };
 
@@ -2488,7 +2742,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
   /* ---------- Deshacer (guarda copias del estado antes de cada acción) ---------- */
   let editingLawId = null;
   const UNDO_KEY = 'forever_world_undo';
-  const NO_UNDO = new Set(['form', 'shop-edit', 'mode-simple', 'mode-advanced', 'eco-tab', 'state-tab', 'jump-era', 'law-template', 'law-edit', 'tip', 'filter', 'works-filter', 'law-doc-filter', 'law-rev-filter', 'law-book', 'price-buy', 'price-challenge', 'open-reset', 'confirm-reset', 'open-backup',
+  const NO_UNDO = new Set(['form', 'shop-edit', 'mode-simple', 'mode-advanced', 'eco-tab', 'state-tab', 'jump-era', 'law-template', 'law-edit', 'tip', 'filter', 'works-filter', 'law-doc-filter', 'law-rev-filter', 'law-book', 'vg-filter', 'vg-kind-btn', 'vg-copy-tag', 'vg-card', 'price-buy', 'price-challenge', 'open-reset', 'confirm-reset', 'open-backup',
     'open-report', 'copy-report', 'close-modal', 'undo',
     'cloud-pull', 'cloud-push-force', 'cloud-snapshot', 'cloud-restore-snap', 'cloud-save-cfg', 'cloud-reset-cfg', 'cloud-copy-link', 'cloud-copy-snippet']);
   const UNDO_LABELS = {
@@ -2496,7 +2750,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     'trd-add': 'Nueva serie TRD', 'trd-del': 'Borrar serie TRD',
     'chron-add': 'Nueva crónica', 'chron-del': 'Borrar crónica', 'guest-add': 'Nuevo invitado', 'guest-del': 'Borrar invitado',
     rail: 'Contador de vía', 'rail-set': 'Contador de vía', 'st-add': 'Nueva estación', 'st-del': 'Borrar estación',
-    'pt-add': 'Nuevo portal', 'pt-del': 'Borrar portal', 'vg-add': 'Censar aldeano', 'vg-cure': 'Cura de aldeano', 'vg-del': 'Borrar aldeano',
+    'pt-add': 'Nuevo portal', 'pt-del': 'Borrar portal', 'vg-add': 'Expedir cédula', 'vg-issue-all': 'Asignar cédulas', 'vg-tag': 'Estado Name Tag', 'vg-vital': 'Estado vital', 'vg-cure': 'Cura de aldeano', 'vg-del': 'Borrar cédula',
     'season-start': 'Iniciar temporada', 'season-roll': 'Sorteo de temporada', 'season-close': 'Cerrar temporada',
     'mega-add': 'Etapa de megaproyecto', 'mega-del': 'Borrar etapa', 'sb-reveal': 'Oferta sellada', 'sb-reset': 'Reiniciar oferta sellada'
   };
