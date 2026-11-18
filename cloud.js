@@ -9,6 +9,8 @@ window.FW_CLOUD = (() => {
   const REV_PREFIX = 'forever_world_cloud_rev_';
   const BASE_PREFIX = 'forever_world_cloud_base_';
   const WORLD_UI_KEYS = ['rpLawsSeeded', 'foodRuleV1', 'guestSeedV1'];
+  const APP_VER = '20261117203500';
+  let warnedOutdated = false;
 
   let client = null;
   let channel = null;
@@ -142,6 +144,7 @@ window.FW_CLOUD = (() => {
       if (clone.ui && clone.ui[k] !== undefined) worldUi[k] = clone.ui[k];
     });
     clone.ui = worldUi;
+    clone._appVer = APP_VER;
     return clone;
   }
 
@@ -414,6 +417,10 @@ window.FW_CLOUD = (() => {
 
   function applyIncomingRow(row, fromRealtime) {
     if (!row || !row.state) return;
+    if (!warnedOutdated && row.state._appVer && String(row.state._appVer) > APP_VER && typeof handlers.onOutdatedApp === 'function') {
+      warnedOutdated = true;
+      handlers.onOutdatedApp(row.state._appVer);
+    }
     conflictRow = null;
     const prevBase = baseState;
     writeSavedRev(activeCfg.worldId, Number(row.rev));

@@ -264,6 +264,12 @@
     const sel = $('me-select');
     sel.innerHTML = `<option value="">— elegir —</option>` + peopleOpts(me) + `<option value="__new__">+ Agregar invitado...</option>`;
     document.title = `${state.world.worldName || 'Forever World'} — ${nat('myth').nation} & ${nat('scad').nation}`;
+    const revAlerts = (state.laws || []).filter(l => l.repealed || (l.review && (l.review.status === 'pending' || l.review.status === 'returned'))).length;
+    const badge = $('badge-state-rev');
+    if (badge) {
+      badge.style.display = revAlerts ? 'inline-flex' : 'none';
+      badge.textContent = String(revAlerts);
+    }
     renderCloudPill();
   }
 
@@ -1174,7 +1180,7 @@
       const tCode = trdCodeOf(l);
       const tInfo = trdInfo(tCode);
       const rev = reviewOf(l);
-      return `<div class="mc-panel-dark p-md" style="opacity:${status === 'derogada' ? '.55' : '1'};">
+      return `<div class="mc-panel-dark p-md" style="opacity:${status === 'derogada' ? '.88' : '1'};${l.repealed ? 'border-left:4px solid var(--c-red);' : ''}">
         <div class="flex-between">
           <div class="flex-row-wrap" style="gap:6px;">
             <span class="mc-tag tag-${meta.tag}">${esc(meta.prefix)} ${l.num}</span>
@@ -1217,6 +1223,7 @@
     const revFilter = state.ui.lawRevFilter || 'all';
     const matchesRevFilter = l => {
       if (revFilter === 'all') return true;
+      if (revFilter === 'repealed') return Boolean(l.repealed);
       if (revFilter === 'vigente') return !l.repealed && l.signs.myth && l.signs.scad;
       return !l.repealed && reviewOf(l).status === revFilter;
     };
@@ -1231,7 +1238,10 @@
       return list.length ? list.map(lawCard).join('') : empty(kind === 'rol' ? 'Sin normas en esta categoría.' : 'Sin reglas todavía.');
     };
     const rolCount = dt => state.laws.filter(l => (l.kind || 'servidor') === 'rol' && (dt === 'all' || docTypeOf(l) === dt)).length;
-    const revCount = rf => state.laws.filter(l => (l.kind || 'servidor') === 'rol' && !l.repealed && (rf === 'vigente' ? (l.signs.myth && l.signs.scad) : reviewOf(l).status === rf)).length;
+    const revCount = rf => {
+      if (rf === 'repealed') return state.laws.filter(l => (l.kind || 'servidor') === 'rol' && l.repealed).length;
+      return state.laws.filter(l => (l.kind || 'servidor') === 'rol' && !l.repealed && (rf === 'vigente' ? (l.signs.myth && l.signs.scad) : reviewOf(l).status === rf)).length;
+    };
     const docFilters = [
       ['all', `Todas (${rolCount('all')})`],
       ['ley', `Leyes (${rolCount('ley')})`],
@@ -1243,9 +1253,55 @@
       ['all', 'Todo trámite'],
       ['pending', `⏳ En revisión (${revCount('pending')})`],
       ['returned', `↩ Devueltas (${revCount('returned')})`],
+      ['repealed', `🚫 Derogadas (${revCount('repealed')})`],
       ['approved', `✔ Avaladas (${revCount('approved')})`],
       ['vigente', `Vigentes (${revCount('vigente')})`]
     ];
+    const inboxItems = state.laws
+      .map(l => ({ l, rev: reviewOf(l), meta: docMeta(l) }))
+      .filter(({ l, rev }) => l.repealed || rev.status !== 'none' || rev.notes.length > 0)
+      .sort((a, b) => {
+        const pri = x => (x.l.repealed ? 0 : x.rev.status === 'returned' ? 1 : x.rev.status === 'pending' ? 2 : 3);
+        const pa = pri(a), pb = pri(b);
+        if (pa !== pb) return pa - pb;
+        const ta = Math.max(a.l.repealedAt || 0, (a.rev.notes[0] && a.rev.notes[0].at) || 0);
+        const tb = Math.max(b.l.repealedAt || 0, (b.rev.notes[0] && b.rev.notes[0].at) || 0);
+        return tb - ta;
+      });
+    const inboxPanel = panel(`
+      ${head('BUZÓN DE TRÁMITE', 'redstone', `COMENTARIOS DE REVISIÓN Y DEROGACIONES (${inboxItems.length})`,
+        `Aquí quedan visibles para <strong>todos</strong> las anotaciones de ${esc(revName)}, las normas enviadas a revisión y los motivos de derogación.`)}
+      ${inboxItems.length ? `<div class="section-stack" style="gap:8px;">
+        ${inboxItems.map(({ l, rev, meta }) => {
+          const latest = rev.notes[0];
+          const badge = l.repealed
+            ? `<span class="mc-tag tag-redstone">🚫 Derogada</span>`
+            : rev.status === 'returned' ? `<span class="mc-tag tag-redstone">↩ Devuelta</span>`
+              : rev.status === 'pending' ? `<span class="mc-tag tag-cyan">⏳ En revisión</span>`
+                : `<span class="mc-tag tag-emerald">✔ Avalada</span>`;
+          const commentTxt = l.repealed ? (l.repealReason || (latest && latest.text) || '') : ((latest && latest.text) || '');
+          const whoAt = l.repealed
+            ? `${esc(l.repealedBy || 'Sistema')}${l.repealedAt ? ' · ' + when(l.repealedAt) : ''}`
+            : (latest ? `${esc(revActLabel(latest.action))} por ${esc(latest.by || 'Sistema')} · ${when(latest.at)}` : '');
+          return `<div class="mc-panel-dark p-sm" style="border-left:3px solid ${l.repealed || rev.status === 'returned' ? 'var(--c-red)' : rev.status === 'pending' ? 'var(--c-aqua)' : 'var(--c-green)'};">
+            <div class="flex-between" style="gap:8px;">
+              <div class="flex-row-wrap" style="gap:6px;">
+                <span class="mc-tag tag-${meta.tag}">${esc(meta.prefix)} ${l.num}</span>
+                <strong class="text-white text-xs">${esc(l.title)}</strong>
+                ${badge}
+              </div>
+              <div class="flex-row-wrap" style="gap:4px;">
+                ${!isRev && !l.repealed && rev.status === 'returned' ? `<button class="mc-btn" style="padding:2px 7px;" data-action="law-edit" data-id="${l.id}">✎ Editar</button><button class="mc-btn mc-btn-diamond" style="padding:2px 7px;" data-action="law-submit" data-id="${l.id}">📤 Reenviar</button>` : ''}
+                ${!isRev && l.repealed ? `<button class="mc-btn" style="padding:2px 7px;" data-action="law-edit" data-id="${l.id}">✎ Editar</button><button class="mc-btn" style="padding:2px 7px;" data-action="law-repeal" data-id="${l.id}">♻ Restaurar</button>` : ''}
+                ${isRev && !l.repealed && rev.status !== 'approved' ? `<button class="mc-btn mc-btn-emerald" style="padding:2px 7px;" data-action="law-approve-rev" data-id="${l.id}">✔ Avalar</button>` : ''}
+                ${isRev && !l.repealed ? `<button class="mc-btn mc-btn-gold" style="padding:2px 7px;" data-action="law-return" data-id="${l.id}">↩ Devolver</button>` : ''}
+              </div>
+            </div>
+            ${whoAt ? `<div class="text-xs text-muted" style="margin-top:4px;">${whoAt}</div>` : ''}
+            ${commentTxt ? `<div class="text-xs text-gold" style="margin-top:3px;white-space:pre-wrap;">"${esc(commentTxt)}"</div>` : ''}
+          </div>`;
+        }).join('')}
+      </div>` : `<div class="text-xs text-muted">Todavía no hay comentarios de revisión ni normas derogadas.</div>`}`);
     const lawsRol = panel(`
       ${head('NORMATIVA Y CÓDIGO PENAL', 'amethyst', 'LEYES, CÓDIGO PENAL, DECRETOS Y RESOLUCIONES',
         `Marco jurídico de ${esc(nat('myth').nation)} y ${esc(nat('scad').nation)}. Soporta <strong>Artículos</strong>, <strong>Parágrafos</strong>, penas desglosadas, clasificación <strong>TRD</strong> y revisión por <strong>${esc(revName)}</strong>.`)}
@@ -1338,6 +1394,7 @@
     const vigentes = k => state.laws.filter(l => (l.kind || 'servidor') === k && !l.repealed && l.signs.myth && l.signs.scad).length;
     const total = k => state.laws.filter(l => (l.kind || 'servidor') === k).length;
     $('view-state').innerHTML = `<div data-undo-slot style="margin-bottom:12px;"></div>`
+      + inboxPanel
       + lawsRol
       + fold('trd', `📚 Tabla de Retención Documental (TRD) del Archivo <span class="text-xs text-muted">(${trdList().length} series)</span>`, trdPanel)
       + fold('srv', `⚙️ Reglas del servidor <span class="text-xs text-muted">(${vigentes('servidor')}/${total('servidor')} vigentes)</span>`, lawsSrv)
@@ -2853,6 +2910,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
         },
         onRemoteState: (row, meta) => applyRemoteRow(row, meta),
         onMergedState: (mergedCloud, row) => applyMergedCloudState(mergedCloud, row),
+        onOutdatedApp: () => toast('Actualización disponible', 'Recarga la página (Ctrl+Shift+R) para ver la última versión.', 'beacon'),
         onConflict: row => {
           renderCloudPill();
           toast('Conflicto en la nube', `${row.updated_by || 'Otro jugador'} guardó cambios. Toca Supabase arriba.`, 'redstone');
