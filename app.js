@@ -1084,6 +1084,7 @@
     const reviewOf = l => (l.review && typeof l.review === 'object' ? { status: l.review.status || 'none', notes: Array.isArray(l.review.notes) ? l.review.notes : [] } : { status: 'none', notes: [] });
     const rid = reviewerId();
     const revName = rid ? pname(rid) : 'Revisor';
+    const isRev = Boolean(rid && me === rid);
     const revTag = rev => {
       if (rev.status === 'pending') return `<span class="mc-tag tag-cyan">⏳ En revisión (${esc(revName)})</span>`;
       if (rev.status === 'returned') return `<span class="mc-tag tag-redstone">↩ Devuelta con anotaciones</span>`;
@@ -1125,17 +1126,22 @@
             <span class="mc-tag ${trdDispTag(tInfo.disp)}" title="${esc(tInfo.series || '')}">TRD ${esc(tCode)} · ${esc(tInfo.disp)}</span>
           </div>
           <div class="flex-row-wrap" style="gap:4px;">
-            ${STATES.map(s => `<button class="mc-btn ${l.signs[s] ? 'mc-btn-emerald' : ''}" style="padding:3px 7px;" data-action="law-sign" data-id="${l.id}" data-s="${s}">${l.signs[s] ? '✔' : '✍'} ${esc(nat(s).player)}</button>`).join('')}
-            ${rp && !l.repealed ? `
-              ${rev.status === 'none' || rev.status === 'returned' ? `<button class="mc-btn mc-btn-diamond" style="padding:3px 7px;" data-action="law-submit" data-id="${l.id}">${rev.status === 'returned' ? '📤 Reenviar a revisión' : '📤 Enviar a revisión'}</button>` : ''}
-              ${rev.status !== 'approved' ? `<button class="mc-btn mc-btn-emerald" style="padding:3px 7px;" data-action="law-approve-rev" data-id="${l.id}" title="Avalar como ${esc(revName)}">✔ Avalar</button>` : ''}
-              <button class="mc-btn mc-btn-gold" style="padding:3px 7px;" data-action="law-return" data-id="${l.id}" title="Devolver con anotaciones como ${esc(revName)}">↩ Devolver</button>
-            ` : ''}
-            <button class="mc-btn" style="padding:3px 7px;" data-action="law-edit" data-id="${l.id}" title="Editar artículos o agregar parágrafo">✎ Editar</button>
-            <button class="mc-btn" style="padding:3px 7px;" data-action="law-book" data-id="${l.id}" title="Copiar texto formateado para Libro de Minecraft">📖 Libro</button>
-            <button class="mc-btn" style="padding:3px 7px;" data-action="law-move" data-id="${l.id}" title="${rp ? 'Mover a reglas del servidor' : 'Mover a leyes del mundo'}">${rp ? '→ Reglas' : '→ Leyes'}</button>
-            <button class="mc-btn" style="padding:3px 7px;" data-action="law-repeal" data-id="${l.id}">${l.repealed ? 'Restaurar' : 'Derogar'}</button>
-            <button class="mc-btn mc-btn-redstone" style="padding:3px 7px;" data-action="law-del" data-id="${l.id}" title="Borrar esta norma">🗑 Borrar</button>
+            ${isRev ? `
+              ${STATES.map(s => `<span class="mc-tag ${l.signs[s] ? 'tag-emerald' : 'tag-slate'}">${l.signs[s] ? '✔' : '·'} ${esc(nat(s).player)}</span>`).join('')}
+              ${rp && !l.repealed ? `
+                ${rev.status !== 'approved' ? `<button class="mc-btn mc-btn-emerald" style="padding:3px 7px;" data-action="law-approve-rev" data-id="${l.id}" title="Avalar como ${esc(revName)}">✔ Avalar</button>` : ''}
+                <button class="mc-btn mc-btn-gold" style="padding:3px 7px;" data-action="law-return" data-id="${l.id}" title="Devolver con anotaciones como ${esc(revName)}">↩ Devolver con anotaciones</button>
+              ` : ''}
+              <button class="mc-btn" style="padding:3px 7px;" data-action="law-book" data-id="${l.id}" title="Copiar texto formateado para Libro de Minecraft">📖 Libro</button>
+            ` : `
+              ${STATES.map(s => `<button class="mc-btn ${l.signs[s] ? 'mc-btn-emerald' : ''}" style="padding:3px 7px;" data-action="law-sign" data-id="${l.id}" data-s="${s}">${l.signs[s] ? '✔' : '✍'} ${esc(nat(s).player)}</button>`).join('')}
+              ${rp && !l.repealed && (rev.status === 'none' || rev.status === 'returned') ? `<button class="mc-btn mc-btn-diamond" style="padding:3px 7px;" data-action="law-submit" data-id="${l.id}">${rev.status === 'returned' ? '📤 Reenviar a revisión' : '📤 Enviar a revisión'}</button>` : ''}
+              <button class="mc-btn" style="padding:3px 7px;" data-action="law-edit" data-id="${l.id}" title="Editar artículos o agregar parágrafo">✎ Editar</button>
+              <button class="mc-btn" style="padding:3px 7px;" data-action="law-book" data-id="${l.id}" title="Copiar texto formateado para Libro de Minecraft">📖 Libro</button>
+              <button class="mc-btn" style="padding:3px 7px;" data-action="law-move" data-id="${l.id}" title="${rp ? 'Mover a reglas del servidor' : 'Mover a leyes del mundo'}">${rp ? '→ Reglas' : '→ Leyes'}</button>
+              <button class="mc-btn" style="padding:3px 7px;" data-action="law-repeal" data-id="${l.id}">${l.repealed ? 'Restaurar' : 'Derogar'}</button>
+              <button class="mc-btn mc-btn-redstone" style="padding:3px 7px;" data-action="law-del" data-id="${l.id}" title="Borrar esta norma">🗑 Borrar</button>
+            `}
           </div>
         </div>
         ${formatNormBody(l.text)}
@@ -1184,10 +1190,11 @@
           ${docFilters.map(([v, t]) => `<button class="filter-pill ${docFilter === v ? 'active' : ''}" data-action="law-doc-filter" data-v="${v}">${esc(t)}</button>`).join('')}
         </div>
         <label class="text-xs font-mono text-muted" style="display:flex;align-items:center;gap:6px;">
-          Revisor:
+          Revisor designado:
           <select class="mc-select font-mono" style="width:auto;padding:3px 6px;" data-bind="settings.reviewerId">${peopleOpts(rid)}</select>
         </label>
       </div>
+      ${isRev ? `<div class="mc-panel-dark p-sm text-xs text-diamond" style="margin-bottom:10px;border-left:3px solid var(--c-aqua);">🔍 <strong>Modo Revisor (${esc(revName)}):</strong> revisa las normas, devuelve con anotaciones o dales aval para firma.</div>` : ''}
       <div class="flex-row-wrap" style="gap:6px;margin-bottom:12px;">
         ${revFilters.map(([v, t]) => `<button class="filter-pill ${revFilter === v ? 'active' : ''}" data-action="law-rev-filter" data-v="${v}">${esc(t)}</button>`).join('')}
       </div>
