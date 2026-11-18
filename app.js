@@ -66,7 +66,7 @@
       railBlocks: 0,
       seasons: { current: 0, checks: {}, roll: null, history: [] },
       mega: { name: '', stages: [] },
-      ui: { tab: 'roadmap', filter: 'all', track: '', open: {}, ledgerQ: '' }
+      ui: { tab: 'roadmap', ecoTab: 'overview', stateTab: 'laws', advanced: true, filter: 'all', track: '', open: {}, ledgerQ: '' }
     };
   }
 
@@ -364,9 +364,19 @@
       if (f === 'ambos' || f === 'myth' || f === 'scad') return q.who === '3';
       return false;
     };
+    const eraStrip = `<div class="era-strip">
+      ${D.ERAS.map((e, idx) => {
+        const s = eraStats(e);
+        const cls = s.complete ? 'done' : idx === curIdx ? 'current' : '';
+        const ico = s.complete ? '✔' : idx === curIdx ? '▶' : '🔒';
+        return `<button class="era-chip ${cls}" data-action="jump-era" data-era="${e.id}" title="${esc(tx(e.name))}">${ico} ${e.code}</button>`;
+      }).join('')}
+      <button class="era-chip ${curIdx >= D.ERAS.length ? 'current' : ''}" data-action="jump-era" data-era="era-inf">∞ Temporadas</button>
+    </div>`;
+
     const intro = panel(`
       ${head('CÓMO SE USA', 'cyan', 'ROADMAP DEL FOREVER WORLD',
-        `Cada era tiene <strong>reglas técnicas</strong> (qué se desbloquea), <strong>hitos</strong> y <strong>preguntas de lore</strong> que responden ustedes. Para pasar de era hay que cumplir <strong class="text-gold">todos los hitos</strong> salvo los marcados como <em>Extra</em>. Las eras siguientes quedan bloqueadas hasta entonces. Nada de la historia está escrita: la escriben ustedes.`)}
+        `Cada era tiene <strong>reglas técnicas</strong>, <strong>hitos</strong> y <strong>preguntas de lore</strong>. Para pasar de era solo cuentan los <strong class="text-gold">hitos obligatorios de ambos Estados</strong> (las misiones de <em>Extra</em> y las de <em>Invitados</em> son opcionales y no bloquean eras).`)}
       <div class="flex-between">
         <div class="flex-row-wrap" style="gap:6px;">
           ${filters.map(([v, t]) => `<button class="filter-pill ${state.ui.filter === v ? 'active' : ''}" data-action="filter" data-v="${v}">${esc(t)}</button>`).join('')}
@@ -375,7 +385,8 @@
           <option value="">Todas las áreas</option>
           ${opts(Object.entries(D.TRACKS).map(([k, v]) => [k, v.name]), state.ui.track)}
         </select>
-      </div>`);
+      </div>
+      ${eraStrip}`);
 
     const eras = D.ERAS.map((era, i) => {
       const s = eraStats(era);
@@ -387,18 +398,23 @@
       const eraGuestDone = activeGid ? eraGuestsAll.filter(q => (state.guestTasks[activeGid] || {})[q.id]).length : 0;
       const pct = Math.round((s.done / s.total) * 100);
       const loreAns = state.lore[era.id] || {};
-      const cardsHtml = [
-        ...tasks.map(t => taskCard(t, i > curIdx)),
-        ...eraGuests.map(q => guestQuestCard(q, activeGid, i > curIdx))
-      ].join('');
+      const stateCardsHtml = tasks.map(t => taskCard(t, i > curIdx)).join('');
+      const guestSectionHtml = eraGuests.length ? `
+        <div class="guest-era-box">
+          <div class="flex-between" style="margin-bottom:8px;">
+            <span class="font-mono text-xs text-diamond" style="font-weight:700;">🧭 MISIONES OPCIONALES DE INVITADO (${esc(guestLabel)}: ${eraGuestDone}/${eraGuestsAll.length})</span>
+            <span class="mc-tag tag-slate">No cuentan para desbloquear Era</span>
+          </div>
+          <div class="grid-2" style="gap:10px;">${eraGuests.map(q => guestQuestCard(q, activeGid, i > curIdx)).join('')}</div>
+        </div>` : '';
       return `
-      <details class="mc-panel p-lg era-card ${s.complete ? 'era-done' : i > curIdx ? 'era-locked' : ''}" data-era="${era.id}" ${open ? 'open' : ''}>
+      <details id="${era.id}" class="mc-panel p-lg era-card ${s.complete ? 'era-done' : i > curIdx ? 'era-locked' : ''}" data-era="${era.id}" ${open ? 'open' : ''}>
         <summary class="flex-between" style="cursor:pointer;list-style:none;">
           <div class="flex-row-wrap" style="gap:10px;">
             <div class="mc-slot" style="width:38px;height:38px;display:flex;align-items:center;justify-content:center;">${ICONS[era.icon] || ''}</div>
             <div>
               <div class="flex-row-wrap" style="gap:8px;"><span class="mc-tag tag-slate">${era.code}</span><h2 class="font-pixel text-white text-base" style="margin:0;">${esc(tx(era.name))}</h2>${status}</div>
-              <p class="text-xs text-muted" style="margin:3px 0 0 0;">Obligatorios ${s.reqDone}/${s.reqTotal} · Total ${s.done}/${s.total}${eraGuestsAll.length ? ` · ${esc(guestLabel)} ${eraGuestDone}/${eraGuestsAll.length}` : ''}</p>
+              <p class="text-xs text-muted" style="margin:3px 0 0 0;">Obligatorios de Era: <strong class="text-white">${s.reqDone}/${s.reqTotal}</strong> · Total Estados: ${s.done}/${s.total}${eraGuestsAll.length ? ` · Invitado (opcional): ${eraGuestDone}/${eraGuestsAll.length}` : ''}</p>
             </div>
           </div>
           <div style="min-width:160px;"><div class="boss-bar-track"><div class="boss-bar-fill" style="width:${pct}%;background:${s.complete ? '#55ff55' : i === curIdx ? '#ffaa00' : '#8c8c8c'};"></div></div></div>
@@ -412,7 +428,8 @@
               <ul class="mc-list">${era.banned.map(x => `<li><span class="text-redstone">✖</span><span class="text-muted">${esc(tx(x))}</span></li>`).join('')}</ul>
             </div>
           </div>
-          ${i > curIdx ? `<div class="mc-slot p-sm text-xs text-gold" style="margin-bottom:10px;">🔒 Era bloqueada: completen los obligatorios de ${D.ERAS[curIdx] ? D.ERAS[curIdx].code : 'la era actual'} para poder marcar estos hitos.</div>` : ''}${cardsHtml ? `<div class="grid-2" style="gap:10px;">${cardsHtml}</div>` : empty('Ningún hito coincide con el filtro en esta era.')}
+          ${i > curIdx ? `<div class="mc-slot p-sm text-xs text-gold" style="margin-bottom:10px;">🔒 Era bloqueada: completen los obligatorios de ${D.ERAS[curIdx] ? D.ERAS[curIdx].code : 'la era actual'} para poder marcar estos hitos.</div>` : ''}${stateCardsHtml ? `<div class="grid-2" style="gap:10px;">${stateCardsHtml}</div>` : (!guestSectionHtml ? empty('Ningún hito coincide con el filtro en esta era.') : '')}
+          ${guestSectionHtml}
           <details class="mc-details" style="margin-top:14px;" ${Object.values(loreAns).some(Boolean) ? '' : ''}>
             <summary class="font-mono text-xs text-amethyst" style="font-weight:700;">▸ Preguntas de lore de ${era.code} (las responden ustedes)</summary>
             <div class="section-stack" style="margin-top:10px;">
@@ -453,8 +470,8 @@
   function renderGuestQuests(curIdx) {
     const Q = D.GUEST_QUESTS || [];
     const addForm = `<div class="flex-row-wrap" style="gap:6px;"><input id="guest-nick-rm" class="mc-input" style="flex:1;min-width:160px;" placeholder="Nick del invitado"/><button class="mc-btn mc-btn-diamond" data-action="guest-add" data-input="guest-nick-rm">+ Agregar invitado</button></div>`;
-    const intro = head('INVITADOS', 'cyan', 'MISIONES DE INVITADOS',
-      `Para quien juega sin Estado: <strong>construir</strong> por encargo, <strong>pelear</strong> (raids y jefes), <strong>explorar</strong> y <strong>archivar</strong>. Lo que encuentra y cataloga va a la biblioteca, el archivo y el museo de ${esc(nat('myth').nation)}; lo que construye se le paga. No produce comida ni granjas automáticas. Las marcadas <span class="mc-tag tag-gold">Los 3</span> se hacen entre los tres. Se abren al ritmo de las eras del mundo.`);
+    const intro = head('INVITADOS (OPCIONAL)', 'cyan', 'MISIONES DE INVITADOS',
+      `Para quien juega sin Estado: <strong>construir</strong> por encargo, <strong>pelear</strong> (purgas, raids y jefes), <strong>explorar</strong> y <strong>archivar</strong>. <strong>Sus misiones no cuentan ni bloquean el paso de Era de los Estados</strong>; solo se desbloquean al ritmo del mundo. Las marcadas <span class="mc-tag tag-gold">Los 3</span> se hacen entre los tres.`);
     if (!state.guests.length) return panel(`${intro}${empty('Todavía no hay invitados.')}<div style="margin-top:10px;">${addForm}</div>`);
     const gid = state.guests.some(g => g.id === state.ui.guestSel) ? state.ui.guestSel : state.guests[0].id;
     const done = state.guestTasks[gid] || {};
@@ -497,7 +514,7 @@
       </label>`).join('');
     const roll = S.roll;
     const mega = state.mega;
-    return panel(`
+    return `<div id="era-inf" style="scroll-margin-top: 135px;">${panel(`
       ${head('ERA ∞', 'emerald', 'LA ERA PERPETUA: TEMPORADAS',
         `Lo que hace que el mundo sea realmente <em>forever</em>. Cada temporada (la duración la deciden ustedes, sugerido 1 mes real) tiene una lista fija de cosas por hacer y tres sorteos: un reto cruzado, una expedición y una restricción. ${unlocked ? '' : `<strong class="text-gold">Se desbloquea al completar la ${D.ERAS[D.ERAS.length - 1].code} (${esc(D.ERAS[D.ERAS.length - 1].name)})</strong>, pero pueden mirarla desde ya.`}`)}
       <div class="grid-2">
@@ -536,7 +553,7 @@
             <ul class="mc-list" style="margin-top:8px;">${D.MEGAPROJECTS.map(m => `<li><span class="text-gold">◆</span><span class="text-muted">${esc(m)}</span></li>`).join('')}</ul>
           </details>
         </div>
-      </div>`);
+      </div>`)}</div>`;
   }
 
   /* ======================== Vista: Economía ======================== */
@@ -908,71 +925,45 @@
         </tbody></table>` : empty('Sin movimientos.')}
       </div>`);
 
-    if (state.ui.advanced) {
-      $('view-economy').innerHTML = modeBar() + top + trade + prices + guide + sealedPanel + worksPanel + `<div class="grid-2">${loansPanel}${sharesPanel}</div>` + ledgerPanel;
-    } else {
-      const r = E.rate(state);
-      const founded = eco.bank.M + eco.bank.S > 0;
-      const form = state.ui.form || '';
-      const actionBtn = (id, icon, label, sub) => `<button class="mc-btn ${form === id ? 'mc-btn-emerald' : ''} big-action" data-action="form" data-f="${id}">
-        <span style="font-size:1.4rem;">${icon}</span><span><strong>${label}</strong><br><span class="text-xs" style="font-weight:400;opacity:.8;">${sub}</span></span></button>`;
-      const forms = {
-        buy: `<h3 class="font-pixel text-white text-sm" style="margin:0 0 10px 0;">🛒 COMPRAR</h3><p class="text-xs text-muted" style="margin:0 0 10px 0;">Elige quién vende y el producto. El precio sale solo de su tienda.</p>${buyInner}`,
-        pay: `<h3 class="font-pixel text-white text-sm" style="margin:0 0 10px 0;">💸 PAGAR</h3><p class="text-xs text-muted" style="margin:0 0 10px 0;">Para multas, sueldos, contratos o regalos.</p>${payInner}`,
-        work: `<h3 class="font-pixel text-white text-sm" style="margin:0 0 10px 0;">🏗️ REGISTRAR OBRA O RELIQUIA</h3><p class="text-xs text-muted" style="margin:0 0 10px 0;">Lo que construyas o consigas. Cuando el otro lo apruebe, podrás imprimir más dinero. ${tip('obra')}</p>${workForm}`
-      };
-      const pending = eco.works.filter(w => w.status === 'pendiente');
-      const pendingPanel = pending.length ? panel(`
-        <h3 class="font-pixel text-white text-sm" style="margin:0 0 10px 0;">⏳ OBRAS ESPERANDO APROBACIÓN</h3>
-        ${pending.map(w => `<div class="flex-between mc-slot p-sm" style="margin-bottom:6px;">
-          <div><div class="text-sm text-white" style="font-weight:700;">${esc(w.name)}</div><div class="text-xs text-muted">de ${esc(nat(w.owner).nation)} · la aprueba ${esc(nat(E.otherState(w.owner)).player)}</div></div>
-          <div class="flex-row-wrap" style="gap:4px;"><input id="wpts-${w.id}" type="number" min="0" value="${w.proposed}" class="mc-input font-mono" style="width:64px;padding:3px 5px;" title="Puntos"/>
-            <button class="mc-btn mc-btn-emerald" style="padding:3px 7px;" data-action="work-approve" data-id="${w.id}">Aprobar</button>
-            <button class="mc-btn" style="padding:3px 7px;" data-action="work-reject" data-id="${w.id}">Rechazar</button></div>
-        </div>`).join('')}`) : '';
-      const shopEdit = Boolean(state.ui.shopEdit);
-      const shopRows = s0 => {
-        const items = eco.prices.filter(p => p.seller === s0);
-        const c = curOf(s0);
-        if (!items.length) return `<div class="text-xs text-dim">Todavía no vende nada. Toca "Editar tiendas".</div>`;
-        return items.map(p => `<div class="flex-between" style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,.09);">
-          <div><div class="text-sm text-white">${esc(p.name)}</div><div class="text-xs text-dim">${esc(p.unit || '')}</div></div>
-          <div class="flex-row-wrap" style="gap:8px;"><strong class="font-mono text-white">${money(p.price, c)}</strong>
-          <button class="mc-btn mc-btn-emerald" style="padding:3px 8px;" data-action="price-buy" data-id="${p.id}">Comprar</button></div></div>`).join('');
-      };
-      const shops = panel(`
-        <div class="flex-between" style="margin-bottom:10px;">
-          <h2 class="font-pixel text-white text-base" style="margin:0;">TIENDAS ${tip('tarifa')}</h2>
-          <button class="mc-btn ${shopEdit ? 'mc-btn-gold' : ''}" data-action="shop-edit">${shopEdit ? '✔ Listo' : '✎ Editar tiendas'}</button>
+    const ecoTab = state.ui.ecoTab || 'overview';
+    const pendingWorks = eco.works.filter(w => w.status === 'pendiente').length;
+    const activeLoans = eco.loans.filter(l => l.status !== 'pagado').length;
+    const rNow = E.rate(state);
+    const kpiStrip = `
+      <div class="kpi-strip">
+        <div class="kpi-box">
+          <div class="kpi-label">Tipo de Cambio</div>
+          <div class="kpi-val text-emerald">1 ${esc(sym('M'))} = ${rNow.toFixed(3)} ${esc(sym('S'))}</div>
         </div>
-        ${shopEdit ? `${prices}
-          <details class="mc-panel-dark p-md" style="margin-top:12px;"><summary class="font-mono text-sm text-gold" style="cursor:pointer;font-weight:700;">🏷️ Precios sugeridos (toca + para agregarlos)</summary><div style="margin-top:10px;">${guide}</div></details>
-          <details class="mc-panel-dark p-md seal-fold" style="margin-top:12px;" ${state.ui.sealOpen ? 'open' : ''}><summary class="font-mono text-sm text-amethyst" style="cursor:pointer;font-weight:700;">⚖️ No nos ponemos de acuerdo en un precio ${tip('ofertaSellada')}</summary><div style="margin-top:10px;">${sealedPanel}</div></details>`
-        : `<div class="grid-2">${STATES.map(s0 => `<div class="mc-panel-dark p-md"><strong class="font-mono text-${stateColor(s0)} text-sm">${esc(nat(s0).nation)} vende</strong><div style="margin-top:8px;">${shopRows(s0)}</div></div>`).join('')}</div>`}`);
-      const simpleTop = panel(`
-        <div class="flex-between" style="margin-bottom:12px;">
-          <h2 class="font-pixel text-white text-base" style="margin:0;">BILLETERAS</h2>
-          <div class="mc-slot" style="padding:6px 12px;">
-            <span class="text-xs text-muted">Cambio ${tip('cambio')}</span>
-            <strong class="font-mono text-emerald" style="margin-left:6px;">1 ${esc(sym('M'))} ≈ ${r.toFixed(2)} ${esc(sym('S'))}</strong>
-          </div>
+        <div class="kpi-box">
+          <div class="kpi-label">${esc(nat('myth').nation)} (Cap. / Emisión)</div>
+          <div class="kpi-val text-royal">${fmt(E.capitalization(state, 'myth', CATS))} / ${fmt(E.issued(state, 'M'))}</div>
         </div>
-        ${founded ? '' : `<div class="mc-slot p-sm text-xs text-gold" style="margin-bottom:12px;">Paso único: para poder pagarse en la moneda del otro, funden ${esc(state.settings.bankName)} ${tip('camara')}. <button class="mc-btn mc-btn-amethyst" style="padding:2px 8px;margin-left:6px;" data-action="deposit-quick">Fundarla con 40 + 40</button></div>`}
-        <div class="grid-2">${walletCard('myth')}${walletCard('scad')}</div>
-        <div class="grid-3" style="gap:10px;margin-top:14px;">
-          ${actionBtn('buy', '🛒', 'Comprar', 'algo de la tienda del otro')}
-          ${actionBtn('pay', '💸', 'Pagar', 'multas, sueldos, contratos')}
-          ${actionBtn('work', '🏗️', 'Registrar obra', 'para poder imprimir más')}
+        <div class="kpi-box">
+          <div class="kpi-label">${esc(nat('scad').nation)} (Cap. / Emisión)</div>
+          <div class="kpi-val text-emerald">${fmt(E.capitalization(state, 'scad', CATS))} / ${fmt(E.issued(state, 'S'))}</div>
         </div>
-        ${form && forms[form] ? `<div class="mc-panel-dark p-md" style="margin-top:12px;border-color:#2f8a2b;">${forms[form]}</div>` : ''}
-        <div data-undo-slot style="margin-top:12px;"></div>`);
-      const recent = panel(`
-        <div class="flex-between" style="margin-bottom:10px;"><h3 class="font-pixel text-white text-sm" style="margin:0;">ÚLTIMOS MOVIMIENTOS</h3>
-          <button class="mc-btn" data-action="mode-advanced">Ver todos</button></div>
-        ${eco.ledger.slice(0, 6).map(l => `<div class="flex-between text-xs" style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,.09);${l.void ? 'opacity:.5;text-decoration:line-through;' : ''}">
-          <span class="text-muted">${esc(l.text)}</span><span class="font-mono text-dim" style="white-space:nowrap;">${when(l.t)}</span></div>`).join('') || '<div class="text-xs text-dim">Nada todavía.</div>'}`);
-      $('view-economy').innerHTML = simpleTop + pendingPanel + shops + recent + modeBar();
-    }
+        <div class="kpi-box">
+          <div class="kpi-label">${esc(state.settings.bankName)}</div>
+          <div class="kpi-val text-amethyst">${fmt(eco.bank.M)} ${esc(sym('M'))} · ${fmt(eco.bank.S)} ${esc(sym('S'))}</div>
+        </div>
+      </div>`;
+
+    const ecoNav = `
+      <div class="subnav-wrap">
+        <button class="subnav-btn ${ecoTab === 'overview' ? 'active' : ''}" data-action="eco-tab" data-v="overview">📊 Tesoros, Cambio &amp; Comercio</button>
+        <button class="subnav-btn ${ecoTab === 'shops' ? 'active' : ''}" data-action="eco-tab" data-v="shops">🏪 Tiendas &amp; Oferta Sellada</button>
+        <button class="subnav-btn ${ecoTab === 'works' ? 'active' : ''}" data-action="eco-tab" data-v="works">🏗️ Obras &amp; Auditoría ${pendingWorks ? `<span class="mc-tag tag-gold">${pendingWorks}</span>` : ''}</button>
+        <button class="subnav-btn ${ecoTab === 'finance' ? 'active' : ''}" data-action="eco-tab" data-v="finance">🏦 Crédito, Acciones &amp; Libro Mayor ${activeLoans ? `<span class="mc-tag tag-amethyst">${activeLoans}</span>` : ''}</button>
+      </div>`;
+
+    const views = {
+      overview: top + trade,
+      shops: prices + sealedPanel + guide,
+      works: worksPanel,
+      finance: `<div class="grid-2">${loansPanel}${sharesPanel}</div>` + ledgerPanel
+    };
+    $('view-economy').innerHTML = kpiStrip + ecoNav + (views[ecoTab] || views.overview);
     syncBuyForm();
     updateSwapPreview();
     updateLoanLimit();
@@ -1118,11 +1109,27 @@
       if (!lines.length) return '';
       return `<div class="norm-body">${lines.map(line => {
         const s = esc(line);
-        if (/^par[áa]grafo\b/i.test(line.trim())) {
+        const trimmed = line.trim();
+        if (/^ep[íi]grafe\s*:/i.test(trimmed)) {
+          return `<div class="norm-epigraph">${s.replace(/^(Ep[íi]grafe\s*:)/i, '<strong class="text-diamond">$1</strong>')}</div>`;
+        }
+        if (/^considerando\s*:?/i.test(trimmed)) {
+          return `<div class="norm-dispone" style="color:var(--c-aqua);margin-top:6px;">${s}</div>`;
+        }
+        if (/^\d+\.\s+Que\b/i.test(trimmed) || /^Que\b/.test(trimmed)) {
+          return `<div class="norm-considerando">${s}</div>`;
+        }
+        if (/^(dispone|resuelve|decreta|acuerda)\s*:?$/i.test(trimmed)) {
+          return `<div class="norm-dispone">${s.toUpperCase()}</div>`;
+        }
+        if (/^vigencia\b/i.test(trimmed)) {
+          return `<div class="norm-vigencia">${s.replace(/^(Vigencia\s*:?)/i, '<strong class="text-emerald">$1</strong>')}</div>`;
+        }
+        if (/^par[áa]grafo\b/i.test(trimmed)) {
           const m = s.match(/^(Par[áa]grafo[^:.\n]*[.:])(.*)$/i);
           return `<div class="norm-para">${m ? `<strong class="text-gold">${m[1]}</strong>${m[2]}` : s}</div>`;
         }
-        const m = s.match(/^(Art[íi]culo\s+[\w°º]+[.:])(.*)$/i);
+        const m = s.match(/^(Art[íi]culo\s+[\w°º()\s-]+?[.:])(.*)$/i);
         return `<div class="norm-art">${m ? `<strong class="text-white">${m[1]}</strong>${m[2]}` : s}</div>`;
       }).join('')}</div>`;
     };
@@ -1233,7 +1240,7 @@
         if (docFilter !== 'all') list = list.filter(l => docTypeOf(l) === docFilter);
         if (revFilter !== 'all') list = list.filter(matchesRevFilter);
       }
-      const order = { ley: 1, codigo_penal: 2, decreto: 3, resolucion: 4, servidor: 5 };
+      const order = { ley: 1, codigo_penal: 2, decreto: 3, resolucion: 4, acuerdo: 5, circular: 6, servidor: 7 };
       list.sort((x, y) => (order[docTypeOf(x)] || 9) - (order[docTypeOf(y)] || 9) || x.num - y.num);
       return list.length ? list.map(lawCard).join('') : empty(kind === 'rol' ? 'Sin normas en esta categoría.' : 'Sin reglas todavía.');
     };
@@ -1247,7 +1254,9 @@
       ['ley', `Leyes (${rolCount('ley')})`],
       ['codigo_penal', `Código Penal (${rolCount('codigo_penal')})`],
       ['decreto', `Decretos (${rolCount('decreto')})`],
-      ['resolucion', `Resoluciones (${rolCount('resolucion')})`]
+      ['resolucion', `Resoluciones (${rolCount('resolucion')})`],
+      ['acuerdo', `Acuerdos (${rolCount('acuerdo')})`],
+      ['circular', `Circulares (${rolCount('circular')})`]
     ];
     const revFilters = [
       ['all', 'Todo trámite'],
@@ -1319,22 +1328,27 @@
         ${revFilters.map(([v, t]) => `<button class="filter-pill ${revFilter === v ? 'active' : ''}" data-action="law-rev-filter" data-v="${v}">${esc(t)}</button>`).join('')}
       </div>
       <details class="mc-panel-dark p-md" style="margin-bottom:12px;">
-        <summary class="font-mono text-xs text-emerald" style="cursor:pointer;font-weight:700;">+ Radicar ley, código penal, decreto o resolución</summary>
+        <summary class="font-mono text-xs text-emerald" style="cursor:pointer;font-weight:700;">+ Radicar ley, código penal, decreto, resolución, acuerdo o circular</summary>
         <div style="margin-top:10px;">
           <div class="grid-4" style="gap:8px;margin-bottom:8px;">
-            <select id="law-doc-type" class="mc-select font-mono">${opts([['ley', 'Ley del mundo'], ['codigo_penal', 'Código Penal'], ['decreto', 'Decreto'], ['resolucion', 'Resolución'], ['servidor', 'Regla del servidor']], 'ley')}</select>
+            <select id="law-doc-type" class="mc-select font-mono">${opts([['ley', 'Ley del mundo'], ['codigo_penal', 'Código Penal'], ['decreto', 'Decreto Ejecutivo'], ['resolucion', 'Resolución Administrativa'], ['acuerdo', 'Acuerdo Bilateral'], ['circular', 'Circular / Instructivo'], ['servidor', 'Regla del servidor (OOC)']], 'ley')}</select>
             <select id="law-trd" class="mc-select font-mono">${opts(trdList().map(t => [t.code, `TRD ${t.code} · ${t.series}`]), '100-01')}</select>
             <input id="law-title" class="mc-input" placeholder="Título (ej. Decreto 003 · Viáticos)"/>
             <input id="law-sanction" class="mc-input" placeholder="Pena / sanción (opcional)"/>
           </div>
-          <textarea id="law-text" rows="4" class="mc-textarea" placeholder="Artículo 1. …&#10;Parágrafo 1. …" style="margin-bottom:8px;"></textarea>
+          <div class="flex-between" style="margin-bottom:6px;">
+            <span class="text-xs text-muted">Estructura recomendada: Epígrafe → Considerando → Dispone/Resuelve → Artículos y Parágrafos → Vigencia</span>
+            <button type="button" class="mc-btn" style="padding:3px 8px;font-size:11px;" data-action="law-template" data-target="law-text">📋 Plantilla Acto Colombiano</button>
+          </div>
+          <textarea id="law-text" rows="5" class="mc-textarea" placeholder="EPÍGRAFE: Por medio del cual se...&#10;CONSIDERANDO:&#10;1. Que...&#10;DISPONE:&#10;Artículo 1. ..." style="margin-bottom:8px;"></textarea>
           <button class="mc-btn mc-btn-redstone" data-action="law-add">Radicar y proponer</button>
         </div>
       </details>
       <div class="section-stack" style="gap:8px;">${lawList('rol')}</div>
       <div class="flex-row-wrap" style="gap:8px;margin-top:12px;">
         <button class="mc-btn" data-action="law-defaults" data-kind="rol">📜 Cargar leyes del mundo sugeridas</button>
-        <button class="mc-btn mc-btn-gold" data-action="law-defaults" data-kind="penal">⚖️ Cargar Código Penal, Decretos y Resoluciones</button>
+        <button class="mc-btn mc-btn-gold" data-action="law-defaults" data-kind="penal">⚖️ Cargar Código Penal, Decretos, Resoluciones y Circular</button>
+        <button class="mc-btn mc-btn-emerald" data-action="law-upgrade-pack" title="Actualiza borradores o normas derogadas no vigentes a la nueva redacción técnica archivística sin tocar las ya firmadas">🏛️ Actualizar borradores a redacción archivística</button>
       </div>`);
     const lawsSrv = panel(`
       ${head('FUERA DEL ROL', 'slate', 'REGLAS DEL SERVIDOR',
@@ -1393,15 +1407,23 @@
 
     const vigentes = k => state.laws.filter(l => (l.kind || 'servidor') === k && !l.repealed && l.signs.myth && l.signs.scad).length;
     const total = k => state.laws.filter(l => (l.kind || 'servidor') === k).length;
+    const stateTab = state.ui.stateTab || 'laws';
+    const stateNav = `
+      <div class="subnav-wrap">
+        <button class="subnav-btn ${stateTab === 'laws' ? 'active' : ''}" data-action="state-tab" data-v="laws">⚖️ Normativa &amp; Buzón ${inboxItems.length ? `<span class="mc-tag tag-redstone">${inboxItems.length}</span>` : ''}</button>
+        <button class="subnav-btn ${stateTab === 'trd' ? 'active' : ''}" data-action="state-tab" data-v="trd">📚 Archivo TRD (${trdList().length})</button>
+        <button class="subnav-btn ${stateTab === 'pact' ? 'active' : ''}" data-action="state-tab" data-v="pact">🤝 Pacto &amp; Invitados (${state.guests.length})</button>
+        <button class="subnav-btn ${stateTab === 'config' ? 'active' : ''}" data-action="state-tab" data-v="config">🔧 Config, Saldos &amp; Reglas OOC (${vigentes('servidor')}/${total('servidor')})</button>
+      </div>`;
+    const stateViews = {
+      laws: inboxPanel + lawsRol,
+      trd: trdPanel,
+      pact: pact + guests,
+      config: lawsSrv + config + adjust
+    };
     $('view-state').innerHTML = `<div data-undo-slot style="margin-bottom:12px;"></div>`
-      + inboxPanel
-      + lawsRol
-      + fold('trd', `📚 Tabla de Retención Documental (TRD) del Archivo <span class="text-xs text-muted">(${trdList().length} series)</span>`, trdPanel)
-      + fold('srv', `⚙️ Reglas del servidor <span class="text-xs text-muted">(${vigentes('servidor')}/${total('servidor')} vigentes)</span>`, lawsSrv)
-      + fold('pact', '🤝 Pacto de monopolios y reparto de aldeanos', pact)
-      + fold('guests', `🧑‍🤝‍🧑 Invitados <span class="text-xs text-muted">(${state.guests.length})</span>`, guests)
-      + fold('config', '🔧 Configuración: nombres, monedas y banco', config)
-      + fold('adjust', '🩹 Corregir saldos a mano', adjust);
+      + stateNav
+      + (stateViews[stateTab] || stateViews.laws);
   }
 
   /* ======================== Vista: Lore y Crónicas ======================== */
@@ -1657,6 +1679,17 @@
 
   const ACTIONS = {
     filter: el => { state.ui.filter = el.dataset.v; commit('roadmap'); },
+    'eco-tab': el => { state.ui.ecoTab = el.dataset.v || 'overview'; save(true); renderEconomy(); },
+    'state-tab': el => { state.ui.stateTab = el.dataset.v || 'laws'; save(true); renderStatePage(); },
+    'jump-era': el => {
+      const id = el.dataset.era;
+      if (!id) return;
+      if (id !== 'era-inf') state.ui.open[id] = true;
+      save(true);
+      renderRoadmap();
+      const target = $(id);
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    },
     form: el => { state.ui.form = state.ui.form === el.dataset.f ? '' : el.dataset.f; commit('economy'); },
     'shop-edit': () => { state.ui.shopEdit = !state.ui.shopEdit; commit('economy'); },
     'deposit-quick': () => {
@@ -1666,8 +1699,8 @@
       toast(pname('bank'), 'Fundada. Ya pueden pagarse en la moneda del otro.', 'ender_eye');
       commit('economy');
     },
-    'mode-simple': () => { state.ui.advanced = false; commit('economy'); window.scrollTo({ top: 0 }); },
-    'mode-advanced': () => { state.ui.advanced = true; commit('economy'); },
+    'mode-simple': () => { state.ui.ecoTab = 'overview'; state.ui.advanced = true; save(true); renderEconomy(); window.scrollTo({ top: 0 }); },
+    'mode-advanced': () => { state.ui.ecoTab = 'finance'; state.ui.advanced = true; save(true); renderEconomy(); },
 
     'season-start': () => { state.seasons.current = 1; state.seasons.checks = {}; rollSeason(); commit('roadmap'); },
     'season-roll': () => { rollSeason(); commit('roadmap'); },
@@ -1783,7 +1816,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     'price-buy': el => {
       const p = state.economy.prices.find(x => x.id === el.dataset.id);
       if (!p) return;
-      state.ui.buySeller = p.seller; state.ui.buyItem = p.id; state.ui.form = 'buy';
+      state.ui.buySeller = p.seller; state.ui.buyItem = p.id; state.ui.ecoTab = 'overview';
       commit('economy');
       $('buy-qty').focus();
       $('buy-seller').scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -2012,16 +2045,122 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       commit('state');
       toast('Avalada por Revisor', `${l.title} ya puede ser firmada por ambos Estados.`, 'emerald');
     },
-    'law-edit': async el => {
+    'law-template': el => {
+      const target = $(el.dataset.target || 'law-text');
+      if (!target) return;
+      const tpl = [
+        'EPÍGRAFE: Por medio de la cual se...',
+        'CONSIDERANDO:',
+        '1. Que es deber de los Estados garantizar...',
+        '2. Que resulta necesario regular...',
+        'DISPONE:',
+        'Artículo 1. Objeto y ámbito de aplicación.',
+        'Artículo 2. Competencia y responsables.',
+        'Parágrafo 1 (Excepciones y fuerza mayor):',
+        'Artículo 3. Registro y custodia archivística (TRD).',
+        'Vigencia: Rige a partir de su firma bilateral y deroga las disposiciones contrarias.'
+      ].join('\n');
+      if (target.value.trim() && !confirm('¿Reemplazar el borrador actual por la plantilla formal colombiana?')) return;
+      target.value = tpl;
+      target.focus();
+    },
+    'law-upgrade-pack': async () => {
+      if (!await askConfirm('Se actualizarán las leyes y actos en borrador o derogados (sin firmar) a la nueva redacción archivística colombiana y se agregarán actos faltantes. Las normas ya firmadas por ambos no se tocan. ¿Continuar?')) return;
+      const allPacks = [
+        ...(D.DEFAULT_RP_LAWS || []),
+        ...(D.DEFAULT_PENAL_PACK || [])
+      ];
+      let updated = 0;
+      let added = 0;
+      const matchMap = {
+        'ley de penas': 'Ley de Penas y Régimen Sancionatorio Bilateral',
+        'ley de ciudadanía': 'Ley de Ciudadanía y Protección Aldeana',
+        'ley de extranjería': 'Ley de Extranjería, Residencia y Permisos',
+        'ley de aduana y tránsito': 'Ley de Aduana, Fronteras y Tránsito',
+        'ley de hallazgos y patrimonio': 'Ley de Hallazgos, Reliquias y Patrimonio Nacional',
+        'ley de obras públicas': 'Ley de Obras Públicas y Servidumbres',
+        'ley de sabotaje': 'Ley de Protección contra Sabotaje y Propiedad Intelectual',
+        'ley de deudas y embargos': 'Ley de Obligaciones, Deudas y Embargos',
+        'ley de la mesa compartida': 'Ley de Seguridad Alimentaria y Mesa Compartida',
+        'ley del archivo': 'Ley Orgánica del Archivo Nacional y Memoria Histórica'
+      };
+      allPacks.forEach(def => {
+        const defLower = def.title.toLowerCase();
+        const existing = state.laws.find(l => {
+          const lt = (l.title || '').toLowerCase();
+          return lt === defLower || matchMap[lt] === def.title;
+        });
+        if (existing) {
+          if (!(existing.signs && existing.signs.myth && existing.signs.scad)) {
+            existing.title = def.title;
+            existing.text = tx(def.text);
+            existing.sanction = tx(def.sanction || '');
+            existing.docType = def.docType || existing.docType || 'ley';
+            existing.trdCode = def.trdCode || existing.trdCode || '100-01';
+            existing.editedAt = Date.now();
+            if (existing.repealed) {
+              existing.repealEdited = true;
+              pushReviewNote(existing, 'edited', 'Actualizada a redacción técnica archivística; lista para restaurar.');
+            }
+            updated++;
+          }
+        } else {
+          const docType = def.docType || 'ley';
+          const trdCode = def.trdCode || ((D.DOC_TYPES || {})[docType] || {}).trd || '100-01';
+          state.laws.push({ id: uid('ley'), kind: 'rol', docType, trdCode, num: nextLawNum('rol', docType), title: def.title, text: tx(def.text), sanction: tx(def.sanction || ''), signs: { myth: false, scad: false }, review: { status: 'none', notes: [] }, repealed: false, t: Date.now() });
+          added++;
+        }
+      });
+      // Sincronizar también nuevas series TRD faltantes
+      (D.DEFAULT_TRD || []).forEach(t => {
+        if (!state.trd.some(x => x.code === t.code)) state.trd.push(clone(t));
+      });
+      commit('state');
+      toast('Actualización Archivística', `${updated} actos actualizados y ${added} agregados.`, 'gavel');
+    },
+    'law-edit': el => {
       const l = state.laws.find(x => x.id === el.dataset.id);
       if (!l) return;
-      const nextText = await askText(`Editar "${l.title}" (puedes agregar Artículo o Parágrafo nuevo):`, l.text);
-      if (nextText === null) return;
-      if (nextText.trim() === (l.text || '').trim()) {
-        if (l.repealed) fail('Para poder restaurar una norma derogada debes modificar su contenido.');
+      editingLawId = l.id;
+      const dt = l.docType || ((l.kind || 'servidor') === 'servidor' ? 'servidor' : 'ley');
+      const trdList = (Array.isArray(state.trd) && state.trd.length ? state.trd : (D.DEFAULT_TRD || []));
+      $('edit-law-title').value = l.title || '';
+      $('edit-law-doctype').innerHTML = opts([['ley', 'Ley del mundo'], ['codigo_penal', 'Código Penal'], ['decreto', 'Decreto Ejecutivo'], ['resolucion', 'Resolución Administrativa'], ['acuerdo', 'Acuerdo Bilateral'], ['circular', 'Circular / Instructivo'], ['servidor', 'Regla del servidor (OOC)']], dt);
+      $('edit-law-num').value = l.num || 1;
+      $('edit-law-trd').innerHTML = opts(trdList.map(t => [t.code, `TRD ${t.code} · ${t.series}`]), l.trdCode || ((D.DOC_TYPES || {})[dt] || {}).trd || '100-01');
+      $('edit-law-text').value = l.text || '';
+      $('edit-law-sanction').value = l.sanction || '';
+      $('modal-law-edit').classList.add('open');
+      setTimeout(() => $('edit-law-title').focus(), 30);
+    },
+    'law-edit-save': () => {
+      const l = state.laws.find(x => x.id === editingLawId);
+      if (!l) return closeModals();
+      const nextTitle = val('edit-law-title');
+      const nextDocType = val('edit-law-doctype') || 'ley';
+      const nextNum = Math.max(1, Math.round(num(val('edit-law-num'), l.num || 1)));
+      const nextTrd = val('edit-law-trd') || '100-01';
+      const nextText = ($('edit-law-text') && $('edit-law-text').value) || '';
+      const nextSanction = val('edit-law-sanction');
+      if (!nextTitle) return fail('El acto administrativo necesita título.');
+      const changed = nextTitle.trim() !== (l.title || '').trim()
+        || nextDocType !== (l.docType || ((l.kind || 'servidor') === 'servidor' ? 'servidor' : 'ley'))
+        || nextNum !== Number(l.num)
+        || nextTrd !== (l.trdCode || '')
+        || nextText.trim() !== (l.text || '').trim()
+        || nextSanction.trim() !== (l.sanction || '').trim();
+      if (!changed) {
+        if (l.repealed) fail('Para poder restaurar una norma derogada debes modificar su contenido o título.');
+        closeModals();
         return;
       }
+      l.title = nextTitle;
+      l.docType = nextDocType;
+      l.kind = nextDocType === 'servidor' ? 'servidor' : 'rol';
+      l.num = nextNum;
+      l.trdCode = nextTrd;
       l.text = nextText;
+      l.sanction = nextSanction;
       l.editedAt = Date.now();
       const rev = ensureLawReview(l);
       if (l.repealed) {
@@ -2030,12 +2169,14 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       } else if (l.signs.myth || l.signs.scad || rev.status === 'approved') {
         l.signs = { myth: false, scad: false };
         if (rev.status === 'approved') rev.status = 'pending';
-        pushReviewNote(l, 'edited', 'Texto modificado; requiere nueva aprobación/firmas.');
+        pushReviewNote(l, 'edited', 'Acto modificado; requiere nueva revisión/firmas.');
       } else if (rev.status === 'returned') {
-        pushReviewNote(l, 'edited', 'Texto corregido; listo para reenviar a revisión.');
+        pushReviewNote(l, 'edited', 'Acto subsanado; listo para reenviar a revisión.');
       }
+      editingLawId = null;
+      closeModals();
       commit('state');
-      toast('Norma actualizada', l.repealed ? 'Editada. Ya puedes pulsar "♻ Restaurar".' : (rev.status === 'returned' ? 'Editada. Pulsa "📤 Reenviar a revisión" cuando esté lista.' : l.title), 'gavel');
+      toast('Acto actualizado', l.repealed ? 'Editado. Ya puedes pulsar "♻ Restaurar".' : (rev.status === 'returned' ? 'Subsanado. Pulsa "📤 Reenviar a revisión".' : l.title), 'gavel');
     },
     'law-book': el => {
       const l = state.laws.find(x => x.id === el.dataset.id);
@@ -2345,12 +2486,13 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
   const askText = (msg, initial) => ask(msg, true, initial);
 
   /* ---------- Deshacer (guarda copias del estado antes de cada acción) ---------- */
+  let editingLawId = null;
   const UNDO_KEY = 'forever_world_undo';
-  const NO_UNDO = new Set(['form', 'shop-edit', 'mode-simple', 'mode-advanced', 'tip', 'filter', 'works-filter', 'law-doc-filter', 'law-rev-filter', 'law-book', 'price-buy', 'price-challenge', 'open-reset', 'confirm-reset', 'open-backup',
+  const NO_UNDO = new Set(['form', 'shop-edit', 'mode-simple', 'mode-advanced', 'eco-tab', 'state-tab', 'jump-era', 'law-template', 'law-edit', 'tip', 'filter', 'works-filter', 'law-doc-filter', 'law-rev-filter', 'law-book', 'price-buy', 'price-challenge', 'open-reset', 'confirm-reset', 'open-backup',
     'open-report', 'copy-report', 'close-modal', 'undo',
     'cloud-pull', 'cloud-push-force', 'cloud-snapshot', 'cloud-restore-snap', 'cloud-save-cfg', 'cloud-reset-cfg', 'cloud-copy-link', 'cloud-copy-snippet']);
   const UNDO_LABELS = {
-    'law-add': 'Nueva norma', 'law-edit': 'Editar norma', 'law-submit': 'Enviar a revisión', 'law-return': 'Devolver norma', 'law-approve-rev': 'Avalar norma', 'law-sign': 'Firma de norma', 'law-repeal': 'Derogar norma', 'law-del': 'Borrar norma', 'law-defaults': 'Normas sugeridas', 'law-move': 'Mover norma',
+    'law-add': 'Nueva norma', 'law-edit': 'Editar norma', 'law-edit-save': 'Editar acto', 'law-submit': 'Enviar a revisión', 'law-return': 'Devolver norma', 'law-approve-rev': 'Avalar norma', 'law-sign': 'Firma de norma', 'law-repeal': 'Derogar norma', 'law-del': 'Borrar norma', 'law-defaults': 'Normas sugeridas', 'law-upgrade-pack': 'Actualización archivística', 'law-move': 'Mover norma',
     'trd-add': 'Nueva serie TRD', 'trd-del': 'Borrar serie TRD',
     'chron-add': 'Nueva crónica', 'chron-del': 'Borrar crónica', 'guest-add': 'Nuevo invitado', 'guest-del': 'Borrar invitado',
     rail: 'Contador de vía', 'rail-set': 'Contador de vía', 'st-add': 'Nueva estación', 'st-del': 'Borrar estación',
@@ -2534,11 +2676,20 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     const keptUi = state.ui;
     const mergedRemote = CLOUD ? CLOUD.mergeCloudUiWithLocal(row.state, keptUi) : row.state;
     state = merge(defaultState(), mergedRemote);
+    let needCloudRename = false;
+    if (!state.ui.luthadelV1) {
+      if (state.settings?.nations?.scad?.nation === 'Gotham') {
+        state.settings.nations.scad.nation = 'Luthadel';
+        needCloudRename = true;
+      }
+      state.ui.luthadelV1 = true;
+    }
     state.updatedAt = Number(row.updated_at) || state.updatedAt || Date.now();
     state.updatedBy = row.updated_by || state.updatedBy || '';
     if (preferredMe && participants().includes(preferredMe)) me = preferredMe;
     else if (me && !participants().includes(me)) me = '';
     safeSet(STORAGE_KEY, JSON.stringify(state));
+    if (needCloudRename && CLOUD) CLOUD.schedulePush(() => state);
     if (CLOUD) CLOUD.setPresence({ id: me, name: me ? pname(me) : 'Visitante' });
     renderAll();
     if ($('modal-backup') && $('modal-backup').classList.contains('open')) renderCloudPanel(false);
@@ -2888,7 +3039,16 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       state.ui.guestSeedV1 = true;
       guestSeeded = true;
     }
-    if (guestSeeded || JSON.stringify(state.laws) + state.ui.rpLawsSeeded + JSON.stringify(state.professions) !== lawsBefore + JSON.stringify(profsBefore)) save(true);
+    // Renombrar Gotham -> Luthadel si aún conserva el nombre anterior
+    let luthadelMigrated = false;
+    if (!state.ui.luthadelV1) {
+      if (state.settings?.nations?.scad?.nation === 'Gotham') {
+        state.settings.nations.scad.nation = 'Luthadel';
+      }
+      state.ui.luthadelV1 = true;
+      luthadelMigrated = true;
+    }
+    if (luthadelMigrated || guestSeeded || JSON.stringify(state.laws) + state.ui.rpLawsSeeded + JSON.stringify(state.professions) !== lawsBefore + JSON.stringify(profsBefore)) save(true);
     autoBackup(false, 'Al abrir');
     const pop = document.createElement('div'); pop.id = 'tip-pop'; pop.className = 'tip-pop mc-tooltip-box'; document.body.appendChild(pop);
     window.addEventListener('scroll', closeTip, { passive: true });

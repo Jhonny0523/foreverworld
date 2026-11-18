@@ -24,7 +24,8 @@
   --c-lime: #a8ff3e;
   --c-copper: #e8885a;
 
-  --font-body: 'Pixelify Sans', 'Silkscreen', ui-monospace, monospace;
+  --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-pixel-body: 'Pixelify Sans', 'Silkscreen', monospace;
   --font-title: 'Silkscreen', 'Pixelify Sans', monospace;
   --shadow-text: 2px 2px 0 rgba(0, 0, 0, 0.75);
 }
@@ -33,9 +34,9 @@
 
 html {
   scroll-behavior: smooth;
-  background: #1c140d;
+  background: #140e09;
   color: var(--c-white);
-  font-size: 16px;
+  font-size: 15px;
 }
 
 body {
@@ -43,15 +44,11 @@ body {
   min-height: 100vh;
   font-family: var(--font-body);
   font-weight: 400;
-  line-height: 1.45;
-  letter-spacing: 0.01em;
+  line-height: 1.5;
   color: var(--c-white);
-  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
-  background-color: #1c140d;
-  background-image: var(--tex-dirt);
-  background-size: 64px 64px;
-  image-rendering: pixelated;
-  -webkit-font-smoothing: none;
+  background-color: #140e09;
+  background-image: linear-gradient(rgba(10, 8, 6, 0.58), rgba(10, 8, 6, 0.58)), var(--tex-dirt);
+  background-size: auto, 64px 64px;
 }
 
 strong, b { font-weight: 700; }
@@ -59,10 +56,10 @@ strong, b { font-weight: 700; }
 /* Tipografías */
 .font-pixel {
   font-family: var(--font-title);
-  letter-spacing: 0.03em;
+  letter-spacing: 0.02em;
   text-shadow: var(--shadow-text);
 }
-.font-mono { font-family: var(--font-body); }
+.font-mono { font-family: var(--font-pixel-body); letter-spacing: 0.01em; }
 
 .pixel-svg, svg {
   image-rendering: pixelated;
@@ -84,22 +81,22 @@ strong, b { font-weight: 700; }
 
 /* ======================== CONTENEDORES ======================== */
 
-/* Panel principal: el área oscura de las listas de menú sobre la tierra */
+/* Panel principal: fondo Deepslate/Obsidiana de alto contraste sobre la tierra */
 .mc-panel {
-  background: rgba(0, 0, 0, 0.62);
+  background: rgba(14, 16, 22, 0.88);
   border: 2px solid #000;
   box-shadow:
-    inset 2px 2px 0 rgba(255, 255, 255, 0.10),
-    inset -2px -2px 0 rgba(255, 255, 255, 0.03),
-    4px 4px 0 rgba(0, 0, 0, 0.45);
+    inset 2px 2px 0 rgba(255, 255, 255, 0.09),
+    inset -2px -2px 0 rgba(0, 0, 0, 0.45),
+    4px 4px 0 rgba(0, 0, 0, 0.48);
   border-radius: 0;
 }
 
 /* Sub-panel: ranura hundida */
 .mc-panel-dark {
-  background: rgba(0, 0, 0, 0.42);
+  background: rgba(9, 11, 15, 0.72);
   border: 2px solid;
-  border-color: #0a0a0a #4a4a4a #4a4a4a #0a0a0a;
+  border-color: #09090c #3b4252 #3b4252 #09090c;
   border-radius: 0;
 }
 
@@ -651,22 +648,129 @@ details.fold > .fold-body { margin-top: 8px; }
   .mc-toast { animation: none; }
 }
 
-.norm-body { margin-top: 8px; font-size: 0.84rem; line-height: 1.6; color: #c4c4c4; }
-.norm-art { margin-top: 4px; }
+.norm-body { margin-top: 10px; font-size: 0.86rem; line-height: 1.6; color: #d1d5db; }
+.norm-epigraph {
+  padding: 6px 10px;
+  margin-bottom: 6px;
+  background: rgba(85, 255, 255, 0.06);
+  border-left: 3px solid var(--c-aqua);
+  color: #e2f8ff;
+  font-style: italic;
+}
+.norm-considerando {
+  padding: 5px 10px;
+  margin: 4px 0;
+  background: rgba(255, 255, 255, 0.03);
+  border-left: 2px solid #64748b;
+  color: #cbd5e1;
+  font-size: 0.82rem;
+}
+.norm-dispone {
+  margin-top: 8px;
+  font-family: var(--font-title);
+  font-size: 0.74rem;
+  color: var(--c-green);
+  letter-spacing: 0.04em;
+}
+.norm-art { margin-top: 6px; }
 .norm-para {
   margin-top: 6px;
-  padding: 5px 8px;
-  background: rgba(0, 0, 0, 0.28);
+  padding: 6px 10px;
+  background: rgba(255, 170, 0, 0.06);
   border-left: 3px solid var(--c-gold);
-  color: #e6e6e6;
+  color: #f1f5f9;
+}
+.norm-vigencia {
+  margin-top: 6px;
+  font-size: 0.8rem;
+  color: #94a3b8;
+  border-top: 1px dashed rgba(255, 255, 255, 0.1);
+  padding-top: 5px;
 }
 .norm-review-box {
   margin-top: 8px;
-  padding: 7px 10px;
-  background: rgba(0, 0, 0, 0.35);
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.45);
   border-left: 3px solid var(--c-aqua);
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   line-height: 1.5;
 }
 .norm-review-box.rev-returned { border-left-color: var(--c-red); }
 .norm-review-box.rev-approved { border-left-color: var(--c-green); }
+
+/* ======================== SUB-NAVEGACIÓN Y REVAMP UI/UX ======================== */
+
+.subnav-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px;
+  background: rgba(8, 10, 14, 0.88);
+  border: 2px solid #000;
+  box-shadow: inset 2px 2px 0 rgba(255, 255, 255, 0.06);
+}
+.subnav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  font-family: var(--font-pixel-body);
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #cbd5e1;
+  background: #222633;
+  border: 2px solid #000;
+  box-shadow: inset 2px 2px 0 rgba(255, 255, 255, 0.12), inset -2px -2px 0 rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+}
+.subnav-btn:hover { color: var(--c-yellow); border-color: #cbd5e1; }
+.subnav-btn.active {
+  color: #fff;
+  background: #2f7a2c;
+  border-color: #80ff20;
+  box-shadow: inset 2px 2px 0 rgba(255, 255, 255, 0.28), inset -2px -2px 0 rgba(0, 0, 0, 0.45);
+}
+
+/* Strip rápido de Eras */
+.era-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 10px;
+}
+.era-chip {
+  padding: 4px 8px;
+  font-family: var(--font-pixel-body);
+  font-size: 0.78rem;
+  background: #1c202b;
+  color: #94a3b8;
+  border: 2px solid #000;
+  cursor: pointer;
+}
+.era-chip:hover { color: #fff; border-color: #fff; }
+.era-chip.done { background: rgba(47, 138, 43, 0.35); color: #80ff20; border-color: #2f8a2b; }
+.era-chip.current { background: rgba(201, 138, 18, 0.35); color: #ffff55; border-color: #ffaa00; }
+
+/* Bloque separado de misiones de invitado dentro de una era */
+.guest-era-box {
+  margin-top: 14px;
+  padding: 12px;
+  background: rgba(12, 24, 32, 0.65);
+  border: 2px dashed rgba(85, 255, 255, 0.32);
+}
+
+/* KPI strip limpia */
+.kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+@media (max-width: 820px) { .kpi-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.kpi-box {
+  padding: 10px 12px;
+  background: rgba(8, 10, 15, 0.78);
+  border: 2px solid #000;
+  box-shadow: inset 2px 2px 0 rgba(255, 255, 255, 0.06);
+}
+.kpi-box .kpi-label { font-size: 0.72rem; text-transform: uppercase; color: #94a3b8; font-family: var(--font-pixel-body); }
+.kpi-box .kpi-val { font-size: 1.05rem; font-family: var(--font-title); margin-top: 3px; }

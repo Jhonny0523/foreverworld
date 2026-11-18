@@ -6,8 +6,8 @@
   <title>Forever World</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20261117203500" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Pixelify+Sans:wght@400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=20261117223000" />
 </head>
 <body>
 
@@ -101,6 +101,51 @@
     </div>
   </div>
 
+  <!-- Modal: editar acto administrativo / ley -->
+  <div id="modal-law-edit" class="mc-modal-backdrop">
+    <div class="mc-panel mc-modal p-lg" style="max-width: 700px;">
+      <div class="flex-between" style="margin-bottom: 10px;">
+        <h3 class="font-pixel text-emerald text-base" style="margin: 0;">✎ EDITAR ACTO ADMINISTRATIVO / LEY</h3>
+        <button class="mc-btn" data-action="close-modal" style="padding: 3px 8px;">✕</button>
+      </div>
+      <div class="section-stack" style="gap: 10px;">
+        <div>
+          <label class="text-xs font-mono text-white" style="display:block;margin-bottom:4px;">Título del Acto:</label>
+          <input id="edit-law-title" class="mc-input" placeholder="Ej. Ley de Penas y Régimen Sancionatorio Bilateral" />
+        </div>
+        <div class="grid-3" style="gap: 8px;">
+          <div>
+            <label class="text-xs font-mono text-white" style="display:block;margin-bottom:4px;">Tipo de Acto:</label>
+            <select id="edit-law-doctype" class="mc-select font-mono"></select>
+          </div>
+          <div>
+            <label class="text-xs font-mono text-white" style="display:block;margin-bottom:4px;">N° Consecutivo:</label>
+            <input id="edit-law-num" type="number" min="1" class="mc-input font-mono" />
+          </div>
+          <div>
+            <label class="text-xs font-mono text-white" style="display:block;margin-bottom:4px;">Serie TRD:</label>
+            <select id="edit-law-trd" class="mc-select font-mono"></select>
+          </div>
+        </div>
+        <div>
+          <div class="flex-between" style="margin-bottom: 4px;">
+            <label class="text-xs font-mono text-white">Cuerpo Normativo (Epígrafe, Considerandos, Artículos y Parágrafos):</label>
+            <button type="button" class="mc-btn" style="padding: 2px 7px; font-size: 11px;" data-action="law-template" data-target="edit-law-text">📋 Plantilla Acto Colombiano</button>
+          </div>
+          <textarea id="edit-law-text" rows="10" class="mc-textarea" style="font-size: 13px; line-height: 1.5;"></textarea>
+        </div>
+        <div>
+          <label class="text-xs font-mono text-white" style="display:block;margin-bottom:4px;">Pena / Sanción / Disposición Ejecutiva (opcional):</label>
+          <input id="edit-law-sanction" class="mc-input" placeholder="Ej. Multa entre 5 y 40 OE según gravedad..." />
+        </div>
+      </div>
+      <div class="flex-row-wrap" style="justify-content: flex-end; gap: 8px; margin-top: 14px;">
+        <button class="mc-btn" data-action="close-modal">Cancelar</button>
+        <button class="mc-btn mc-btn-emerald" data-action="law-edit-save">✔ Guardar cambios</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal: resumen -->
   <div id="modal-report" class="mc-modal-backdrop">
     <div class="mc-panel mc-modal p-lg">
@@ -118,12 +163,12 @@
   <div id="toast-container"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase-config.js?v=20261117203500"></script>
-  <script src="cloud.js?v=20261117203500"></script>
-  <script src="icons.js?v=20261117203500"></script>
-  <script src="eras.js?v=20261117203500"></script>
-  <script src="data.js?v=20261117203500"></script>
-  <script src="engine.js?v=20261117203500"></script>
-  <script src="app.js?v=20261117203500"></script>
+  <script src="supabase-config.js?v=20261117223000"></script>
+  <script src="cloud.js?v=20261117223000"></script>
+  <script src="icons.js?v=20261117223000"></script>
+  <script src="eras.js?v=20261117223000"></script>
+  <script src="data.js?v=20261117223000"></script>
+  <script src="engine.js?v=20261117223000"></script>
+  <script src="app.js?v=20261117223000"></script>
 </body>
 </html>

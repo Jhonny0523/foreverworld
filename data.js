@@ -21,7 +21,7 @@ window.FW_DATA = (() => {
     },
     scad: {
       player: 'Scadrial',
-      nation: 'Gotham',
+      nation: 'Luthadel',
       currency: 'Cuarto',
       symbol: 'CU',
       color: 'emerald'
@@ -173,7 +173,7 @@ window.FW_DATA = (() => {
      Precio fijo sugerido para la primera Sesión de Tarifas.
      "Temprano" = hecho a mano; cuando exista la granja, bajen hacia el mínimo o menos. */
   const PRICE_GUIDE = [
-    /* ===================== GOTHAM (Scadrial) — en Cuartos ===================== */
+    /* ===================== LUTHADEL (Scadrial) — en Cuartos ===================== */
     // Alimentos
     { seller: 'scad', group: 'Alimentos', name: 'Carne de res cocida', unit: 'stack', price: 10, note: 'La que más llena.' },
     { seller: 'scad', group: 'Alimentos', name: 'Chuleta de cerdo cocida', unit: 'stack', price: 10, note: '' },
@@ -322,37 +322,108 @@ window.FW_DATA = (() => {
     { title: 'Multas y reforma', text: 'Las multas se fijan en Ojos de Ender ({OE}) y se pagan al otro Estado al cambio del día, con una transferencia registrada en la app.\nCualquier ley se crea, se cambia o se deroga solo si firman ambos.', sanction: '' }
   ];
 
-  /* -------------------- Leyes del mundo (roleplay) --------------------
-     Rigen DENTRO de la historia. Son marcos legales: no inventan historia,
-     religión ni personajes; eso lo agregan los jugadores. */
+  /* -------------------- Leyes del mundo (roleplay — Técnica Legislativa y Archivística Colombiana) --------------------
+     Rigen DENTRO de la historia. Estructuradas con Epígrafe, Considerandos,
+     Articulado, Parágrafos, Límites de Proporcionalidad y Disposición Final. */
   const DEFAULT_RP_LAWS = [
-    { title: 'Ley de Penas', text: 'Artículo 1. Las penas que puede imponer un Estado son: multa, trabajos públicos, celda y destierro temporal.\nArtículo 2. Multa: se paga en {OE} al Estado afectado.\nArtículo 3. Trabajos públicos: el condenado construye o repara una obra para el Estado afectado (camino, muro, estación) del tamaño que fije la sentencia.\nArtículo 4. Celda: el condenado permanece en la celda del Palacio de Justicia el tiempo que fije la sentencia (en minutos de juego real), sin salir ni recibir objetos.\nArtículo 5. Destierro temporal: el condenado no puede entrar a la capital del Estado afectado durante el tiempo que fije la sentencia.\nArtículo 6. Toda sentencia se registra en el Archivo como crónica de tipo Disputa.', sanction: 'Quien incumpla una pena cumple el doble.' },
-    { title: 'Ley de Ciudadanía', text: 'Artículo 1. Son ciudadanos de cada Estado su jugador fundador y los aldeanos inscritos en su Censo con nombre propio.\nArtículo 2. Todo ciudadano aldeano tiene derecho a vivienda con cama y estación de trabajo propias, techo, luz y protección.\nArtículo 3. El Estado responde por sus ciudadanos: si un aldeano muere por descuido (sin protección contra monstruos o en una trampa), se registra en el Archivo.\nArtículo 4. Ningún Estado puede trasladar, encerrar ni comerciar con ciudadanos del otro sin un tratado firmado.', sanction: 'Trasladar o retener ciudadanos ajenos: devolverlos + trabajos públicos (una casa de aldeano para el Estado afectado).' },
-    { title: 'Ley de Extranjería', text: 'Artículo 1. Es extranjero todo visitante que no es ciudadano de ningún Estado.\nArtículo 2. Para residir, el extranjero necesita un permiso de residencia firmado por un Estado (un libro firmado entregado en mano), que indica dónde puede vivir.\nArtículo 3. El extranjero puede trabajar por contrato, comerciar con lo que recolecte a mano, invertir en acciones y prestar dinero.\nArtículo 4. El Estado que otorga el permiso responde por los daños que cause su residente.', sanction: 'Residir sin permiso: expulsión de la capital hasta obtenerlo.' },
-    { title: 'Ley de Aduana y Tránsito', text: 'Artículo 1. Los ciudadanos y residentes pueden cruzar la frontera libremente.\nArtículo 2. Las mercancías compradas al otro Estado que crucen la frontera deben estar registradas como compra en el Libro Mayor.\nArtículo 3. El edificio del primer portal del Nether es puesto de control: quien lo cruce lleva su permiso o pasaporte si el Estado dueño lo exige.\nArtículo 4. Las estaciones de tren y la sede de {BANK} son de paso libre para todos.', sanction: 'Contrabando (mercancía no registrada): decomiso + multa de 10 {OE}.' },
-    { title: 'Ley de Hallazgos y Patrimonio', text: 'Artículo 1. Las reliquias halladas en territorio de un Estado pertenecen a su tesoro nacional. Quien las halla recibe una recompensa que fija ese Estado.\nArtículo 2. Las reliquias halladas en tierra de nadie pertenecen al Estado de quien las halló.\nArtículo 3. Las reliquias nacionales se custodian en la bóveda del Estado y se registran en la app.\nArtículo 4. Ninguna reliquia nacional se vende, presta ni saca del territorio sin que el Estado lo apruebe por escrito.\nArtículo 5. La pérdida de una reliquia nacional se investiga y se registra en el Archivo.', sanction: 'Ocultar o vender una reliquia nacional: devolverla (o reponerla) + multa de 30 {OE}.' },
-    { title: 'Ley de Obras Públicas', text: 'Artículo 1. Son obras públicas las estaciones, vías, puentes, bancos, el Palacio de Justicia, el Archivo y la sede de {BANK}.\nArtículo 2. Las obras públicas son inviolables: nadie las modifica sin permiso del Estado dueño.\nArtículo 3. Toda obra pública mayor se inaugura con un acto y se registra en el Archivo.\nArtículo 4. El Estado que construye una obra pública en territorio ajeno lo hace solo por contrato firmado.', sanction: 'Dañar una obra pública: repararla + trabajos públicos.' },
-    { title: 'Ley de Sabotaje', text: 'Artículo 1. Es sabotaje dañar a propósito la infraestructura, las granjas o la economía del otro Estado: romper vías, desviar trenes, vaciar cofres ajenos, matar aldeanos o animales ajenos.\nArtículo 2. Es espionaje industrial copiar un diseño patentado sin pagar la licencia.\nArtículo 3. Los casos se juzgan según la regla de Resolución de disputas.', sanction: 'Sabotaje: reparación total + multa de 25 {OE} + destierro temporal de la capital afectada. Espionaje: desmantelar la copia o pagar el doble de la licencia.' },
-    { title: 'Ley de Deudas y Embargos', text: 'Artículo 1. Toda deuda vencida y no pagada se declara en mora y se publica en un tablón de anuncios del banco.\nArtículo 2. Tras una sesión de juego en mora, el acreedor puede embargar bienes del deudor por un valor equivalente, según la lista de precios vigente.\nArtículo 3. El embargo se registra en el Libro Mayor y cancela la parte equivalente de la deuda.', sanction: 'Ocultar bienes para evitar un embargo: la deuda se duplica.' },
-    { title: 'Ley de Duelos de Honor', text: 'Artículo 1. Las ofensas personales pueden resolverse en duelo, solo si ambas partes aceptan por escrito.\nArtículo 2. Se combate en una arena designada, con el equipo que acuerden antes (por ejemplo, solo hierro).\nArtículo 3. El duelo termina al primer KO o cuando uno se rinde. Los objetos del caído se devuelven completos.\nArtículo 4. Lo apostado (dinero, objetos o una disculpa en el Archivo) se paga en el acto.', sanction: 'Negarse a pagar lo apostado: se considera deuda en mora.' },
-    { title: 'Ley de la Mesa Compartida', text: 'Artículo 1. La comida es un bien esencial: ningún Estado puede negarse a vender alimentos básicos al otro.\nArtículo 2. Son alimentos básicos el pan, las papas, las zanahorias, la carne cocida y el pescado cocido. Su precio no puede superar el doble del precio sugerido en la guía.\nArtículo 3. Dieta balanceada: cada temporada, cada Estado le compra comida al otro al menos una vez.\nArtículo 4. Banquete: al cerrar cada temporada se celebra un banquete en la frontera, con un plato de cada Estado (el pastel, que lleva trigo y azúcar de uno y leche y huevos del otro, es el plato de honor).', sanction: 'Negar comida o cobrarla por encima del máximo: multa de 15 {OE} y venta obligatoria al precio sugerido.' },
-    { title: 'Ley del Archivo', text: 'Artículo 1. El Archivo guarda la historia oficial de ambos Estados.\nArtículo 2. Se registran: fundaciones, obras mayores, reliquias halladas o perdidas, tratados, sentencias y temporadas cerradas.\nArtículo 3. Cada Estado puede escribir su propia versión de un mismo hecho. Ninguna versión borra a la otra.', sanction: '' }
+    {
+      docType: 'ley',
+      trdCode: '100-01',
+      title: 'Ley de Penas y Régimen Sancionatorio Bilateral',
+      text: 'EPÍGRAFE: Por la cual se establece el régimen de penas, criterios de dosimetría, ejecución, custodia, garantías procesales y registro archivístico de las sanciones impuestas por los Estados.\nCONSIDERANDO:\n1. Que el ejercicio del poder sancionatorio exige tipicidad previa, proporcionalidad y respeto al debido proceso.\n2. Que resulta necesario precisar los alcances monetarios, territoriales, temporales y documentales de cada sanción para evitar arbitrariedades.\nDISPONE:\nArtículo 1. Clases de penas, gravedad y acumulación.\nLas infracciones se clasifican en leves, graves y gravísimas según el Código Penal vigente. Las penas aplicables son: (a) multa pecuniaria, (b) trabajos públicos, (c) reclusión en celda y (d) destierro temporal.\nParágrafo 1 (Criterios de aplicación): Las faltas leves admiten únicamente multa o trabajos públicos menores; las graves admiten hasta dos penas concurrentes; las gravísimas admiten acumulación motivada de multa, reparación y destierro temporal (máximo 2 sesiones o 60 minutos efectivos).\nArtículo 2. Pena de multa.\nLas multas se tasan en la unidad de cuenta neutral {OE} (Ojo de Ender) y se pagan en su equivalente en {DR} o {CU} al tipo de cambio del Libro Mayor del día de la sentencia.\nParágrafo 1 (Topes y criterios): La multa mínima será de 5 {OE} y la máxima de 150 {OE}, fijada por la autoridad judicial considerando el daño causado, el dolo y la reincidencia.\nParágrafo 2 (Insolvencia y destino): Si el condenado carece de fondos líquidos, la multa se conmuta en trabajos públicos a razón de 64 bloques o 15 minutos de obra por cada 10 {OE}. El 80% de lo recaudado ingresa al tesoro del Estado afectado y el 20% a la reserva de {BANK}.\nArtículo 3. Trabajos públicos.\nConsisten en construir, excavar o reparar una obra de utilidad común para el Estado afectado, proporcional al daño ocasionado y sin exceder 256 bloques colocados o 25 minutos reales por sentencia.\nParágrafo 1 (Supervisión e imposibilidad): El cumplimiento será verificado por un veedor del Estado afectado o el Archivista. Si la obra resulta inviable por falta de materiales imputable al servidor o al terreno, el condenado podrá proponer obra alternativa equivalente o plazo adicional de 1 sesión.\nArtículo 4. Reclusión en celda.\nSe cumple en celda habilitada del Palacio de Justicia por un máximo de 20 minutos contabilizados exclusivamente en tiempo de actividad efectiva dentro del servidor.\nParágrafo 1 (Desconexiones, custodia y apelación): Las desconexiones involuntarias por caída o red suspenden el conteo sin constituir fuga. El Estado custodio debe garantizar alimentos básicos y salida técnica ante bugs o reinicios. Toda reclusión superior a 10 minutos admite recurso de reposición ante el otro Estado o mediación del Archivista.\nArtículo 5. Destierro temporal.\nComprende el perímetro urbano amurallado o demarcado de la capital del Estado afectado y un radio de 100 bloques desde su plaza central, permitiendo la permanencia en otros territorios y rutas rurales externas.\nParágrafo 1 (Control e ingreso accidental): El control se realiza mediante señalización visible y puesto de aduana. El ingreso accidental conlleva advertencia inmediata y 2 minutos para retirarse sin sanción. El tránsito justificado hacia estaciones o {BANK} podrá autorizarse bajo escolta.\nArtículo 6. Acta y registro obligatorio de sentencias.\nToda sentencia ejecutoriada será radicada por el Archivista Oficial (o por el Estado sancionador en su ausencia) en el Archivo Histórico como crónica tipo Disputa bajo la serie TRD 100-02, conteniendo obligatoriamente: (1) identificación del condenado, (2) autoridad sancionadora, (3) infracción cometida, (4) fundamentos fácticos y jurídicos, (5) tipo, dosimetría y duración de la pena, (6) fecha de imposición y cumplimiento, y (7) estado de ejecución (Pendiente / En curso / Cumplida / Apelada).\nArtículo 7 (Disposición final). Debido proceso ante incumplimiento.\nProhíbese la duplicación automática de penas. Ante presunto incumplimiento, se distinguirá entre evasión deliberada e imposibilidad material, caída del servidor o error administrativo, requiriendo descargos previos antes de imponer un agravante proporcional de hasta el 25% adicional.\nVigencia: Rige a partir de su firma bilateral y deroga las disposiciones anteriores que le sean contrarias.',
+      sanction: 'Dosimetría según gravedad: Leves (5–15 {OE}), Graves (15–40 {OE} / hasta 10 min celda), Gravísimas (40–150 {OE} / hasta 20 min celda y/o destierro máx. 2 sesiones).'
+    },
+    {
+      docType: 'ley',
+      trdCode: '100-01',
+      title: 'Ley de Ciudadanía y Protección Aldeana',
+      text: 'EPÍGRAFE: Por la cual se define la ciudadanía estatal, los derechos de los habitantes aldeanos inscritos en el Censo y la responsabilidad patrimonial por su custodia.\nCONSIDERANDO:\nQue los aldeanos con oficio constituyen población civil protegida y pilar productivo de cada nación.\nDISPONE:\nArtículo 1. Titularidad de la ciudadanía.\nSon ciudadanos de cada Estado su jugador fundador y los aldeanos inscritos en el Censo Oficial de la aplicación con nombre propio (Name Tag) y folio TRD 150-01.\nArtículo 2. Garantías habitacionales mínimas.\nTodo ciudadano aldeano tiene derecho a vivienda techada e iluminada con cama y estación de trabajo propias, quedando prohibido el confinamiento en cubículos 1×1.\nArtículo 3. Responsabilidad objetiva por custodia.\nSi un aldeano censado fallece por descuido evitable (ausencia de iluminación, muros o trampas sin señalizar), el Estado tutor levantará acta de defunción en el Archivo.\nArtículo 4. Intangibilidad interjurisdiccional.\nNingún Estado podrá trasladar, retener ni comerciar con ciudadanos del otro sin tratado bilateral vigente.',
+      sanction: 'Traslado o retención sin tratado: restitución inmediata + obra compensatoria de vivienda aldeana para el Estado afectado.'
+    },
+    {
+      docType: 'ley',
+      trdCode: '100-01',
+      title: 'Ley de Extranjería, Residencia y Permisos',
+      text: 'EPÍGRAFE: Por la cual se regula el ingreso, permanencia, derechos laborales y responsabilidad civil de los jugadores visitantes e invitados.\nCONSIDERANDO:\nQue la participación de invitados y archivistas externos requiere seguridad jurídica y reglas claras de residencia.\nDISPONE:\nArtículo 1. Calidad de extranjero.\nEs extranjero o invitado todo jugador que no detente soberanía sobre ninguno de los dos Estados fundadores.\nArtículo 2. Permiso de residencia.\nPara establecer morada permanente, el extranjero solicitará permiso de residencia mediante Libro Firmado Original expedido por uno de los Estados, indicando coordenadas de su lote.\nArtículo 3. Derechos económicos y archivísticos.\nEl extranjero residente puede celebrar contratos de obra, vender botín obtenido manualmente, adquirir acciones estatales, otorgar préstamos y ejercer funciones de Archivista o Revisor cuando sea designado.\nArtículo 4. Solidaridad por daños.\nEl Estado anfitrión que expida el permiso responde solidariamente por los daños materiales causados por su residente si este incurre en insolvencia.',
+      sanction: 'Residencia irregular sin permiso tras requerimiento: suspensión de ingreso urbano hasta formalizar registro TRD 150-01.'
+    },
+    {
+      docType: 'ley',
+      trdCode: '100-01',
+      title: 'Ley de Aduana, Fronteras y Tránsito',
+      text: 'EPÍGRAFE: Por la cual se regulan los pasos fronterizos, el control aduanero en portales dimensionales y el libre tránsito ferroviario.\nCONSIDERANDO:\nQue el comercio ordenado entre Estados exige trazabilidad contable y servidumbres libres de paso.\nDISPONE:\nArtículo 1. Libre tránsito de personas.\nLos ciudadanos y residentes con permiso vigente transitan libremente por las fronteras terrestres y vías públicas.\nArtículo 2. Trazabilidad mercantil.\nToda mercancía comprada al otro Estado que cruce frontera en lote comercial deberá contar con asiento previo en el Libro Mayor.\nArtículo 3. Puesto de control dimensional.\nEl edificio del primer Portal del Nether constituye puesto aduanero oficial, pudiendo exigirse pasaporte firmado para su cruce.\nArtículo 4. Servidumbre de paso público.\nLas estaciones de tren, vías troncales y la sede de {BANK} gozan de servidumbre de paso libre y neutralidad.',
+      sanction: 'Contrabando comercial no registrado en Libro Mayor: retención preventiva en aduana + multa proporcional de 10 {OE}.'
+    },
+    {
+      docType: 'ley',
+      trdCode: '100-01',
+      title: 'Ley de Hallazgos, Reliquias y Patrimonio Nacional',
+      text: 'EPÍGRAFE: Por la cual se clasifica el patrimonio histórico y las reliquias únicas del mundo y se regula su custodia.\nCONSIDERANDO:\nQue las reliquias no renovables respaldan la memoria histórica y el prestigio estatal.\nDISPONE:\nArtículo 1. Dominio de los hallazgos.\nLas reliquias halladas dentro de territorio demarcado pertenecen al Estado titular, quien reconocerá recompensa al descubridor. Las halladas en tierra no reclamada pertenecen al Estado del hallador (o según pacto de expedición conjunta).\nArtículo 2. Registro e inventario.\nToda reliquia nacional deberá inscribirse en la sección de Obras y Reliquias y custodiarse en bóveda estatal o en el Museo.\nArtículo 3. Inalienabilidad.\nNinguna reliquia declarada patrimonio nacional podrá venderse ni enajenarse fuera del territorio sin autorización bilateral escrita.\nArtículo 4. Acta por pérdida.\nLa destrucción o extravío definitivo de una reliquia obliga a reportarla en la app y asentar acta investigativa en el Archivo.',
+      sanction: 'Ocultamiento o enajenación no autorizada de reliquia: restitución íntegra o reposición equivalente + multa de 30 {OE}.'
+    },
+    {
+      docType: 'ley',
+      trdCode: '100-01',
+      title: 'Ley de Obras Públicas y Servidumbres',
+      text: 'EPÍGRAFE: Por la cual se define la infraestructura pública protegida y las reglas de contratación interjurisdiccional.\nCONSIDERANDO:\nQue vías férreas, puentes, bancos y sedes judiciales sostienen la conectividad de la civilización.\nDISPONE:\nArtículo 1. Bienes de uso público.\nSon obras públicas las estaciones, líneas férreas, puentes troncales, bancos, el Palacio de Justicia, el Archivo Nacional y la sede de {BANK}.\nArtículo 2. Inviolabilidad.\nProhíbese alterar, demoler o intervenir una obra pública sin consentimiento expreso del Estado propietario.\nArtículo 3. Inauguración y folio TRD.\nToda obra mayor inaugurada se registrará en la serie TRD 120-01 con coordenadas y auditoría del socio.\nArtículo 4. Obras en suelo ajeno.\nLa ejecución de infraestructura en territorio del otro Estado requiere contrato previo con alcance y precio definidos.',
+      sanction: 'Daño o intervención no autorizada: reparación integral a costa del infractor + trabajos públicos proporcionales.'
+    },
+    {
+      docType: 'ley',
+      trdCode: '100-01',
+      title: 'Ley de Protección contra Sabotaje y Propiedad Intelectual',
+      text: 'EPÍGRAFE: Por la cual se protege la infraestructura productiva, los circuitos patentados y las rutas logísticas frente a sabotaje o copia no autorizada.\nDISPONE:\nArtículo 1. Tipificación de sabotaje.\nConstituye sabotaje destruir o alterar dolosamente vías, trenes de carga, circuitos de redstone, granjas o semovientes del otro Estado.\nArtículo 2. Patentes técnicas.\nConstituye infracción de propiedad intelectual replicar un mecanismo expresamente patentado e inscrito sin liquidar su licencia vigente.\nArtículo 3. Remisión procesal.\nLas controversias por sabotaje o patentes se tramitarán conforme al Código Penal y la Ley de Penas.',
+      sanction: 'Sabotaje: reparación total + multa de 25 {OE}. Infracción de patente: desmonte o pago del doble de la licencia.'
+    },
+    {
+      docType: 'ley',
+      trdCode: '100-01',
+      title: 'Ley de Obligaciones, Deudas y Embargos',
+      text: 'EPÍGRAFE: Por la cual se regula la exigibilidad de obligaciones vencidas, la declaratoria de mora y el procedimiento de embargo.\nDISPONE:\nArtículo 1. Declaratoria de mora.\nToda obligación crediticia vencida e impaga será declarada en mora en la aplicación y publicada en el tablón de {BANK}.\nArtículo 2. Ejecución por embargo.\nTranscurrida una sesión completa en mora sin acuerdo de pago, el acreedor podrá embargar bienes muebles equivalentes conforme a la lista oficial de precios vigente.\nArtículo 3. Registro de extinción.\nTodo embargo ejecutado se asentará en el Libro Mayor bajo serie TRD 130-01 extinguiendo el saldo equivalente.',
+      sanction: 'Ocultamiento fraudulento de bienes para evadir embargo: recargo del 50% al 100% según tasación judicial.'
+    },
+    {
+      docType: 'ley',
+      trdCode: '100-01',
+      title: 'Ley de Duelos de Honor',
+      text: 'EPÍGRAFE: Por la cual se reglamentan los combates consensuados de honor y sus garantías de devolución de equipo.\nDISPONE:\nArtículo 1. Consentimiento expreso.\nSolo procederá duelo cuando ambas partes suscriban acta previa aceptando lugar, hora, equipamiento y apuesta.\nArtículo 2. Desarrollo y custodia de objetos.\nSe combatirá en arena designada hasta rendición o primer KO. El inventario del vencido se devuelve intacto de forma obligatoria.\nArtículo 3. Exigibilidad de lo apostado.\nEl premio o disculpa pública pactada se cumplirá al finalizar el encuentro.',
+      sanction: 'Incumplimiento de lo apostado o retención de inventario del vencido: obligación declarada en mora inmediata.'
+    },
+    {
+      docType: 'ley',
+      trdCode: '100-01',
+      title: 'Ley de Seguridad Alimentaria y Mesa Compartida',
+      text: 'EPÍGRAFE: Por la cual se declara la alimentación básica como bien esencial de interés público y se establece el Banquete de Temporada.\nDISPONE:\nArtículo 1. Suministro obligatorio.\nNingún Estado podrá negar la venta de alimentos básicos al otro ni fijarles precio superior al doble de la Guía de Referencia.\nArtículo 2. Canasta básica protegida.\nIntegran la canasta básica: pan, papa cocida, zanahoria, carne cocida y pescado cocido.\nArtículo 3. Intercambio y banquete de cierre.\nCada temporada ambos Estados realizarán al menos una compra recíproca de víveres y celebrarán banquete fronterizo con pastel oficial.',
+      sanction: 'Desabastecimiento injustificado o especulación sobre el tope: multa de 15 {OE} + venta forzosa al precio de guía.'
+    },
+    {
+      docType: 'ley',
+      trdCode: '100-01',
+      title: 'Ley Orgánica del Archivo Nacional y Memoria Histórica',
+      text: 'EPÍGRAFE: Por la cual se organiza el Archivo Nacional, se garantiza la conservación documental y se protege la pluralidad de versiones históricas.\nCONSIDERANDO:\nQue la Ley General de Archivos exige custodia íntegra de los folios históricos y respeto a las fuentes primarias.\nDISPONE:\nArtículo 1. Naturaleza del Archivo.\nEl Archivo Nacional custodia las leyes, actos administrativos, sentencias, inventarios, libros de censo y crónicas de ambos Estados conforme a la TRD.\nArtículo 2. Actos de obligatoria radicación.\nDeberán radicarse sin excepción: fundaciones, inauguraciones de obras, hallazgos o pérdidas de reliquias, tratados, sentencias y cierres de temporada.\nArtículo 3. Principio de pluralidad histórica.\nCada Estado conserva el derecho inalienable de registrar su propia versión de un mismo acontecimiento; ninguna crónica anula o borra la del socio.\nArtículo 4. Custodia del Archivista.\nEl Archivista designado velará por el consecutivo único, la integridad de las series CT (Conservación Total) y la revisión formal de los actos antes de su firma.',
+      sanction: 'Alteración o supresión dolosa de folios CT: reposición manuscrita obligatoria en libro físico + multa de 20 {OE}.'
+    }
   ];
 
-  /* -------------------- Tipos de norma, Tabla de Retención (TRD) y Código Penal -------------------- */
+  /* -------------------- Tipos de acto administrativo, TRD y Pack Jurídico Colombiano -------------------- */
   const DOC_TYPES = {
     ley: { id: 'ley', label: 'Ley del Mundo', prefix: 'LEY', tag: 'amethyst', trd: '100-01' },
     codigo_penal: { id: 'codigo_penal', label: 'Código Penal', prefix: 'CP', tag: 'redstone', trd: '100-02' },
-    decreto: { id: 'decreto', label: 'Decreto', prefix: 'DEC', tag: 'gold', trd: '110-01' },
-    resolucion: { id: 'resolucion', label: 'Resolución', prefix: 'RES', tag: 'cyan', trd: '110-02' },
-    servidor: { id: 'servidor', label: 'Regla del Servidor', prefix: 'REG', tag: 'slate', trd: '160-01' }
+    decreto: { id: 'decreto', label: 'Decreto Ejecutivo', prefix: 'DEC', tag: 'gold', trd: '110-01' },
+    resolucion: { id: 'resolucion', label: 'Resolución Administrativa', prefix: 'RES', tag: 'cyan', trd: '110-02' },
+    acuerdo: { id: 'acuerdo', label: 'Acuerdo Bilateral', prefix: 'ACU', tag: 'emerald', trd: '110-03' },
+    circular: { id: 'circular', label: 'Circular / Instructivo', prefix: 'CIR', tag: 'indigo', trd: '110-04' },
+    servidor: { id: 'servidor', label: 'Regla del Servidor (OOC)', prefix: 'REG', tag: 'slate', trd: '160-01' }
   };
 
   const DEFAULT_TRD = [
     { code: '100-01', series: 'Actos Legislativos y Leyes', subseries: 'Leyes bilaterales y tratados del mundo', support: 'App + Libro Firmado Original', gestion: 'Mientras rija', central: 'Permanente', disp: 'CT', proc: 'Consecutivo único; si se deroga pasa a histórico sin eliminarse.' },
-    { code: '100-02', series: 'Código Penal y Procesos', subseries: 'Tipos penales, parágrafos y sentencias', support: 'App + Libro de Sentencias', gestion: 'Temporada en curso', central: '3 temporadas', disp: 'CT', proc: 'Toda sentencia se radica como crónica Disputa con folio y prueba.' },
+    { code: '100-02', series: 'Código Penal y Sentencias', subseries: 'Tipos penales, parágrafos y fallos ejecutoriados', support: 'App + Libro de Sentencias', gestion: 'Temporada en curso', central: 'Permanente', disp: 'CT', proc: 'Toda sentencia se radica con 7 campos mínimos y folio Disputa.' },
+    { code: '100-03', series: 'Expedientes y Autos de Trámite', subseries: 'Requerimientos, descargos, apelaciones y traslados', support: 'App + Buzón de Trámite', gestion: 'Hasta ejecutoria', central: '2 temporadas', disp: 'S', proc: 'Anexar al expediente de la norma o proceso sancionatorio.' },
     { code: '110-01', series: 'Decretos Ejecutivos', subseries: 'Decretos de gobierno, reserva y excepción', support: 'App + Sello Estatal', gestion: '1 temporada', central: '2 temporadas', disp: 'S', proc: 'Conservar decretos con impacto fiscal o territorial; resto a selección.' },
     { code: '110-02', series: 'Resoluciones Administrativas', subseries: 'Aranceles, aduanas, radicación y trámite', support: 'App + Tablón Oficial', gestion: 'Hasta nueva resolución', central: '1 temporada', disp: 'M', proc: 'Archivar vigente en tablón público y pasar copia auténtica al Archivo.' },
+    { code: '110-03', series: 'Acuerdos Bilaterales y Actas', subseries: 'Actas de Sesión de Tarifas, límites y concejos', support: 'App + Libro de Actas', gestion: 'Temporada vigente', central: 'Permanente', disp: 'CT', proc: 'Suscripción conjunta de ambos Estados y testigo archivista.' },
+    { code: '110-04', series: 'Circulares e Instructivos', subseries: 'Lineamientos técnicos de archivo, foliado y formatos', support: 'App + Tablón de Archivo', gestion: 'Mientras rija', central: '1 temporada', disp: 'M', proc: 'Divulgación obligatoria a ambos Estados e invitados.' },
     { code: '120-01', series: 'Contratos y Obras Públicas', subseries: 'Obras registradas, auditorías y patentes', support: 'App + Coordenadas', gestion: 'Hasta auditoría y pago', central: 'Permanente', disp: 'CT', proc: 'Soporta la emisión de moneda y capitalización; prohibida su eliminación.' },
     { code: '130-01', series: 'Contabilidad y Tesoro', subseries: 'Libro Mayor, préstamos y Oferta Sellada', support: 'App (Libro Mayor)', gestion: 'Temporada vigente', central: '2 temporadas', disp: 'CT', proc: 'Movimientos anulados se tachan (void); nunca se borra el asiento.' },
     { code: '140-01', series: 'Archivo Histórico y Crónicas', subseries: 'Crónicas, relatos y versiones de hechos', support: 'App + Bóveda del Archivo', gestion: 'Permanente', central: 'Permanente', disp: 'CT', proc: 'Cada Estado conserva su versión; ninguna versión borra a la otra.' },
@@ -364,58 +435,65 @@ window.FW_DATA = (() => {
     {
       docType: 'codigo_penal',
       trdCode: '100-02',
-      title: 'Código Penal · Libro I: Propiedad, Bóvedas y Saqueo',
-      text: 'Artículo 1. Hurto simple: tomar ítems de cofres o cultivos ajenos sin permiso.\nArtículo 2. Hurto agravado: vulnerar bóvedas privadas, almacenes sellados o cofres de tesorería.\nArtículo 3. Saqueo sin aviso: abrir estructuras o cofres naturales en territorio reclamado sin notificar al dueño.\nArtículo 4. Receptación: comprar, guardar o blanquear botín sabiendo que es robado.\nParágrafo 1 (Flagrancia): si el infractor es sorprendido con los ítems en inventario, la multa sube 50%.\nParágrafo 2 (Devolución inmediata): si devuelve todo intacto antes de cerrar la sesión, la celda se conmuta por multa simple.\nParágrafo 3 (Fuero del préstamo involuntario): un fundador que alegue por escrito "pensé que era mi cofre" puede archivar el caso pagando fianza de 10 {OE} sin tacha en su hoja de vida (máximo 1 vez por temporada).',
-      sanction: 'Hurto simple: devolución + 10 {OE}. Agravado/bóveda: devolución + 30 {OE} + 10 min de celda. Saqueo/receptación: devolución + 15 {OE}.'
+      title: 'Código Penal · Libro I: Patrimonio, Bóvedas y Saqueo',
+      text: 'EPÍGRAFE: Por el cual se tipifican los delitos contra el patrimonio privado, reservas estatales y estructuras en territorio reclamado.\nCONSIDERANDO:\nQue la convivencia económica exige garantías claras frente a sustracciones dolosas y límites objetivos para errores involuntarios.\nDISPONE:\nArtículo 1. Hurto simple: tomar ítems de cofres comunes o cultivos ajenos sin autorización previa.\nArtículo 2. Hurto agravado: vulnerar bóvedas privadas, almacenes sellados o tesorerías estatales.\nArtículo 3. Saqueo sin notificación: extraer botín de estructuras naturales dentro de territorio demarcado sin aviso al Estado titular.\nArtículo 4. Receptación: adquirir, ocultar o comercializar bienes con conocimiento de su origen ilícito.\nParágrafo 1 (Flagrancia): Si el infractor es sorprendido con los bienes en inventario, la multa se incrementa en un 50%.\nParágrafo 2 (Restitución voluntaria): Si restituye íntegro antes del cierre de la sesión sin oposición, la celda se sustituye por multa simple.\nParágrafo 3 (Error excusable): Si un fundador demuestra confusión razonable en zona limítrofe y restituye de inmediato, el caso se archiva mediante acta sin anotación disciplinaria (máximo 1 vez por temporada).',
+      sanction: 'Hurto simple: restitución + 10 {OE}. Agravado: restitución + 30 {OE} + 10 min celda efectiva. Saqueo/receptación: restitución + 15 {OE}.'
     },
     {
       docType: 'codigo_penal',
       trdCode: '100-02',
       title: 'Código Penal · Libro II: Tesoro, Moneda y Fe Pública',
-      text: 'Artículo 1. Falsificación monetaria: hacer circular copias de libros firmados o papel renombrado como dinero.\nArtículo 2. Emisión clandestina: imprimir billetes sin registrar la emisión en la app en el mismo acto.\nArtículo 3. Cohecho y soborno: ofrecer o recibir pagos ocultos para inflar puntos de una auditoría o amañar un contrato.\nArtículo 4. Fraude en Oferta Sellada: espiar, deducir, filtrar o alterar el número antes de revelar.\nArtículo 5. Peculado: desviar fondos de {BANK} o de contratos públicos para uso privado sin respaldo.\nParágrafo 1 (Agravante por cargo): si el infractor actuaba como auditor o banquero de turno, la multa se duplica.\nParágrafo 2 (Error contable de buena fe): todo descuadre menor o igual a 15 {OE} se presume "error de digitación" si se reintegra con 10% de interés antes de la siguiente auditoría.\nParágrafo 3 (Reserva de sumario): las conciliaciones de cohecho pueden asentarse como "Gastos de representación" si ambas partes firman paz y salvo.',
-      sanction: 'Falsificación/emisión ilegal: quema de billetes + multa del doble. Cohecho/peculado: devolución + 40 {OE} + inhabilidad temporal para auditar. Oferta Sellada: precio del afectado + 25 {OE}.'
+      text: 'EPÍGRAFE: Por el cual se sancionan las conductas que atentan contra la estabilidad monetaria, las auditorías y la transparencia contractual.\nDISPONE:\nArtículo 1. Falsificación monetaria: poner en circulación copias no originales o papel alterado imitando billetes oficiales.\nArtículo 2. Emisión clandestina: acuñar billetes físicos sin registrar el asiento contemporáneo en la aplicación.\nArtículo 3. Cohecho y fraude en auditoría: ofrecer o aceptar dádivas para sobrevalorar puntos de una obra o amañar su aprobación.\nArtículo 4. Fraude en Oferta Sellada: espiar, deducir o modificar el valor ofertado tras conocer la cifra de la contraparte.\nArtículo 5. Peculado: apropiarse o desviar fondos de {BANK} o de contratos públicos sin soporte contable.\nParágrafo 1 (Agravante por investidura): Si el autor obraba como auditor o representante bancario, la sanción pecuniaria aumenta en un 50%.\nParágrafo 2 (Descuadre contable subsanable): Diferencias menores o iguales a 15 {OE} sin dolo acreditado podrán subsanarse antes de la siguiente auditoría con ajuste manual en Libro Mayor.\nVigencia: Rige desde su firma y se archiva bajo serie TRD 100-02.',
+      sanction: 'Falsificación/emisión ilegal: destrucción física de billetes + multa del 150% al 200%. Cohecho/peculado: reintegro + 40 {OE} + suspensión para auditar por 1 sesión.'
     },
     {
       docType: 'codigo_penal',
       trdCode: '100-02',
-      title: 'Código Penal · Libro III: Sabotaje, Aldeanos y Obras',
-      text: 'Artículo 1. Sabotaje: dañar vías férreas, puentes, estaciones, circuitos de redstone o granjas del otro Estado.\nArtículo 2. Tráfico de ciudadanos: trasladar, encerrar o comerciar con aldeanos censados ajenos sin tratado firmado.\nArtículo 3. Homicidio culposo de ciudadano: causar la muerte de un aldeano inscrito por trampa sin señalizar o descuido grave.\nArtículo 4. Espionaje industrial: copiar sin licencia un diseño patentado del socio.\nParágrafo 1 (Conmutación por obra): cada 5 minutos de celda pueden canjearse por 64 bloques de obra pública (muro, vía o estación) a favor del afectado, si la víctima acepta.\nParágrafo 2 (Reincidencia): el reincidente en la misma temporada cumple el doble de la pena y pierde el derecho a fianza.',
-      sanction: 'Sabotaje: reparación total + 25 {OE} + destierro de la capital por 1 sesión. Aldeanos: reposición/casa nueva + 15 {OE}. Espionaje: desmantelar o pagar doble licencia.'
+      title: 'Código Penal · Libro III: Infraestructura, Aldeanos y Patentes',
+      text: 'EPÍGRAFE: Por el cual se protegen las redes de transporte, la población aldeana censada y la propiedad intelectual.\nDISPONE:\nArtículo 1. Sabotaje ferroviario o técnico: dañar rieles, estaciones, mecanismos de redstone o granjas estatales.\nArtículo 2. Tráfico o retención de ciudadanos: mover, encerrar o explotar aldeanos censados del otro Estado sin tratado.\nArtículo 3. Homicidio culposo de ciudadano: causar la muerte de un aldeano inscrito por omisión grave de protección.\nArtículo 4. Usurpación de patente: replicar un circuito inscrito sin licencia vigente.\nParágrafo 1 (Conmutación por obra): Cada 5 minutos de celda podrán conmutarse por 64 bloques de obra pública a favor del afectado si este acepta.\nParágrafo 2 (Reincidencia): La reincidencia dentro de la misma temporada habilita agravante de hasta el 50% sobre la sanción base, previa verificación en el Archivo.',
+      sanction: 'Sabotaje: reparación integral + 25 {OE}. Aldeanos: reposición/vivienda + 15 {OE}. Usurpación de patente: desmonte o pago doble de licencia.'
     },
     {
       docType: 'codigo_penal',
       trdCode: '100-02',
-      title: 'Código Penal · Libro IV: Dosimetría Penal, Prescripción e Indultos',
-      text: 'Artículo 1. Faltas leves: multa de 5 a 15 {OE} o 5 minutos de celda.\nArtículo 2. Delitos graves: multa de 15 a 40 {OE}, de 10 a 20 minutos de celda y reparación integral.\nArtículo 3. Alta traición financiera o sabotaje mayor: multa de 40 a 100 {OE}, trabajos públicos y destierro de 1 a 2 sesiones.\nParágrafo 1 (Delación compensada): quien confiese antes de radicarse querella o entregue a un cómplice recibe rebaja del 50% de la multa.\nParágrafo 2 (Prescripción archivística): toda falta leve no radicada en el Archivo antes del cierre de temporada prescribe automáticamente.\nParágrafo 3 (Indulto bilateral): ambos gobernantes pueden indultar cualquier condena mediante Decreto conjunto pagando 5 {OE} de "tasa de perdón" a {BANK}.',
-      sanction: 'El incumplimiento de cualquier sentencia duplica la pena impuesta.'
+      title: 'Código Penal · Libro IV: Dosimetría, Prescripción, Apelación e Indultos',
+      text: 'EPÍGRAFE: Por el cual se fijan las escalas de dosimetría penal, términos de prescripción, recurso de apelación y régimen de indultos.\nDISPONE:\nArtículo 1. Escala de faltas leves: multa entre 5 y 15 {OE} o hasta 64 bloques de trabajo público.\nArtículo 2. Escala de delitos graves: multa entre 15 y 40 {OE}, reparación integral y reclusión entre 5 y 15 minutos efectivos.\nArtículo 3. Escala de delitos gravísimos: multa entre 40 y 150 {OE}, reclusión de hasta 20 minutos efectivos y/o destierro temporal hasta por 2 sesiones.\nArtículo 4. Recurso de reposición y mediación: Toda condena puede apelarse dentro de la misma sesión ante el pleno bilateral o con mediación del Archivista.\nParágrafo 1 (Confesión y colaboración): Quien confiese antes de radicarse acta disciplinaria recibe rebaja del 40% en la multa.\nParágrafo 2 (Prescripción): Las faltas leves no radicadas antes del cierre de la temporada prescriben automáticamente.\nParágrafo 3 (Indulto conjunto): Ambos gobernantes podrán conceder indulto mediante Decreto bilateral con copia al Archivo TRD 100-02.',
+      sanction: 'Ejecución sujeta a acta completa de 7 campos en TRD 100-02; prohibida la duplicación automática de penas.'
     },
     {
       docType: 'decreto',
       trdCode: '110-01',
-      title: 'Decreto 001 · Gastos Reservados, Viáticos y Caja Menor',
-      text: 'Artículo 1. Se autorizan gastos diplomáticos, banquetes y viáticos de viaje con cargo al tesoro de cada Estado.\nArtículo 2. Los gastos sensibles de seguridad o protocolo pueden registrarse en el Libro Mayor como "Obra estratégica o representación".\nArtículo 3. Ningún Estado cuestionará los viáticos del otro mientras el saldo del tesoro siga positivo.\nParágrafo 1 (Soporte supletorio): a falta de recibo físico en cofre, basta la palabra jurada del gobernante de turno ("créanme, era necesario").\nParágrafo 2 (Pacto de caballeros): quien pida auditoría de viáticos ajenos abre automáticamente los propios a revisión.',
-      sanction: 'Sin multa mientras exista respaldo de caja; si genera déficit, se cubre con emisión auditada o préstamo.'
+      title: 'Decreto 001 · Régimen de Viáticos, Representación y Caja Menor',
+      text: 'EPÍGRAFE: Por medio del cual se reglamentan los gastos diplomáticos, viáticos de expedición y transparencia de caja menor estatal.\nCONSIDERANDO:\nQue las misiones oficiales y banquetes de Estado requieren autorización presupuestal transparente.\nDECRETA:\nArtículo 1. Gastos autorizados: Cada Estado podrá destinar hasta el 10% de su liquidez disponible en caja a viáticos de expedición, ceremonias o premios de ferias.\nArtículo 2. Soporte contable: Todo desembolso deberá asentarse en el Libro Mayor con concepto expreso bajo serie TRD 130-01.\nArtículo 3. Prohibición de déficit oculto: Ningún gasto de representación podrá generar saldo negativo ni sobrepasar el techo de emisión respaldado.\nParágrafo Único (Control recíproco): Cualquier Estado puede solicitar aclaración contable sobre gastos superiores a 20 unidades, quedando obligado a rendir igual informe cuando se le requiera.',
+      sanction: 'Gasto sin registro o que exceda respaldo: reversión contable y ajuste en Libro Mayor.'
     },
     {
       docType: 'decreto',
       trdCode: '110-01',
-      title: 'Decreto 002 · Estado de Excepción Aduanera y Decomiso',
-      text: 'Artículo 1. En caso de contrabando o mora vencida, el Estado afectado puede decretar retención preventiva en aduana o puerto.\nArtículo 2. Toda mercancía retenida sin asiento de compra en el Libro Mayor entra en custodia por 1 sesión.\nArtículo 3. Vencido el plazo sin descargos, lo retenido pasa a subasta pública o tesoro del Estado captor.\nParágrafo Único (Costas procesales): el Estado que ejecuta el decomiso retiene el 20% por concepto de "bodegaje y custodia", aun si luego se ordena devolución.',
-      sanction: 'Decomiso preventivo + 20% por costas procesales.'
+      title: 'Decreto 002 · Control Aduanero, Retención Preventiva y Decomiso',
+      text: 'EPÍGRAFE: Por medio del cual se adopta el procedimiento de retención aduanera y custodia de mercancías en disputa.\nDECRETA:\nArtículo 1. Retención preventiva: Ante mercancía comercial sin asiento en Libro Mayor o deuda en mora declarada, el Estado afectado podrá retener los bienes en depósito aduanero.\nArtículo 2. Inventario y custodia: La retención requiere acta inmediata con listado exacto de ítems y plazo de 1 sesión para presentar descargos.\nArtículo 3. Disposición final: Vencido el término sin descargo válido, los bienes pasan a remate por Oferta Sellada para cubrir la deuda o sanción.\nParágrafo Único (Devolución por error): Si el retenido demuestra pago legítimo, la mercancía se devuelve íntegra y sin recargo alguno.',
+      sanction: 'Retención arbitraria sin acta de inventario: devolución inmediata + multa de 10 {OE}.'
     },
     {
       docType: 'resolucion',
       trdCode: '110-02',
-      title: 'Resolución 001 · Radicación, Foliado y Tabla de Retención (TRD)',
-      text: 'Artículo 1. Todo acto normativo, sentencia, contrato o crónica debe asociarse a una Serie de la Tabla de Retención Documental (TRD).\nArtículo 2. Los documentos sin radicado ni clasificación TRD se consideran borradores informales sin fuerza probatoria en disputa.\nArtículo 3. Queda prohibida la eliminación de series con disposición final CT (Conservación Total), incluido el Libro Mayor y sentencias.\nParágrafo 1 (Sanción archivística): extraviar un libro firmado original de Conservación Total obliga a reescribirlo a mano y pagar multa.\nParágrafo 2 (Copia auténtica): toda certificación o copia de folio expedida por el Archivo para un juicio causa tasa oficial.',
-      sanction: 'Pérdida de folio CT: 10 {OE} + reposición manuscrita.'
+      title: 'Resolución 001 · Manual de Radicación, Foliado y TRD',
+      text: 'EPÍGRAFE: Por la cual se establecen los estándares obligatorios de radicación, foliado y clasificación en la Tabla de Retención Documental (TRD).\nCONSIDERANDO:\nQue la organización archivística garantiza memoria institucional, autenticidad probatoria y consulta ágil de los actos administrativos.\nRESUELVE:\nArtículo 1. Requisitos formales de todo acto: Todo proyecto de Ley, Decreto, Resolución, Acuerdo o Circular deberá contener Epígrafe, Considerandos, Articulado y Vigencia, además de su código de serie TRD.\nArtículo 2. Consecutivo y folio: Al radicarse en la aplicación, el documento recibe prefijo y consecutivo único, debiendo transcribirse copia auténtica en Libro Firmado para actos de Conservación Total (CT).\nArtículo 3. Intangibilidad de series CT: Prohíbese eliminar documentos clasificados como CT; si pierden vigencia se marcan como "Derogada" conservando la trazabilidad histórica.\nParágrafo 1 (Sanción archivística): El extravío injustificado de un libro firmado original CT obliga a su reposición manuscrita.\nParágrafo 2 (Revisión previa): Ningún acto normativo de roleplay podrá firmarse sin haber surtido revisión del Archivista cuando exista Revisor designado.',
+      sanction: 'Pérdida injustificada de folio CT: reposición manuscrita + 10 {OE}.'
     },
     {
       docType: 'resolucion',
       trdCode: '110-02',
-      title: 'Resolución 002 · Arancel de Trámites, Permisos y Peajes',
-      text: 'Artículo 1. Permiso de residencia para extranjeros e invitados (libro firmado): 5 {OE}.\nArtículo 2. Registro oficial de patente, contrato o certificado de obra: 3 {OE}.\nArtículo 3. Desarchivo y copia autenticada de sentencia o crónica: 2 {OE}.\nParágrafo Único (Trámite exprés): todo trámite solicitado con "urgencia en el mismo día" paga recargo del 50%, abonado directamente al Estado que firma el sello.',
-      sanction: 'Operar sin permiso o patente vigente: multa equivalente al triple del arancel.'
+      title: 'Resolución 002 · Aranceles de Trámites, Permisos y Certificaciones',
+      text: 'EPÍGRAFE: Por la cual se fijan las tarifas administrativas por expedición de permisos de residencia, patentes y copias autenticadas del Archivo.\nRESUELVE:\nArtículo 1. Tarifas oficiales: (a) Expedición de permiso de residencia para extranjeros: 5 {OE}; (b) Registro oficial de patente técnica o concesión: 3 {OE}; (c) Expedición de copia autenticada de sentencia o crónica: 2 {OE}.\nArtículo 2. Exención de trámites internos: Las consultas digitales en la aplicación y los folios de oficio del Archivista no causan tasa.\nParágrafo Único (Trámite prioritario): Las solicitudes marcadas de urgencia dentro de la misma sesión causan recargo del 50% a favor de la entidad expedidora.',
+      sanction: 'Operar concesión o residencia sin pago de arancel vigente: requerimiento de regularización + recargo del 100% del arancel.'
+    },
+    {
+      docType: 'circular',
+      trdCode: '110-04',
+      title: 'Circular 001 · Lineamientos de Revisión Jurídica y Subsanación',
+      text: 'EPÍGRAFE: Por medio de la cual el Archivo Nacional imparte instrucciones para la redacción, devolución, subsanación y custodia de los actos administrativos.\nDISPONE:\nArtículo 1. Lista de chequeo archivística: Antes de emitir aval, el Revisor verificará: (a) precisión de moneda y unidades, (b) límites máximos en penas y plazos, (c) autoridad competente, (d) excepciones por fuerza mayor o caída del servidor, y (e) serie TRD asignada.\nArtículo 2. Trámite de devolución: Toda norma devuelta incluirá observaciones artículo por artículo en el Buzón de Trámite. Los Estados ajustarán el título, texto o sanción y la reenviarán a revisión.\nArtículo 3. Vigencia: Rige desde su publicación en el tablón de Normativa.',
+      sanction: 'Norma devuelta no subsanada permanece en borrador sin fuerza vinculante.'
     }
   ];
 
@@ -491,48 +569,51 @@ window.FW_DATA = (() => {
   // [id, era desde la que se puede hacer, área, who, título, descripción, prueba]
   const GUEST_QUESTS = [
     ['g-01', 0, 'meta', 'g', 'Llegada', 'Entrar al mundo y leer las Reglas del servidor y la Ley de Extranjería.', '"Visto" en el chat.'],
-    ['g-02', 1, 'rol', 'g', 'Permiso de residencia', 'Pedir residencia a uno de los dos Estados: un libro firmado que dice dónde puede vivir.', 'El libro en su cofre y una crónica.'],
+    ['g-02', 1, 'rol', 'g', 'Permiso de residencia', 'Pedir residencia a uno de los dos Estados: un libro firmado que dice dónde puede vivir e inscrito en TRD 150-01.', 'El libro en su cofre y una crónica.'],
     ['g-03', 1, 'ter', 'g', 'Casa del viajero', 'Casa propia en la zona asignada, con su estilo, cama, cofres rotulados y nada de granjas.', 'Visita de ambos.'],
-    ['g-04', 1, 'haz', 'g', 'Primera noche de cacería', 'Una noche completa afuera: matar zombi, esqueleto, araña y creeper sin morir.', 'Captura o testigo.'],
-    ['g-05', 1, 'cul', 'g', 'Libro de registro', 'Abrir el "Registro del Archivo": un libro donde anota cada hallazgo con fecha, lugar y coordenadas.', 'El libro, con 5 entradas.'],
-    ['g-06', 2, 'haz', 'g', 'Cartógrafo', 'Explorar y entregar un mapa de 1.000 × 1.000 bloques alrededor de las capitales al Archivo de {NMYTH}.', 'Mapa en un marco del Archivo.'],
+    ['g-04', 1, 'haz', 'g', 'Purga inicial: 100 hostiles a mano', 'Alcanzar 100 bajas de mobs hostiles (zombis/esqueletos/arañas/creepers) en Estadísticas sin usar granjas automáticas.', 'Captura de Estadísticas → Criaturas (≥100).'],
+    ['g-05', 1, 'cul', 'g', 'Libro de registro y foliado', 'Abrir el "Registro del Archivo" con código TRD 140-01: bitácora donde anota cada hallazgo con fecha, lugar y coordenadas.', 'El libro, con 10 entradas foliadas.'],
+    ['g-06', 2, 'haz', 'g', 'Cartógrafo continental', 'Explorar y entregar un mapa mural de 2.000 × 2.000 bloques alrededor de las capitales al Archivo de {NMYTH}.', 'Mapas en marcos del Archivo.'],
     ['g-07', 2, 'ter', 'g', 'Contratista', 'Construir por encargo una obra para cualquiera de los dos Estados y cobrarla (50% al empezar, 50% al terminar).', 'Dos pagos en el Libro Mayor.'],
-    ['g-08', 2, 'reto', '3', 'Primera expedición de los 3', 'Los tres viajan juntos a un bioma que nadie ha pisado y vuelven con una pieza para el museo.', 'Crónica escrita por los tres.'],
-    ['g-09', 3, 'haz', 'g', 'Saqueador de ruinas', 'Encontrar un templo, pirámide o mina abandonada y llevar una pieza rotulada al museo.', 'Pieza con su ficha.'],
-    ['g-10', 3, 'cul', 'g', 'Sistema de catálogo', 'Diseñar el sistema de catalogación de la biblioteca de {NMYTH}: códigos, estantes rotulados y un índice.', 'Recorrido con {MYTH}.'],
-    ['g-11', 3, 'haz', 'g', 'Bestiario', 'Matar 15 tipos de mobs hostiles distintos y anotar cada uno (dónde, cómo, qué soltó) en el Bestiario del Archivo.', 'El Bestiario con 15 entradas.'],
-    ['g-12', 4, 'haz', 'g', 'Guía del Nether', 'Escoltar a un jugador hasta una fortaleza o un bastión y volver todos vivos.', 'Crónica del viaje.'],
-    ['g-13', 4, 'haz', 'g', 'Bestiario del Nether', 'Agregar al Bestiario un blaze, un ghast, un esqueleto wither, un hoglin y un piglin bruto.', '5 entradas nuevas.'],
-    ['g-14', 4, 'reto', '3', 'Asalto al bastión', 'Los tres saquean juntos un bastión; el botín se reparte según lo que acuerden antes.', 'Reparto registrado en crónica.'],
-    ['g-15', 5, 'rol', 'g', 'Testigo', 'Ser testigo oficial en una ceremonia de ciudadanía o en la firma de una ley.', 'Mencionado en la crónica.'],
-    ['g-16', 5, 'haz', 'g', 'Defensor de aldeas', 'Ganar una raid a mano defendiendo una aldea de cualquiera de los dos Estados.', 'Captura de la victoria.'],
-    ['g-17', 5, 'cul', 'g', 'Registro civil', 'Copiar en libros del Archivo el registro de ciudadanos (nombre, oficio, hogar) y cruzarlo con el Censo de la app.', 'Libros en el Archivo.'],
-    ['g-18', 5, 'reto', '3', 'Raid de los 3', 'Los tres ganan juntos una raid con Mal Presagio II o más.', 'Captura y crónica.'],
-    ['g-19', 6, 'ter', 'g', 'Arquitecto invitado', 'Diseñar y construir por contrato un edificio emblemático (mercado, posada, torre) para un Estado.', 'Pago e inauguración.'],
-    ['g-20', 6, 'haz', 'g', 'Mansión del bosque', 'Limpiar una mansión del bosque y traer un tótem de la inmortalidad al museo.', 'Tótem en vitrina.'],
-    ['g-21', 6, 'eco', 'g', 'Inversionista', 'Comprar al menos 1 acción de cualquiera de los dos Estados.', 'Acción en su nombre.'],
-    ['g-22', 6, 'ins', 'g', 'Mediador', 'Servir de árbitro neutral en una Oferta Sellada o en una disputa.', 'Crónica tipo Disputa.'],
-    ['g-23', 7, 'cul', 'g', 'Curador', 'Montar la primera sala del museo de {NMYTH}: 10 piezas con ficha (qué es, dónde y cuándo se halló, quién la trajo).', 'Recorrido con ambos.'],
+    ['g-08', 2, 'reto', '3', 'Primera expedición de los 3', 'Los tres viajan juntos a 3.000+ bloques buscando un bioma raro y vuelven con una pieza para el museo.', 'Crónica escrita por los tres.'],
+    ['g-09', 3, 'haz', 'g', 'Exterminio de 1.000 zombis', 'Alcanzar 1.000 zombis eliminados (o zombis + ahogados/husks) en combate manual sin granjas AFK.', 'Captura de Estadísticas → Criaturas (Zombis ≥ 1.000).'],
+    ['g-10', 3, 'cul', 'g', 'Sistema de catálogo y TRD', 'Diseñar el sistema de catalogación archivística de {NMYTH}: series TRD, estantes rotulados, consecutivos y un índice maestro.', 'Recorrido y aval con {MYTH}.'],
+    ['g-11', 3, 'haz', 'g', 'Bestiario completo (20 hostiles)', 'Matar 20 tipos de mobs hostiles distintos (incluidos bruja, enderman, phantom, ahogado, esqueleto glacial) y documentarlos en el Bestiario.', 'El Bestiario con 20 entradas.'],
+    ['g-12', 4, 'haz', 'g', 'Guía del Nether', 'Escoltar a un jugador hasta una fortaleza y un bastión y volver todos vivos sin usar cohetes ni pociones prestadas.', 'Crónica del viaje.'],
+    ['g-13', 4, 'haz', 'g', 'Cacería infernal (250 bajas)', 'Sumar 250 bajas entre blazes, piglins brutos, esqueletos wither, ghasts y hoglins en el Nether.', 'Captura de Estadísticas del Nether.'],
+    ['g-14', 4, 'reto', '3', 'Asalto al bastión del Tesoro', 'Los tres saquean juntos un bastión completo sin morir; el botín se reparte según acta previa.', 'Reparto registrado en crónica.'],
+    ['g-15', 5, 'rol', 'g', 'Ministro de Fe y Testigo', 'Actuar como testigo oficial y refrendar actas de ciudadanía, juicios o leyes en el Archivo.', 'Mencionado en 3 crónicas o actas.'],
+    ['g-16', 5, 'haz', 'g', 'Incursión solitaria (Mal Presagio V)', 'Ganar una raid completa de nivel máximo (Mal Presagio V) a mano defendiendo una aldea sin encerrar aldeanos en huecos.', 'Captura de Héroe de la Aldea nivel V.'],
+    ['g-17', 5, 'cul', 'g', 'Registro civil y expediente judicial', 'Transcribir en libros del Archivo el censo completo de ciudadanos y montar el primer expediente modelo de sentencia (7 campos TRD 100-02).', 'Libros en el Archivo.'],
+    ['g-18', 5, 'reto', '3', 'Raid de los 3 (Ominosa)', 'Los tres ganan juntos una raid con Mal Presagio V en campo abierto.', 'Captura y crónica.'],
+    ['g-19', 6, 'ter', 'g', 'Arquitecto invitado', 'Diseñar y construir por contrato un edificio emblemático (mercado, posada, torre) de 400+ bloques para un Estado.', 'Pago e inauguración.'],
+    ['g-20', 6, 'haz', 'g', 'Mansión del bosque en solitario', 'Encontrar y limpiar una mansión del bosque completa sin morir y traer al menos 2 tótems al museo.', 'Tótems en vitrina.'],
+    ['g-21', 6, 'eco', 'g', 'Inversionista', 'Comprar al menos 5 acciones de cualquiera de los dos Estados y registrar un contrato de préstamo.', 'Acciones y préstamo en su nombre.'],
+    ['g-22', 6, 'ins', 'g', 'Juez de Instrucción y Mediador', 'Revisar leyes en el Buzón de Trámite y servir de árbitro neutral en una Oferta Sellada o disputa.', 'Aval o crónica tipo Disputa.'],
+    ['g-23', 7, 'cul', 'g', 'Curador del Museo', 'Montar la primera sala del museo de {NMYTH}: 15 piezas con ficha técnica TRD (qué es, dónde, cuándo, quién la trajo).', 'Recorrido con ambos.'],
     ['g-24', 7, 'reto', '3', 'Museo de los 3', '{MYTH} funda el museo, {SCAD} forja las vitrinas (soportes con armadura de cada material) y el invitado aporta piezas y fichas.', 'Inauguración en crónica.'],
-    ['g-25', 7, 'ter', 'g', 'Obra mayor por encargo', 'Construir por contrato una obra grande (puente, muralla, estación) de 500+ bloques colocados.', 'Pago y visita.'],
-    ['g-26', 8, 'haz', 'g', 'Buzo', 'Recuperar el tesoro de 3 naufragios o ruinas oceánicas y donar una pieza al museo.', 'Ficha en el museo.'],
+    ['g-25', 7, 'ter', 'g', 'Obra mayor por encargo', 'Construir por contrato una obra grande (puente, muralla, estación) de 1.000+ bloques colocados.', 'Pago y visita.'],
+    ['g-26', 8, 'haz', 'g', 'Señor de los Mares', 'Saquear 5 naufragios/ruinas oceánicas, matar 100 ahogados en Estadísticas y conseguir un tridente sin granja.', 'Tridente + captura de Estadísticas.'],
     ['g-27', 8, 'reto', '3', 'Los guardianes ancianos', 'Los tres matan juntos a los 3 guardianes ancianos del templo antes de drenarlo.', 'Captura con las esponjas.'],
     ['g-28', 8, 'cul', 'g', 'Cartas náuticas', 'Mapas de océano con islas, monumentos y naufragios, archivados con su índice.', 'Mapas en el Archivo.'],
-    ['g-29', 9, 'cul', 'g', 'Arqueólogo', 'Excavar con pincel y reunir 5 fragmentos de cerámica distintos; armar una vasija decorada para el museo.', 'Vasija con ficha.'],
-    ['g-30', 9, 'haz', 'g', 'Espeleólogo', 'Mapear una ciudad antigua y salir sin despertar al Warden; traer un disco o un fragmento para el museo.', 'Coordenadas y pieza.'],
-    ['g-31', 9, 'reto', '3', 'Contra el Warden', 'Los tres derrotan juntos a un Warden (o lo intentan y sobreviven para contarlo).', 'Crónica de la batalla.'],
-    ['g-32', 10, 'rol', 'g', 'Embajador visitante', 'Llevar un mensaje o regalo oficial de un Estado al otro en una ceremonia.', 'Crónica tipo Tratado.'],
+    ['g-29', 9, 'cul', 'g', 'Arqueólogo', 'Excavar con pincel y reunir 10 fragmentos de cerámica distintos; armar 3 vasijas decoradas para el museo.', 'Vasijas con ficha.'],
+    ['g-30', 9, 'haz', 'g', 'Saqueador de Ciudad Antigua', 'Saquear una Ciudad Antigua completa, traer el disco Otherside/5 y una plantilla de Silencio.', 'Coordenadas y pieza en bóveda.'],
+    ['g-31', 9, 'reto', '3', 'Contra el Warden', 'Los tres derrotan juntos a un Warden en combate real (sin atraparlo en torre de bloques fuera de alcance).', 'Crónica de la batalla.'],
+    ['g-32', 10, 'rol', 'g', 'Embajador plenipotenciario', 'Llevar un mensaje o tratado oficial de un Estado al otro en ceremonia formal.', 'Crónica tipo Tratado.'],
     ['g-33', 10, 'cul', 'g', 'Historia oral', 'Entrevistar a {MYTH} y a {SCAD} sobre un mismo hecho y archivar las dos versiones lado a lado.', 'Crónicas en el Archivo.'],
-    ['g-34', 10, 'reto', '3', 'Tratado de residencia', 'Los tres firman un tratado que da al invitado residencia permanente y fija sus derechos.', 'Ley firmada.'],
-    ['g-35', 11, 'reto', '3', 'El dragón de los 3', 'Los tres pelean juntos contra el Ender Dragon.', 'Captura de la pelea.'],
-    ['g-36', 11, 'haz', 'g', 'Saqueador del End', 'Traer élitros o una cabeza de dragón de una ciudad del End (al museo o a subasta sellada).', 'Pieza o venta registrada.'],
-    ['g-37', 11, 'haz', 'g', 'Cazador de shulkers', 'Reunir 20 caparazones de shulker.', 'Cofre lleno.'],
-    ['g-38', 12, 'haz', 'g', 'El Wither', 'Invocar y derrotar al Wither (con ayuda vale) y donar la estrella o un retrato del combate al museo.', 'Pieza con ficha.'],
-    ['g-39', 12, 'ter', 'g', 'Barrio de forasteros', 'Junto con el anfitrión, levantar un barrio o posada para futuros visitantes (sin granjas).', 'Visita de ambos.'],
-    ['g-40', 12, 'eco', 'g', 'Dividendos', 'Cobrar dividendos de un Estado al menos una vez.', 'Dividendo en el Libro Mayor.'],
-    ['g-41', 13, 'cul', 'g', 'Índice general', 'Índice completo del Archivo: crónicas, reliquias, mapas, libros y piezas del museo, con copia de respaldo en libros.', 'El índice en el Archivo.'],
-    ['g-42', 13, 'rol', 'g', 'Ciudadano honorario', 'Recibir de un Estado (o de los dos) una ciudadanía honoraria por su trayectoria.', 'Ley o crónica que lo nombre.'],
-    ['g-43', 13, 'reto', '3', 'Monumento de los 3', 'Un monumento conjunto que cuente la historia de los tres en el mundo.', 'Inauguración en crónica.']
+    ['g-34', 10, 'reto', '3', 'Tratado de residencia permanente', 'Los tres firman un tratado (ACU/LEY) que da al invitado residencia permanente y fija sus derechos.', 'Ley firmada.'],
+    ['g-35', 11, 'reto', '3', 'El dragón de los 3', 'Los tres pelean juntos contra el Ender Dragon y la reviven al menos una vez.', 'Captura de ambas peleas.'],
+    ['g-36', 11, 'haz', 'g', 'Saqueador del End', 'Traer 2 élitros y una cabeza de dragón de ciudades del End (sin usar granjas del End).', 'Piezas o venta registrada.'],
+    ['g-37', 11, 'haz', 'g', 'Cazador de 100 shulkers', 'Matar 100 shulkers en ciudades del End (Estadísticas) y reunir 50+ caparazones sin granja automática.', 'Captura de Estadísticas + cofres.'],
+    ['g-38', 12, 'haz', 'g', 'Doble Wither en arena abierta', 'Invocar y derrotar solo (o con 1 escolta) al Wither bajo tierra sin trampa de bedrock ni techo del Nether.', 'Estrella + captura.'],
+    ['g-39', 12, 'ter', 'g', 'Barrio de forasteros', 'Junto con el anfitrión, levantar un barrio o posada de 4+ edificios para futuros visitantes.', 'Visita de ambos.'],
+    ['g-40', 12, 'eco', 'g', 'Dividendos', 'Cobrar dividendos de un Estado al menos 3 veces.', 'Dividendos en el Libro Mayor.'],
+    ['g-41', 13, 'cul', 'g', 'Índice general (TRD Completo)', 'Índice completo del Archivo: todas las series TRD, crónicas, reliquias, mapas y piezas del museo con respaldo en libros.', 'El índice en el Archivo.'],
+    ['g-42', 13, 'rol', 'g', 'Ciudadano honorario', 'Recibir de ambos Estados ciudadanía honoraria por decreto o ley firmada.', 'Ley o decreto vigente.'],
+    ['g-43', 13, 'reto', '3', 'Monumento de los 3', 'Un monumento conjunto de gran escala que cuente la historia de los tres en el mundo.', 'Inauguración en crónica.'],
+    ['g-44', 5, 'haz', 'g', 'Francotirador: 500 esqueletos y 250 creepers', 'Alcanzar 500 esqueletos y 250 creepers eliminados en Estadísticas mediante exploración y combate nocturno.', 'Captura de Estadísticas → Criaturas.'],
+    ['g-45', 6, 'haz', 'g', 'Veterano: 50 días sin morir', 'Mantener el contador "Tiempo desde la última muerte" por encima de 50 días de Minecraft activos en combate y exploración.', 'Captura de Estadísticas → General.'],
+    ['g-46', 7, 'haz', 'g', 'Prueba Ominosa: 5 bóvedas ominosas', 'Completar una Trial Chamber entera bajo efecto de Bad Omen (Ominous Trial) y abrir 5 bóvedas ominosas.', 'Captura + botín pesado/trim.']
   ].map(([id, era, track, who, title, desc, proof]) => ({ id, era, track, who, title, desc, proof }));
 
   const WORLD_PROMPTS = [
