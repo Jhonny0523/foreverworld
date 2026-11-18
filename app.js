@@ -36,7 +36,8 @@
         fxInertia: 200,
         bankRate: 10,
         bankCollateralPct: 30,
-        bankLiquidityPct: 50
+        bankLiquidityPct: 50,
+        reviewerId: ''
       },
       guests: [],
       professions,
@@ -1080,22 +1081,56 @@
       return c;
     };
 
+    const reviewOf = l => (l.review && typeof l.review === 'object' ? { status: l.review.status || 'none', notes: Array.isArray(l.review.notes) ? l.review.notes : [] } : { status: 'none', notes: [] });
+    const rid = reviewerId();
+    const revName = rid ? pname(rid) : 'Revisor';
+    const revTag = rev => {
+      if (rev.status === 'pending') return `<span class="mc-tag tag-cyan">⏳ En revisión (${esc(revName)})</span>`;
+      if (rev.status === 'returned') return `<span class="mc-tag tag-redstone">↩ Devuelta con anotaciones</span>`;
+      if (rev.status === 'approved') return `<span class="mc-tag tag-emerald">✔ Avalada (${esc(revName)})</span>`;
+      return '';
+    };
+    const revActLabel = a => ({ submitted: 'Enviada a revisión', resubmitted: 'Reenviada tras correcciones', returned: 'Devuelta con anotaciones', approved: 'Avalada por revisor', edited: 'Norma editada' }[a] || a);
+    const renderReviewBox = rev => {
+      if (rev.status === 'none' && !rev.notes.length) return '';
+      const latest = rev.notes[0];
+      const cls = rev.status === 'returned' ? 'rev-returned' : rev.status === 'approved' ? 'rev-approved' : '';
+      const hist = rev.notes.length > 1
+        ? `<details style="margin-top:6px;"><summary class="text-xs font-mono text-muted" style="cursor:pointer;">Historial de trámite (${rev.notes.length})</summary>
+            <div style="margin-top:4px;">${rev.notes.map(n => `<div class="text-xs text-muted" style="padding:2px 0;">
+              <strong class="text-white">${esc(revActLabel(n.action))}</strong> · ${esc(n.by || 'Sistema')} (${when(n.at)})${n.text ? `: <span class="text-gold">"${esc(n.text)}"</span>` : ''}
+            </div>`).join('')}</div></details>`
+        : '';
+      return `<div class="norm-review-box ${cls}">
+        ${latest ? `<div><strong class="text-white">${esc(revActLabel(latest.action))}</strong> · <span class="text-muted">${esc(latest.by || 'Sistema')} (${when(latest.at)})</span>${latest.text ? `<div class="text-gold" style="margin-top:2px;white-space:pre-wrap;">"${esc(latest.text)}"</div>` : ''}</div>`
+          : `<div class="text-muted">Estado de revisión: ${esc(rev.status)}</div>`}
+        ${hist}
+      </div>`;
+    };
+
     const lawCard = l => {
       const status = l.repealed ? 'derogada' : l.signs.myth && l.signs.scad ? 'vigente' : 'borrador';
       const rp = l.kind === 'rol';
       const meta = docMeta(l);
       const tCode = trdCodeOf(l);
       const tInfo = trdInfo(tCode);
+      const rev = reviewOf(l);
       return `<div class="mc-panel-dark p-md" style="opacity:${status === 'derogada' ? '.55' : '1'};">
         <div class="flex-between">
           <div class="flex-row-wrap" style="gap:6px;">
             <span class="mc-tag tag-${meta.tag}">${esc(meta.prefix)} ${l.num}</span>
             <strong class="text-white text-sm">${esc(l.title)}</strong>
             <span class="mc-tag ${status === 'vigente' ? 'tag-emerald' : status === 'derogada' ? 'tag-slate' : 'tag-gold'}">${status}</span>
+            ${rp && !l.repealed ? revTag(rev) : ''}
             <span class="mc-tag ${trdDispTag(tInfo.disp)}" title="${esc(tInfo.series || '')}">TRD ${esc(tCode)} · ${esc(tInfo.disp)}</span>
           </div>
           <div class="flex-row-wrap" style="gap:4px;">
             ${STATES.map(s => `<button class="mc-btn ${l.signs[s] ? 'mc-btn-emerald' : ''}" style="padding:3px 7px;" data-action="law-sign" data-id="${l.id}" data-s="${s}">${l.signs[s] ? '✔' : '✍'} ${esc(nat(s).player)}</button>`).join('')}
+            ${rp && !l.repealed ? `
+              ${rev.status === 'none' || rev.status === 'returned' ? `<button class="mc-btn mc-btn-diamond" style="padding:3px 7px;" data-action="law-submit" data-id="${l.id}">${rev.status === 'returned' ? '📤 Reenviar a revisión' : '📤 Enviar a revisión'}</button>` : ''}
+              ${rev.status !== 'approved' ? `<button class="mc-btn mc-btn-emerald" style="padding:3px 7px;" data-action="law-approve-rev" data-id="${l.id}" title="Avalar como ${esc(revName)}">✔ Avalar</button>` : ''}
+              <button class="mc-btn mc-btn-gold" style="padding:3px 7px;" data-action="law-return" data-id="${l.id}" title="Devolver con anotaciones como ${esc(revName)}">↩ Devolver</button>
+            ` : ''}
             <button class="mc-btn" style="padding:3px 7px;" data-action="law-edit" data-id="${l.id}" title="Editar artículos o agregar parágrafo">✎ Editar</button>
             <button class="mc-btn" style="padding:3px 7px;" data-action="law-book" data-id="${l.id}" title="Copiar texto formateado para Libro de Minecraft">📖 Libro</button>
             <button class="mc-btn" style="padding:3px 7px;" data-action="law-move" data-id="${l.id}" title="${rp ? 'Mover a reglas del servidor' : 'Mover a leyes del mundo'}">${rp ? '→ Reglas' : '→ Leyes'}</button>
@@ -1105,17 +1140,28 @@
         </div>
         ${formatNormBody(l.text)}
         ${l.sanction ? `<div class="text-xs font-mono text-gold" style="margin-top:6px;">${rp ? 'Pena / Sanción' : 'Sanción'}: ${esc(l.sanction)}</div>` : ''}
+        ${rp ? renderReviewBox(rev) : ''}
       </div>`;
     };
     const docFilter = state.ui.lawDocFilter || 'all';
+    const revFilter = state.ui.lawRevFilter || 'all';
+    const matchesRevFilter = l => {
+      if (revFilter === 'all') return true;
+      if (revFilter === 'vigente') return !l.repealed && l.signs.myth && l.signs.scad;
+      return !l.repealed && reviewOf(l).status === revFilter;
+    };
     const lawList = kind => {
       let list = state.laws.filter(l => (l.kind || 'servidor') === kind);
-      if (kind === 'rol' && docFilter !== 'all') list = list.filter(l => docTypeOf(l) === docFilter);
+      if (kind === 'rol') {
+        if (docFilter !== 'all') list = list.filter(l => docTypeOf(l) === docFilter);
+        if (revFilter !== 'all') list = list.filter(matchesRevFilter);
+      }
       const order = { ley: 1, codigo_penal: 2, decreto: 3, resolucion: 4, servidor: 5 };
       list.sort((x, y) => (order[docTypeOf(x)] || 9) - (order[docTypeOf(y)] || 9) || x.num - y.num);
       return list.length ? list.map(lawCard).join('') : empty(kind === 'rol' ? 'Sin normas en esta categoría.' : 'Sin reglas todavía.');
     };
     const rolCount = dt => state.laws.filter(l => (l.kind || 'servidor') === 'rol' && (dt === 'all' || docTypeOf(l) === dt)).length;
+    const revCount = rf => state.laws.filter(l => (l.kind || 'servidor') === 'rol' && !l.repealed && (rf === 'vigente' ? (l.signs.myth && l.signs.scad) : reviewOf(l).status === rf)).length;
     const docFilters = [
       ['all', `Todas (${rolCount('all')})`],
       ['ley', `Leyes (${rolCount('ley')})`],
@@ -1123,11 +1169,27 @@
       ['decreto', `Decretos (${rolCount('decreto')})`],
       ['resolucion', `Resoluciones (${rolCount('resolucion')})`]
     ];
+    const revFilters = [
+      ['all', 'Todo trámite'],
+      ['pending', `⏳ En revisión (${revCount('pending')})`],
+      ['returned', `↩ Devueltas (${revCount('returned')})`],
+      ['approved', `✔ Avaladas (${revCount('approved')})`],
+      ['vigente', `Vigentes (${revCount('vigente')})`]
+    ];
     const lawsRol = panel(`
       ${head('NORMATIVA Y CÓDIGO PENAL', 'amethyst', 'LEYES, CÓDIGO PENAL, DECRETOS Y RESOLUCIONES',
-        `Marco jurídico de ${esc(nat('myth').nation)} y ${esc(nat('scad').nation)}. Soporta <strong>Artículos</strong>, <strong>Parágrafos</strong>, penas desglosadas y clasificación en la <strong>Tabla de Retención Documental (TRD)</strong>.`)}
+        `Marco jurídico de ${esc(nat('myth').nation)} y ${esc(nat('scad').nation)}. Soporta <strong>Artículos</strong>, <strong>Parágrafos</strong>, penas desglosadas, clasificación <strong>TRD</strong> y revisión por <strong>${esc(revName)}</strong>.`)}
+      <div class="flex-between" style="margin-bottom:10px;gap:8px;">
+        <div class="flex-row-wrap" style="gap:6px;">
+          ${docFilters.map(([v, t]) => `<button class="filter-pill ${docFilter === v ? 'active' : ''}" data-action="law-doc-filter" data-v="${v}">${esc(t)}</button>`).join('')}
+        </div>
+        <label class="text-xs font-mono text-muted" style="display:flex;align-items:center;gap:6px;">
+          Revisor:
+          <select class="mc-select font-mono" style="width:auto;padding:3px 6px;" data-bind="settings.reviewerId">${peopleOpts(rid)}</select>
+        </label>
+      </div>
       <div class="flex-row-wrap" style="gap:6px;margin-bottom:12px;">
-        ${docFilters.map(([v, t]) => `<button class="filter-pill ${docFilter === v ? 'active' : ''}" data-action="law-doc-filter" data-v="${v}">${esc(t)}</button>`).join('')}
+        ${revFilters.map(([v, t]) => `<button class="filter-pill ${revFilter === v ? 'active' : ''}" data-action="law-rev-filter" data-v="${v}">${esc(t)}</button>`).join('')}
       </div>
       <details class="mc-panel-dark p-md" style="margin-bottom:12px;">
         <summary class="font-mono text-xs text-emerald" style="cursor:pointer;font-weight:700;">+ Radicar ley, código penal, decreto o resolución</summary>
@@ -1436,6 +1498,29 @@
 
   /* ======================== Acciones ======================== */
 
+  function reviewerId() {
+    const cfg = state.settings && state.settings.reviewerId;
+    if (cfg && participants().includes(cfg)) return cfg;
+    const notOut = state.guests.find(g => g.nick.toLowerCase() === 'notoutofcontext');
+    return notOut ? notOut.id : '';
+  }
+  function requireReviewer(why) {
+    const rid = reviewerId();
+    if (!rid) { fail('No hay un revisor asignado. Agrega un invitado o elige el Revisor en Estados y Leyes.'); return false; }
+    return requireMe(rid, why);
+  }
+  function ensureLawReview(l) {
+    if (!l.review || typeof l.review !== 'object') l.review = { status: 'none', notes: [] };
+    if (!Array.isArray(l.review.notes)) l.review.notes = [];
+    if (!l.review.status) l.review.status = 'none';
+    return l.review;
+  }
+  function pushReviewNote(l, action, text) {
+    const r = ensureLawReview(l);
+    r.notes.unshift({ id: uid('rev'), at: Date.now(), by: me ? pname(me) : 'Sistema', action, text: String(text || '').trim() });
+    if (r.notes.length > 25) r.notes.length = 25;
+  }
+
   function requireMe(target, why) {
     if (me === target) return true;
     fail(`Para ${why} elige "Soy: ${pname(target)}" arriba.`);
@@ -1741,13 +1826,18 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       save(true);
       renderStatePage();
     },
+    'law-rev-filter': el => {
+      state.ui.lawRevFilter = el.dataset.v || 'all';
+      save(true);
+      renderStatePage();
+    },
     'law-add': () => {
       const title = val('law-title');
       if (!title) return fail('La norma necesita título.');
       const docType = val('law-doc-type') || 'ley';
       const kind = docType === 'servidor' ? 'servidor' : 'rol';
       const trdCode = val('law-trd') || ((D.DOC_TYPES || {})[docType] || {}).trd || '100-01';
-      state.laws.push({ id: uid('ley'), kind, docType, trdCode, num: nextLawNum(kind, docType), title, text: val('law-text'), sanction: val('law-sanction'), signs: { myth: false, scad: false }, repealed: false, t: Date.now() });
+      state.laws.push({ id: uid('ley'), kind, docType, trdCode, num: nextLawNum(kind, docType), title, text: val('law-text'), sanction: val('law-sanction'), signs: { myth: false, scad: false }, review: { status: 'none', notes: [] }, repealed: false, t: Date.now() });
       commit('state');
     },
     'law-defaults': el => {
@@ -1757,6 +1847,43 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       toast(label, added ? `${added} documentos agregados. Rigen cuando firmen ambos.` : 'Ya estaban todos cargados.', 'gavel');
       commit('state');
     },
+    'law-submit': async el => {
+      const l = state.laws.find(x => x.id === el.dataset.id);
+      if (!l) return;
+      const rev = ensureLawReview(l);
+      const isResubmit = rev.status === 'returned';
+      const note = await askText(isResubmit ? `Nota de correcciones al reenviar "${l.title}" (opcional):` : `Comentario para el revisor sobre "${l.title}" (opcional):`, '');
+      if (note === null) return;
+      rev.status = 'pending';
+      pushReviewNote(l, isResubmit ? 'resubmitted' : 'submitted', note);
+      commit('state');
+      const rid = reviewerId();
+      toast(isResubmit ? 'Reenviada a revisión' : 'Enviada a revisión', `${l.title} → esperando a ${rid ? pname(rid) : 'Revisor'}.`, 'compass');
+    },
+    'law-return': async el => {
+      const l = state.laws.find(x => x.id === el.dataset.id);
+      if (!l || !requireReviewer('devolver normas con anotaciones')) return;
+      const obs = await askText(`Anotaciones / correcciones para devolver "${l.title}":`, '');
+      if (obs === null) return;
+      if (!obs.trim()) return fail('Escribe al menos una anotación para devolver la norma.');
+      const rev = ensureLawReview(l);
+      rev.status = 'returned';
+      l.signs = { myth: false, scad: false };
+      pushReviewNote(l, 'returned', obs);
+      commit('state');
+      toast('Devuelta con anotaciones', `${l.title} requiere ajustes antes de aprobarse.`, 'gold');
+    },
+    'law-approve-rev': async el => {
+      const l = state.laws.find(x => x.id === el.dataset.id);
+      if (!l || !requireReviewer('avalar la revisión de esta norma')) return;
+      const obs = await askText(`Concepto / aval favorable para "${l.title}" (opcional):`, '');
+      if (obs === null) return;
+      const rev = ensureLawReview(l);
+      rev.status = 'approved';
+      pushReviewNote(l, 'approved', obs);
+      commit('state');
+      toast('Avalada por Revisor', `${l.title} ya puede ser firmada por ambos Estados.`, 'emerald');
+    },
     'law-edit': async el => {
       const l = state.laws.find(x => x.id === el.dataset.id);
       if (!l) return;
@@ -1764,8 +1891,16 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       if (nextText === null || nextText === l.text) return;
       l.text = nextText;
       l.editedAt = Date.now();
+      const rev = ensureLawReview(l);
+      if (l.signs.myth || l.signs.scad || rev.status === 'approved') {
+        l.signs = { myth: false, scad: false };
+        if (rev.status === 'approved') rev.status = 'pending';
+        pushReviewNote(l, 'edited', 'Texto modificado; requiere nueva aprobación/firmas.');
+      } else if (rev.status === 'returned') {
+        pushReviewNote(l, 'edited', 'Texto corregido; listo para reenviar a revisión.');
+      }
       commit('state');
-      toast('Norma actualizada', l.title, 'gavel');
+      toast('Norma actualizada', rev.status === 'returned' ? 'Editada. Pulsa "📤 Reenviar a revisión" cuando esté lista.' : l.title, 'gavel');
     },
     'law-book': el => {
       const l = state.laws.find(x => x.id === el.dataset.id);
@@ -1781,6 +1916,14 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       const l = state.laws.find(x => x.id === el.dataset.id);
       const s = el.dataset.s;
       if (!l || !requireMe(s, 'firmar como este jugador')) return;
+      const rev = ensureLawReview(l);
+      if (!l.signs[s] && l.kind === 'rol') {
+        if (rev.status === 'returned') return fail('Norma devuelta con anotaciones. Edítala y reenvíala a revisión antes de firmar.');
+        if (rev.status === 'pending') {
+          const rid = reviewerId();
+          return fail(`Norma en revisión. Espera el aval de ${rid ? pname(rid) : 'Revisor'} antes de firmar.`);
+        }
+      }
       l.signs[s] = !l.signs[s];
       if (l.signs.myth && l.signs.scad) toast('Norma vigente', `${l.title}`, 'gavel');
       commit('state');
@@ -2037,11 +2180,11 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
 
   /* ---------- Deshacer (guarda copias del estado antes de cada acción) ---------- */
   const UNDO_KEY = 'forever_world_undo';
-  const NO_UNDO = new Set(['form', 'shop-edit', 'mode-simple', 'mode-advanced', 'tip', 'filter', 'works-filter', 'law-doc-filter', 'law-book', 'price-buy', 'price-challenge', 'open-reset', 'confirm-reset', 'open-backup',
+  const NO_UNDO = new Set(['form', 'shop-edit', 'mode-simple', 'mode-advanced', 'tip', 'filter', 'works-filter', 'law-doc-filter', 'law-rev-filter', 'law-book', 'price-buy', 'price-challenge', 'open-reset', 'confirm-reset', 'open-backup',
     'open-report', 'copy-report', 'close-modal', 'undo',
     'cloud-pull', 'cloud-push-force', 'cloud-snapshot', 'cloud-restore-snap', 'cloud-save-cfg', 'cloud-reset-cfg', 'cloud-copy-link', 'cloud-copy-snippet']);
   const UNDO_LABELS = {
-    'law-add': 'Nueva norma', 'law-edit': 'Editar norma', 'law-sign': 'Firma de norma', 'law-repeal': 'Derogar norma', 'law-del': 'Borrar norma', 'law-defaults': 'Normas sugeridas', 'law-move': 'Mover norma',
+    'law-add': 'Nueva norma', 'law-edit': 'Editar norma', 'law-submit': 'Enviar a revisión', 'law-return': 'Devolver norma', 'law-approve-rev': 'Avalar norma', 'law-sign': 'Firma de norma', 'law-repeal': 'Derogar norma', 'law-del': 'Borrar norma', 'law-defaults': 'Normas sugeridas', 'law-move': 'Mover norma',
     'trd-add': 'Nueva serie TRD', 'trd-del': 'Borrar serie TRD',
     'chron-add': 'Nueva crónica', 'chron-del': 'Borrar crónica', 'guest-add': 'Nuevo invitado', 'guest-del': 'Borrar invitado',
     rail: 'Contador de vía', 'rail-set': 'Contador de vía', 'st-add': 'Nueva estación', 'st-del': 'Borrar estación',
