@@ -783,3 +783,41 @@ details.fold > .fold-body { margin-top: 8px; }
 }
 .kpi-box .kpi-label { font-size: 0.72rem; text-transform: uppercase; color: #94a3b8; font-family: var(--font-pixel-body); }
 .kpi-box .kpi-val { font-size: 1.05rem; font-family: var(--font-title); margin-top: 3px; }
+.kpi-box .kpi-sub { font-size: 0.72rem; color: #94a3b8; font-family: var(--font-mono); margin-top: 4px; display: flex; justify-content: space-between; gap: 6px; align-items: center; }
+
+/* Revamp Economía */
+.eco-treasury-big {
+  font-family: var(--font-title);
+  font-size: 1.45rem;
+  line-height: 1.2;
+  color: #fff;
+}
+.eco-mini-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.eco-stat-cell {
+  padding: 7px 9px;
+  background: rgba(0, 0, 0, 0.36);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.eco-quick-chip {
+  padding: 2px 7px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  background: #1b202b;
+  color: #e2e8f0;
+  border: 1px solid #475569;
+  cursor: pointer;
+}
+.eco-quick-chip:hover { color: var(--c-yellow); border-color: var(--c-yellow); }
+.eco-book-chapter {
+  padding: 12px 14px;
+  background: rgba(11, 14, 21, 0.85);
+  border: 2px solid #000;
+  border-left: 4px solid var(--c-gold);
+}
+.eco-book-chapter.archival { border-left-color: var(--c-aqua); }
+.eco-book-chapter.emerald { border-left-color: var(--c-green); }
+.eco-book-chapter.amethyst { border-left-color: var(--c-pink); }

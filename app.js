@@ -593,49 +593,78 @@
     const h = E.holdings(state, s);
     const cap = E.capitalization(state, s, CATS);
     const iss = E.issued(state, c);
-    const pctUsed = Math.min(100, Math.round((iss / cap) * 100));
+    const room = Math.max(0, E.r4(cap - iss));
+    const over = Math.max(0, E.r4(iss - cap));
+    const pctUsed = Math.min(100, Math.round((iss / Math.max(1, cap)) * 100));
     const debt = E.bankDebt(state, s);
     const mora = E.inDefault(state, s);
     const book = E.shareBook(state, s);
     const outside = Object.entries(book).filter(([p]) => p !== s).reduce((a, [, n]) => a + n, 0);
     const color = stateColor(s);
+    const healthTag = mora
+      ? `<span class="mc-tag tag-redstone">⚠ En mora</span>`
+      : over > 0
+        ? `<span class="mc-tag tag-redstone">⚠ Inflación</span>`
+        : `<span class="mc-tag tag-emerald">✔ Sana</span>`;
+    const quickAmounts = [10, 25, 50];
     return `
-      <div class="mc-panel-dark p-md" style="border-color:${stateBorder(s)};">
-        <div class="flex-between" style="margin-bottom:10px;">
-          <strong class="font-mono text-${color} text-sm">TESORO DE ${esc(nat(s).nation.toUpperCase())}</strong>
-          <span class="mc-tag tag-${color}">${esc(nat(s).currency)} · ${esc(sym(c))}</span>
+      <div class="mc-panel-dark p-md" style="border-color:${stateBorder(s)};display:flex;flex-direction:column;gap:10px;">
+        <div class="flex-between">
+          <div>
+            <strong class="font-mono text-${color} text-sm">${esc(nat(s).nation.toUpperCase())}</strong>
+            <div class="text-xs text-dim">${esc(nat(s).player)} · ${esc(nat(s).currency)} (${esc(sym(c))})</div>
+          </div>
+          ${healthTag}
         </div>
-        <div class="mc-slot p-sm" style="margin-bottom:10px;">
-          <div class="flex-between text-xs"><span class="text-muted">Tu moneda en el tesoro ${tip('tesoro')}</span><strong class="font-mono text-white">${money(h[c], c)}</strong></div>
-          <div class="flex-between text-xs" style="margin-top:4px;"><span class="text-muted">Moneda del otro país:</span><strong class="font-mono text-white">${money(h[oc], oc)}</strong></div>
-          <hr class="mc-divider" style="margin:8px 0;"/>
-          <div class="flex-between text-xs"><span class="text-muted">Respaldo (lo construido) ${tip('respaldo')}</span><strong class="font-mono text-emerald">${fmt(cap)}</strong></div>
-          <div class="flex-between text-xs" style="margin-top:4px;"><span class="text-muted">Dinero que existe / máximo ${tip('techo')}</span><strong class="font-mono text-gold">${fmt(iss)} / ${fmt(cap)}</strong></div>
-          <div class="boss-bar-track" style="margin-top:6px;"><div class="boss-bar-fill" style="width:${pctUsed}%;background:${pctUsed >= 100 ? '#ff5555' : '#55ff55'};"></div></div>
-          ${iss > cap + 1e-6 ? `<div class="text-xs text-redstone font-mono" style="margin-top:6px;">⚠ INFLACIÓN ${tip('inflacion')}: ${money(iss - cap, c)} sin respaldo. La moneda está devaluada por eso y ${esc(state.settings.bankName)} no le presta. Se corrige auditando obras, recuperando reliquias o quemando moneda.</div>` : ''}
-          <div class="flex-between text-xs" style="margin-top:6px;"><span class="text-muted">Precio por acción ${tip('precioAccion')}</span><strong class="font-mono text-white">${money(E.sharePrice(state, s, CATS), c)}</strong></div>
-          <div class="flex-between text-xs" style="margin-top:4px;"><span class="text-muted">Acciones vendidas ${tip('acciones')}</span><strong class="font-mono text-white">${outside} / ${state.settings.sharesTotal}</strong></div>
-          <div class="flex-between text-xs" style="margin-top:4px;"><span class="text-muted">Deuda con la Cámara ${tip('prestamo')}</span><strong class="font-mono ${mora ? 'text-redstone' : 'text-white'}">${money(debt, c)}${mora ? ' · EN MORA' : ''}</strong></div>
+        <div class="mc-slot p-sm">
+          <div class="text-xs text-muted">Disponible en tesoro ${tip('tesoro')}</div>
+          <div class="eco-treasury-big" style="margin-top:2px;">${fmt(h[c])} <span class="text-${color}" style="font-size:1rem;">${esc(sym(c))}</span></div>
+          ${h[oc] > 0 ? `<div class="text-xs font-mono text-dim" style="margin-top:2px;">+ ${money(h[oc], oc)} en reserva extranjera</div>` : `<div class="text-xs font-mono text-dim" style="margin-top:2px;">Sin divisas del socio</div>`}
         </div>
-        <div class="text-xs text-muted font-mono" style="margin-bottom:6px;">Casa de moneda ${tip('imprimir')} ${tip('quemar')}</div>
-        <div class="flex-row-wrap" style="gap:6px;">
-          <input id="mint-${s}" type="number" step="0.01" min="1" value="10" class="mc-input font-mono" style="width:90px;"/>
-          <button class="mc-btn mc-btn-${color}" data-action="mint" data-s="${s}" style="flex:1;">Imprimir</button>
-          <button class="mc-btn" data-action="burn" data-s="${s}" style="flex:1;">Quemar</button>
+        <div class="eco-mini-grid text-xs">
+          <div class="eco-stat-cell"><div class="text-dim">Respaldo ${tip('respaldo')}</div><strong class="font-mono text-emerald">${fmt(cap)}</strong></div>
+          <div class="eco-stat-cell"><div class="text-dim">Emitido / Techo ${tip('techo')}</div><strong class="font-mono ${over > 0 ? 'text-redstone' : 'text-gold'}">${fmt(iss)} / ${fmt(cap)}</strong></div>
+          <div class="eco-stat-cell"><div class="text-dim">Acción ${tip('precioAccion')}</div><strong class="font-mono text-white">${money(E.sharePrice(state, s, CATS), c)}</strong> <span class="text-dim">(${outside}/${state.settings.sharesTotal})</span></div>
+          <div class="eco-stat-cell"><div class="text-dim">Deuda Cámara ${tip('prestamo')}</div><strong class="font-mono ${mora ? 'text-redstone' : 'text-white'}">${money(debt, c)}</strong></div>
+        </div>
+        <div>
+          <div class="flex-between text-xs font-mono" style="margin-bottom:4px;">
+            <span class="text-muted">Uso de techo (${pctUsed}%)</span>
+            ${over > 0 ? `<span class="text-redstone">Exceso ${money(over, c)}</span>` : `<span class="text-emerald">Margen +${money(room, c)}</span>`}
+          </div>
+          <div class="boss-bar-track"><div class="boss-bar-fill" style="width:${pctUsed}%;background:${over > 0 ? '#ff5555' : pctUsed > 85 ? '#ffaa00' : '#55ff55'};"></div></div>
+          ${over > 0 ? `<div class="text-xs text-redstone font-mono" style="margin-top:5px;">⚠ Inflación ${tip('inflacion')}: quema ${money(over, c)} o audita obras para restaurar paridad.</div>` : ''}
+        </div>
+        <div style="margin-top:auto;">
+          <div class="flex-between text-xs text-muted font-mono" style="margin-bottom:5px;">
+            <span>Casa de moneda ${tip('imprimir')} ${tip('quemar')}</span>
+            <span class="flex-row-wrap" style="gap:4px;">
+              ${quickAmounts.map(n => `<button type="button" class="eco-quick-chip" data-action="mint-fill" data-s="${s}" data-v="${n}">+${n}</button>`).join('')}
+              ${room > 0 ? `<button type="button" class="eco-quick-chip" data-action="mint-fill" data-s="${s}" data-v="${room}" title="Llenar margen imprimible">Máx</button>` : ''}
+            </span>
+          </div>
+          <div class="flex-row-wrap" style="gap:6px;">
+            <input id="mint-${s}" type="number" step="0.01" min="1" value="10" class="mc-input font-mono" style="width:86px;"/>
+            <button class="mc-btn mc-btn-${color}" data-action="mint" data-s="${s}" style="flex:1;">Imprimir</button>
+            <button class="mc-btn" data-action="burn" data-s="${s}" style="flex:1;">Quemar</button>
+          </div>
         </div>
       </div>`;
   }
 
   function sparkline() {
     const h = state.economy.fxHistory.slice(-60);
-    if (h.length < 2) return '<div class="text-xs text-dim" style="text-align:center;">El gráfico aparece con el primer movimiento.</div>';
+    if (h.length < 2) return '<div class="text-xs text-dim" style="text-align:center;">El gráfico aparece con el primer movimiento cambiario.</div>';
     const rs = h.map(p => p.r);
     const min = Math.min(...rs, 1) * 0.98, max = Math.max(...rs, 1) * 1.02;
-    const W = 260, H = 50;
-    const pts = rs.map((r, i) => `${(i / (rs.length - 1)) * W},${H - ((r - min) / (max - min)) * H}`).join(' ');
+    const W = 260, H = 56;
+    const coords = rs.map((r, i) => [((i / (rs.length - 1)) * W).toFixed(1), (H - ((r - min) / (max - min)) * H).toFixed(1)]);
+    const pts = coords.map(c => c.join(',')).join(' ');
+    const area = `0,${H} ${pts} ${W},${H}`;
     const y1 = H - ((1 - min) / (max - min)) * H;
     return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="none" aria-label="Historial del tipo de cambio">
-      <line x1="0" y1="${y1}" x2="${W}" y2="${y1}" stroke="#555555" stroke-dasharray="3 3"/>
+      <line x1="0" y1="${y1}" x2="${W}" y2="${y1}" stroke="#64748b" stroke-dasharray="3 3"/>
+      <polygon points="${area}" fill="rgba(85,255,85,0.12)"/>
       <polyline points="${pts}" fill="none" stroke="#55ff55" stroke-width="2"/></svg>`;
   }
 
@@ -643,41 +672,57 @@
     const b = state.economy.bank;
     const r = E.rate(state);
     const founded = b.M + b.S > 0;
+    const drift = Math.abs(r - 1);
+    const statusLabel = !founded ? 'Sin fundar' : drift < 0.02 ? 'En paridad' : r > 1 ? `${nat('myth').currency} fuerte` : `${nat('scad').currency} fuerte`;
     return `
       <div class="mc-panel-dark p-md" style="border-color:#6b1f6b;display:flex;flex-direction:column;gap:10px;">
-        <div class="flex-between"><strong class="font-mono text-amethyst text-sm">${esc(state.settings.bankName.toUpperCase())} ${tip('camara')}</strong>${ICONS.ender_eye || ''}</div>
-        <div class="text-xs text-muted" style="text-align:center;">Tipo de cambio ${tip('cambio')}</div>
+        <div class="flex-between">
+          <div>
+            <strong class="font-mono text-amethyst text-sm">${esc(state.settings.bankName.toUpperCase())} ${tip('camara')}</strong>
+            <div class="text-xs text-dim">${esc(statusLabel)} · ${tip('cambio')} flotante</div>
+          </div>
+          ${ICONS.ender_eye || ''}
+        </div>
         <div class="mc-slot p-md" style="text-align:center;">
-          <div class="font-pixel text-emerald" style="font-size:1.2rem;">1 ${esc(sym('M'))} = ${r.toFixed(3)} ${esc(sym('S'))}</div>
-          <div class="font-pixel text-gold" style="font-size:.95rem;margin-top:4px;">1 ${esc(sym('S'))} = ${(1 / r).toFixed(3)} ${esc(sym('M'))}</div>
+          <div class="font-pixel text-emerald" style="font-size:1.25rem;">1 ${esc(sym('M'))} = ${r.toFixed(3)} ${esc(sym('S'))}</div>
+          <div class="font-pixel text-gold" style="font-size:.95rem;margin-top:3px;">1 ${esc(sym('S'))} = ${(1 / r).toFixed(3)} ${esc(sym('M'))}</div>
           <div class="text-xs text-muted font-mono" style="margin-top:6px;">${tip('oe')} 1 ${esc(sym('U'))} = ${E.uiValue(state, 'M').toFixed(3)} ${esc(sym('M'))} = ${E.uiValue(state, 'S').toFixed(3)} ${esc(sym('S'))}</div>
           <div style="margin-top:8px;">${sparkline()}</div>
         </div>
-        <div class="flex-between text-xs"><span class="text-muted">Reservas ${tip('reservas')}</span><strong class="font-mono text-white">${money(b.M, 'M')} · ${money(b.S, 'S')}</strong></div>
-        ${founded ? '' : `<div class="text-xs text-gold">Aún no fundada: sin reservas no se puede convertir moneda. Hagan el aporte fundacional.</div>`}
+        <div class="eco-mini-grid text-xs">
+          <div class="eco-stat-cell"><div class="text-dim">Reserva ${esc(sym('M'))} ${tip('reservas')}</div><strong class="font-mono text-royal">${money(b.M, 'M')}</strong></div>
+          <div class="eco-stat-cell"><div class="text-dim">Reserva ${esc(sym('S'))} ${tip('reservas')}</div><strong class="font-mono text-emerald">${money(b.S, 'S')}</strong></div>
+        </div>
+        ${founded ? '' : `<div class="mc-panel-dark p-sm text-xs text-gold" style="border-color:var(--c-gold);">
+          Sin reservas activas. Realicen el aporte inicial conjunto para habilitar conversiones:
+          <button class="mc-btn mc-btn-amethyst" style="margin-top:6px;width:100%;" data-action="deposit-quick">⚡ Fundar con 40 ${esc(sym('M'))} + 40 ${esc(sym('S'))}</button>
+        </div>`}
         <div>
-          <div class="text-xs text-muted font-mono" style="margin-bottom:4px;">Aporte conjunto ${tip('aporte')}</div>
+          <div class="text-xs text-muted font-mono" style="margin-bottom:4px;">Aporte conjunto de liquidez ${tip('aporte')}</div>
           <div class="flex-row-wrap" style="gap:6px;">
             <input id="deposit-m" type="number" step="0.01" min="1" value="40" class="mc-input font-mono" style="width:80px;"/>
-            <span class="text-xs text-muted">${esc(sym('M'))} + equivalente en ${esc(sym('S'))}</span>
+            <span class="text-xs text-muted">${esc(sym('M'))} + equiv. ${esc(sym('S'))}</span>
             <button class="mc-btn mc-btn-amethyst" data-action="deposit" style="flex:1;">Aportar</button>
           </div>
         </div>
-        <div>
-          <div class="text-xs text-muted font-mono" style="margin-bottom:4px;">Cambiar moneda ${tip('deslizamiento')}</div>
+        <div style="margin-top:auto;">
+          <div class="text-xs text-muted font-mono" style="margin-bottom:4px;">Convertir moneda ${tip('deslizamiento')}</div>
           <div class="grid-3" style="gap:6px;">
             <select id="swap-who" class="mc-select font-mono">${peopleOpts(me || 'myth')}</select>
             <select id="swap-from" class="mc-select font-mono">${curOpts('M')}</select>
             <input id="swap-amt" type="number" step="0.01" min="1" value="10" class="mc-input font-mono"/>
           </div>
-          <div class="flex-between" style="margin-top:6px;"><span id="swap-preview" class="text-xs font-mono text-muted"></span><button class="mc-btn" data-action="swap">Cambiar</button></div>
+          <div class="flex-between" style="margin-top:6px;"><span id="swap-preview" class="text-xs font-mono text-diamond"></span><button class="mc-btn" data-action="swap">Cambiar</button></div>
         </div>
       </div>`;
   }
 
-  function priceRows(s) {
-    const items = state.economy.prices.filter(p => p.seller === s);
-    if (!items.length) return empty('Sin productos. Agreguen lo que este Estado vende.');
+  function priceRows(s, shopQ = '') {
+    const q = (shopQ || '').trim().toLowerCase();
+    const allItems = state.economy.prices.filter(p => p.seller === s);
+    const items = q ? allItems.filter(p => (p.name + ' ' + (p.unit || '')).toLowerCase().includes(q)) : allItems;
+    if (!allItems.length) return empty('Sin productos. Agreguen lo que este Estado vende.');
+    if (!items.length) return empty('Sin coincidencias para esa búsqueda.');
     const c = curOf(s);
     return `<table class="mc-table"><thead><tr><th>Producto</th><th>Precio</th><th>En ${esc(sym(E.otherCur(c)))}</th><th></th></tr></thead><tbody>
       ${items.map(p => `<tr>
@@ -693,33 +738,6 @@
       </tbody></table>`;
   }
 
-  // Tarjeta de billetera para el modo simple
-  function walletCard(s) {
-    const c = curOf(s), oc = E.otherCur(c);
-    const h = E.holdings(state, s);
-    const cap = E.capitalization(state, s, CATS);
-    const iss = E.issued(state, c);
-    const room = Math.max(0, E.r4(cap - iss));
-    const over = Math.max(0, E.r4(iss - cap));
-    const color = stateColor(s);
-    const status = E.inDefault(state, s) ? `<span class="mc-tag tag-redstone">Debe un préstamo vencido</span>`
-      : over > 0 ? `<span class="mc-tag tag-redstone">⚠ Inflación ${tip('inflacion')}</span>`
-      : `<span class="mc-tag tag-emerald">✔ Moneda sana</span>`;
-    return `<div class="mc-panel-dark p-md" style="border-color:${stateBorder(s)};">
-      <div class="flex-between" style="margin-bottom:8px;"><strong class="font-mono text-${color} text-sm">${esc(nat(s).nation)}</strong>${status}</div>
-      <div class="text-xs text-muted">Billetera de ${esc(nat(s).player)} ${tip('tesoro')}</div>
-      <div class="font-pixel text-white" style="font-size:1.6rem;margin:4px 0;">${fmt(h[c])} <span class="text-${color}" style="font-size:1rem;">${esc(sym(c))}</span></div>
-      ${h[oc] > 0 ? `<div class="text-xs text-muted">+ ${money(h[oc], oc)} del otro país</div>` : ''}
-      <hr class="mc-divider" style="margin:10px 0;"/>
-      <div class="text-xs text-muted">${room > 0 ? `Puedes imprimir hasta <strong class="text-emerald">${money(room, c)}</strong> sin problema ${tip('techo')}` : over > 0 ? `Hay <strong class="text-redstone">${money(over, c)}</strong> sin respaldo. Construye algo o quema ese dinero.` : `Para imprimir más, construye algo y que el otro lo apruebe ${tip('obra')}`}</div>
-      <div class="flex-row-wrap" style="gap:6px;margin-top:8px;">
-        <input id="mint-${s}" type="number" step="0.01" min="1" value="${room > 0 ? Math.min(10, room) : 10}" class="mc-input font-mono" style="width:80px;"/>
-        <button class="mc-btn mc-btn-${color}" data-action="mint" data-s="${s}" style="flex:1;">Imprimir</button>
-        <button class="mc-btn" data-action="burn" data-s="${s}">Quemar ${tip('quemar')}</button>
-      </div>
-    </div>`;
-  }
-
   function renderEconomy() {
     const eco = state.economy;
     const sealed = eco.sealed;
@@ -727,28 +745,68 @@
     const worksF = state.ui.worksFilter || 'all';
     const works = eco.works.filter(w => worksF === 'all' || (worksF === 'pendiente' ? w.status === 'pendiente' : w.owner === worksF));
     const ledgerQ = (state.ui.ledgerQ || '').toLowerCase();
-    const ledger = eco.ledger.filter(l => !ledgerQ || (l.type + ' ' + l.text + ' ' + l.by).toLowerCase().includes(ledgerQ));
+    const ledgerTypeF = state.ui.ledgerType || 'all';
+    const matchesLedgerType = l => {
+      if (ledgerTypeF === 'all') return true;
+      if (ledgerTypeF === 'void') return Boolean(l.void);
+      const lt = (l.type || '').toLowerCase();
+      if (ledgerTypeF === 'compra') return lt.includes('compra') || lt.includes('transfer');
+      if (ledgerTypeF === 'cambio') return lt.includes('cambio') || lt.includes('banco');
+      if (ledgerTypeF === 'emision') return lt.includes('emisión') || lt.includes('quema') || lt.includes('ajuste');
+      if (ledgerTypeF === 'credito') return lt.includes('préstamo') || lt.includes('pago') || lt.includes('acció') || lt.includes('dividendo') || lt.includes('mora');
+      return true;
+    };
+    const ledger = eco.ledger.filter(l => matchesLedgerType(l) && (!ledgerQ || (l.type + ' ' + l.text + ' ' + l.by).toLowerCase().includes(ledgerQ)));
 
-    const quickGuide = `
-      <details class="mc-panel-dark p-md quick-guide" style="margin-bottom:14px;" ${state.ui.guideClosed ? '' : 'open'}>
-        <summary class="font-mono text-sm text-gold" style="cursor:pointer;font-weight:700;">💡 ¿Qué hago? Guía rápida</summary>
-        <div class="grid-3" style="gap:10px;margin-top:12px;">
-          ${[
-            ['🛒', 'Quiero comprarle algo al otro', 'Busca el producto en su lista de precios y pulsa 🛒, o usa "Comprar". Si no tienes su moneda, la app la cambia sola en la Cámara.'],
-            ['🏗️', 'Quiero más dinero', 'Construye algo, regístralo en "Obras" y que el otro lo apruebe. Eso sube tu máximo y ya puedes Imprimir. Si es urgente: pide un préstamo.'],
-            ['⚖️', 'No nos ponemos de acuerdo en un precio', 'Pulsa ⚖ en el producto: cada uno escribe su número en secreto y queda el punto medio.'],
-            ['📉', 'Mi moneda bajó', 'Es porque compraste más de lo que vendiste (o imprimiste de más). Se recupera cuando el otro te compra a ti, o quemando el dinero sin respaldo.'],
-            ['💸', 'Pagar una multa, un sueldo o un contrato', 'Usa "Transferir". Para multas, la ley dice en qué moneda.'],
-            ['↩️', 'Me equivoqué', 'Botón "Deshacer" (el último) o "Anular" en el Libro Mayor (cualquiera). Para errores viejos: Ajuste manual en Estados y Leyes.']
-          ].map(([i, q, a]) => `<div class="mc-slot p-sm"><div class="text-sm text-white" style="font-weight:700;margin-bottom:4px;">${i} ${q}</div><div class="text-xs text-muted" style="line-height:1.5;">${esc(a)}</div></div>`).join('')}
+    const quickBanner = `
+      <div class="mc-panel-dark p-sm flex-between" style="margin-bottom:12px;border-left:3px solid var(--c-gold);gap:10px;">
+        <div class="text-xs text-muted">
+          <strong class="text-gold">📘 Sistema Económico de Miscolandia:</strong> el tipo de cambio flota en ${esc(state.settings.bankName)}; las obras auditadas (<span class="font-mono text-diamond">TRD 120-01</span>) suben el techo; todo asiento queda en <span class="font-mono text-diamond">TRD 130-01</span> sin borrarse.
         </div>
-        <p class="text-xs text-dim" style="margin:10px 0 0 0;">Toca cualquier <span class="help-tip" style="pointer-events:none;">?</span> para ver qué significa cada cosa.</p>
-      </details>`;
+        <button class="mc-btn mc-btn-gold" style="padding:4px 9px;white-space:nowrap;" data-action="eco-tab" data-v="manual">📘 Abrir Manual Económico</button>
+      </div>`;
+
+    const guestWalletCards = state.guests.length
+      ? state.guests.map(g => {
+          const gh = E.holdings(state, g.id);
+          const sh = STATES.map(s => `${E.shareBook(state, s)[g.id] || 0} acc. ${nat(s).nation}`).join(' · ');
+          return `<div class="mc-slot p-sm">
+            <div class="flex-between"><strong class="text-diamond text-xs">${esc(g.nick)}</strong><span class="mc-tag tag-slate">Invitado</span></div>
+            <div class="font-mono text-xs text-white" style="margin-top:4px;">${money(gh.M, 'M')} · ${money(gh.S, 'S')}</div>
+            <div class="text-xs text-dim" style="margin-top:2px;">${esc(sh)}</div>
+          </div>`;
+        }).join('')
+      : '<div class="text-xs text-dim">Sin invitados registrados todavía.</div>';
+
+    const recentLedgerRows = eco.ledger.slice(0, 5);
+    const overviewFooter = panel(`
+      <div class="grid-2" style="gap:14px;">
+        <div>
+          <div class="flex-between" style="margin-bottom:8px;">
+            <strong class="font-mono text-diamond text-xs">🧭 BOLSILLOS DE INVITADOS</strong>
+            <span class="text-xs text-dim">${state.guests.length} participante(s)</span>
+          </div>
+          <div class="section-stack" style="gap:6px;">${guestWalletCards}</div>
+        </div>
+        <div>
+          <div class="flex-between" style="margin-bottom:8px;">
+            <strong class="font-mono text-gold text-xs">📒 ÚLTIMOS ASIENTOS (TRD 130-01)</strong>
+            <button class="mc-btn" style="padding:2px 8px;font-size:11px;" data-action="eco-tab" data-v="finance">Ver Libro Mayor (${eco.ledger.length}) →</button>
+          </div>
+          ${recentLedgerRows.length ? `<div class="section-stack" style="gap:5px;">${recentLedgerRows.map(l => `<div class="mc-slot p-sm flex-between" style="gap:8px;opacity:${l.void ? '.55' : '1'};">
+            <div style="min-width:0;flex:1;">
+              <span class="mc-tag ${l.void ? 'tag-redstone' : 'tag-slate'}" style="font-size:10px;">${l.void ? 'ANULADO' : esc(l.type)}</span>
+              <span class="text-xs text-muted" style="margin-left:5px;${l.void ? 'text-decoration:line-through;' : ''}">${esc(l.text)}</span>
+            </div>
+            <span class="font-mono text-xs text-dim" style="white-space:nowrap;">${when(l.t)}</span>
+          </div>`).join('')}</div>` : empty('Sin movimientos contables todavía.')}
+        </div>
+      </div>`);
 
     const top = panel(`
-      ${head('ECONOMÍA', 'emerald', 'TESOROS Y TIPO DE CAMBIO',
-        `El tipo de cambio <strong>no lo decide nadie</strong>: lo fija ${esc(state.settings.bankName)} según sus reservas, y se mueve con el comercio. Si un Estado compra más de lo que vende, su moneda baja; eso abarata sus productos y lo equilibra. El techo de emisión de cada Estado es su capitalización: <strong>obras auditadas por el socio</strong>, nunca ítems acumulados. Detalles en Manual.`)}
-      ${quickGuide}
+      ${head('TESORERÍA Y BANCO', 'emerald', 'TESOROS, RESPALDO Y TIPO DE CAMBIO',
+        `Moneda sana respaldada por obras verificadas (<span class="font-mono">TRD 120-01</span>) e intercambio neutral en ${esc(state.settings.bankName)}.`)}
+      ${quickBanner}
       <div data-undo-slot style="margin-bottom:12px;"></div>
       <div class="grid-3" style="align-items:stretch;">${treasuryCard('myth')}${bankCard()}${treasuryCard('scad')}</div>`);
 
@@ -765,30 +823,32 @@
           ${field('Concepto', `<input id="buy-note" class="mc-input" placeholder="Ej. 2 stacks de hierro"/>`)}
         </div>
         <div id="buy-preview" class="mc-slot p-sm text-xs font-mono" style="margin:10px 0;"></div>
-        <button class="mc-btn mc-btn-emerald" data-action="buy" style="width:100%;">Registrar compra</button>`;
+        <button class="mc-btn mc-btn-emerald" data-action="buy" style="width:100%;">Registrar compra en Libro Mayor</button>`;
     const payInner = `
         <div class="grid-2" style="gap:8px;">
           ${field('De', `<select id="tr-from" class="mc-select font-mono">${peopleOpts(me || 'myth')}</select>`)}
           ${field('Para', `<select id="tr-to" class="mc-select font-mono">${peopleOpts('scad')}</select>`)}
           ${field('Moneda', `<select id="tr-cur" class="mc-select font-mono">${curOpts('M')}</select>`)}
-          ${field('Monto', `<input id="tr-amt" type="number" step="0.01" min="0" step="0.01" value="10" class="mc-input font-mono"/>`)}
+          ${field('Monto', `<input id="tr-amt" type="number" step="0.01" min="0" value="10" class="mc-input font-mono"/>`)}
         </div>
-        <div style="margin:8px 0;">${field('Concepto', `<input id="tr-note" class="mc-input" placeholder="Ej. Contrato tramo norte / Multa Ley 4"/>`)}</div>
-        <button class="mc-btn mc-btn-diamond" data-action="transfer" style="width:100%;">Transferir</button>
-        <p class="text-xs text-dim" style="margin:8px 0 0 0;">Si quien paga no tiene esa moneda, se convierte el faltante en el banco.</p>`;
+        <div style="margin:8px 0;">${field('Concepto', `<input id="tr-note" class="mc-input" placeholder="Ej. Contrato obra norte / Reparación Ley 001"/>`)}</div>
+        <button class="mc-btn mc-btn-diamond" data-action="transfer" style="width:100%;">Transferir y asentar</button>
+        <p class="text-xs text-dim" style="margin:8px 0 0 0;">Si quien paga no tiene esa moneda, la Cámara convierte automáticamente el faltante.</p>`;
     const trade = `<div class="grid-2">
-      ${panel(`${head('COMPRAR', 'emerald', 'REGISTRAR UNA COMPRA', 'Se paga en la moneda del vendedor. Si el comprador no la tiene, el faltante se convierte automáticamente en el banco.')}${buyInner}`)}
-      ${panel(`${head('TRANSFERIR', 'cyan', 'PAGOS, MULTAS, SALARIOS', 'Cualquier pago que no sea una compra de la lista: contratos, multas, sueldos de invitados, regalos.')}${payInner}`)}
+      ${panel(`${head('COMPRAR', 'emerald', 'REGISTRAR UNA COMPRA', 'Se liquida en la moneda del vendedor y deja asiento contable automático en TRD 130-01.')}${buyInner}`)}
+      ${panel(`${head('TRANSFERIR', 'cyan', 'PAGOS, CONTRATOS Y SANCIONES', 'Contratos de obra, nómina de invitados, recompensas o reparaciones económicas.')}${payInner}`)}
     </div>`;
 
     // Listas de precios + oferta sellada
+    const shopQ = state.ui.shopQ || '';
     const prices = panel(`
       ${head('PRECIOS', 'gold', `LISTAS OFICIALES DE PRECIOS ${tip('tarifa')}`,
-        `Precio único y público en la moneda del vendedor. <strong>Regla del minuto</strong> para la primera sesión: 1 moneda ≈ 1 minuto de juego que le ahorras al otro. Los precios solo cambian en una Sesión de Tarifas; el botón ⚖ impugna un precio con Oferta Sellada.`)}
+        `Precio público único en la moneda del vendedor. <strong>Regla del minuto</strong>: 1 moneda ≈ 1 minuto de ahorro. Pulsa 🛒 para comprar o ⚖ para impugnar con Oferta Sellada.`)}
+      <div style="margin-bottom:10px;"><input class="mc-input" data-bind-live="ui.shopQ" data-rerender="economy" value="${esc(shopQ)}" placeholder="🔍 Filtrar producto en ambas tiendas…"/></div>
       <div class="grid-2">
         ${STATES.map(s => `<div class="mc-panel-dark p-md">
-          <div class="flex-between" style="margin-bottom:8px;"><strong class="font-mono text-${stateColor(s)} text-sm">${esc(nat(s).nation)} vende</strong><span class="mc-tag tag-${stateColor(s)}">${esc(sym(curOf(s)))}</span></div>
-          <div style="overflow-x:auto;">${priceRows(s)}</div>
+          <div class="flex-between" style="margin-bottom:8px;"><strong class="font-mono text-${stateColor(s)} text-sm">${esc(nat(s).nation)} vende</strong><span class="mc-tag tag-${stateColor(s)}">${esc(sym(curOf(s)))} · ${eco.prices.filter(p => p.seller === s).length} ítems</span></div>
+          <div style="overflow-x:auto;">${priceRows(s, shopQ)}</div>
           <div class="grid-3" style="gap:6px;margin-top:10px;">
             <input id="np-name-${s}" class="mc-input" placeholder="Producto"/>
             <input id="np-unit-${s}" class="mc-input" placeholder="Unidad (ej. stack)"/>
@@ -797,21 +857,30 @@
         </div>`).join('')}
       </div>`);
 
-    const guide = panel(`
-      ${head('REFERENCIA', 'gold', 'GUÍA DE PRECIOS (REGLA DEL MINUTO)',
-        'Precios fijos sugeridos (1 moneda ≈ 1 minuto de juego que le ahorras al otro), en la moneda del vendedor. "+" lo agrega a su lista; después lo pueden cambiar o impugnar con Oferta Sellada. Cuando haya granjas, lo farmeable debería bajar.')}
-      <div class="grid-2">
-        ${STATES.map(s => `<div class="mc-panel-dark p-md"><div class="flex-between"><strong class="font-mono text-${stateColor(s)} text-sm">${esc(nat(s).nation)}</strong>
-            <button class="mc-btn mc-btn-${stateColor(s)}" style="padding:3px 8px;" data-action="guide-add-all" data-s="${s}">+ Agregar todos a su tienda</button></div>
-          <div style="overflow-x:auto;margin-top:8px;"><table class="mc-table"><thead><tr><th>Producto</th><th>Precio</th><th></th></tr></thead><tbody>
-          ${D.PRICE_GUIDE.map((g, i) => ({ g, i })).filter(x => x.g.seller === s).map(({ g, i }, k, arr) => {
-            const listed = eco.prices.some(p => p.seller === s && p.name === g.name);
-            const header = k === 0 || arr[k - 1].g.group !== g.group ? `<tr><td colspan="3" class="font-mono text-xs text-gold" style="padding-top:12px;font-weight:700;">${esc(g.group.toUpperCase())}</td></tr>` : '';
-            return header + `<tr><td><div class="text-white text-xs" style="font-weight:700;">${esc(g.name)}</div><div class="text-xs text-dim">${esc(g.unit)}${g.note ? ' · ' + esc(tx(g.note)) : ''}</div></td>
-              <td class="font-mono text-xs" style="white-space:nowrap;">${fmt(g.price)} ${esc(sym(curOf(s)))}</td>
-              <td>${listed ? '<span class="text-xs text-emerald">✔</span>' : `<button class="mc-btn" style="padding:2px 7px;" data-action="guide-add" data-i="${i}" title="Agregar a la lista">+</button>`}</td></tr>`;
-          }).join('')}</tbody></table></div></div>`).join('')}
-      </div>`);
+    const guideOpen = eco.prices.length === 0;
+    const guide = `
+      <details class="mc-panel p-lg" ${guideOpen ? 'open' : ''}>
+        <summary class="flex-between" style="cursor:pointer;list-style:none;">
+          <div>
+            <span class="mc-tag tag-gold">REFERENCIA</span>
+            <strong class="font-pixel text-gold text-base" style="margin-left:8px;">GUÍA DE PRECIOS SUGERIDOS (REGLA DEL MINUTO)</strong>
+            <span class="text-xs text-muted" style="margin-left:8px;">(${D.PRICE_GUIDE.length} productos base para iniciar tiendas)</span>
+          </div>
+          <span class="text-xs font-mono text-dim">▸ Desplegar / ocultar</span>
+        </summary>
+        <div class="grid-2" style="margin-top:14px;">
+          ${STATES.map(s => `<div class="mc-panel-dark p-md"><div class="flex-between"><strong class="font-mono text-${stateColor(s)} text-sm">${esc(nat(s).nation)}</strong>
+              <button class="mc-btn mc-btn-${stateColor(s)}" style="padding:3px 8px;" data-action="guide-add-all" data-s="${s}">+ Agregar todos a su tienda</button></div>
+            <div style="overflow-x:auto;margin-top:8px;"><table class="mc-table"><thead><tr><th>Producto</th><th>Precio</th><th></th></tr></thead><tbody>
+            ${D.PRICE_GUIDE.map((g, i) => ({ g, i })).filter(x => x.g.seller === s).map(({ g, i }, k, arr) => {
+              const listed = eco.prices.some(p => p.seller === s && p.name === g.name);
+              const header = k === 0 || arr[k - 1].g.group !== g.group ? `<tr><td colspan="3" class="font-mono text-xs text-gold" style="padding-top:12px;font-weight:700;">${esc(g.group.toUpperCase())}</td></tr>` : '';
+              return header + `<tr><td><div class="text-white text-xs" style="font-weight:700;">${esc(g.name)}</div><div class="text-xs text-dim">${esc(g.unit)}${g.note ? ' · ' + esc(tx(g.note)) : ''}</div></td>
+                <td class="font-mono text-xs" style="white-space:nowrap;">${fmt(g.price)} ${esc(sym(curOf(s)))}</td>
+                <td>${listed ? '<span class="text-xs text-emerald">✔</span>' : `<button class="mc-btn" style="padding:2px 7px;" data-action="guide-add" data-i="${i}" title="Agregar a la lista">+</button>`}</td></tr>`;
+            }).join('')}</tbody></table></div></div>`).join('')}
+        </div>
+      </details>`;
 
     const sealedRes = sealed.last;
     const sealedPanel = panel(`
@@ -834,7 +903,10 @@
           : `<strong class="text-redstone">Sin acuerdo</strong> (diferencia ${fmt(sealedRes.gap)}). Segundo intento.`}
       </div>` : ''}`);
 
-    // Obras
+    // Obras (TRD 120-01)
+    const auditedWorks = eco.works.filter(w => w.status === 'auditada');
+    const mythWorkPts = auditedWorks.filter(w => w.owner === 'myth').reduce((a, w) => a + (effPts[w.id] || 0), 0);
+    const scadWorkPts = auditedWorks.filter(w => w.owner === 'scad').reduce((a, w) => a + (effPts[w.id] || 0), 0);
     const workForm = `
       <div class="mc-panel-dark p-md" style="margin-bottom:14px;">
         <div class="grid-4" style="gap:8px;align-items:end;">
@@ -844,15 +916,21 @@
           ${field('Producto (granja) o reliquia', `<input id="w-product" class="mc-input" list="relic-list" placeholder="Ej. hierro / Tridente"/><datalist id="relic-list">${D.RELICS.map(r => `<option value="${esc(r.name)}"></option>`).join('')}</datalist>`)}
           ${field('Coordenadas', `<input id="w-coords" class="mc-input font-mono" placeholder="X, Y, Z"/>`)}
           ${field('Puntos propuestos', `<input id="w-pts" type="number" min="1" value="10" class="mc-input font-mono"/>`)}
-          <div style="grid-column:span 2;display:flex;align-items:end;"><button class="mc-btn mc-btn-emerald" data-action="work-add" style="width:100%;">+ Registrar obra</button></div>
+          <div style="grid-column:span 2;display:flex;align-items:end;"><button class="mc-btn mc-btn-emerald" data-action="work-add" style="width:100%;">+ Registrar obra (TRD 120-01)</button></div>
         </div>
       </div>`;
     const worksPanel = panel(`
-      ${head('CAPACIDAD INSTALADA', 'emerald', `OBRAS Y AUDITORÍA ${tip('obra')} ${tip('reliquia')}`,
-        `Cada obra la registra su dueño y la audita <strong>el otro Estado</strong> (elige "Soy" arriba), que puede ajustar los puntos. Los puntos auditados suben el techo de emisión y el precio de las acciones. Las granjas del mismo producto valen 100%, 50%, 25%… para que repetir granjas no infle nada.`)}
+      ${head('TRD 120-01 · CATASTRO', 'emerald', `OBRAS, RELIQUIAS Y AUDITORÍA ${tip('obra')} ${tip('reliquia')}`,
+        `Cada obra respalda emisión monetaria y valor de acciones tras auditoría cruzada del Estado socio. Repetir granjas del mismo producto aplica rendimiento decreciente (100%, 50%, 25%…).`)}
+      <div class="kpi-strip" style="margin-bottom:14px;">
+        <div class="kpi-box"><div class="kpi-label">Por auditar</div><div class="kpi-val ${eco.works.some(w => w.status === 'pendiente') ? 'text-gold' : 'text-white'}">${eco.works.filter(w => w.status === 'pendiente').length}</div></div>
+        <div class="kpi-box"><div class="kpi-label">Auditadas vigentes</div><div class="kpi-val text-emerald">${auditedWorks.length}</div></div>
+        <div class="kpi-box"><div class="kpi-label">Respaldo obras ${esc(nat('myth').nation)}</div><div class="kpi-val text-royal">+${fmt(mythWorkPts)} pts</div></div>
+        <div class="kpi-box"><div class="kpi-label">Respaldo obras ${esc(nat('scad').nation)}</div><div class="kpi-val text-emerald">+${fmt(scadWorkPts)} pts</div></div>
+      </div>
       ${workForm}
       <div class="flex-row-wrap" style="gap:6px;margin-bottom:10px;">
-        ${[['all', 'Todas'], ['myth', nat('myth').nation], ['scad', nat('scad').nation], ['pendiente', 'Sin auditar']].map(([v, t]) => `<button class="filter-pill ${worksF === v ? 'active' : ''}" data-action="works-filter" data-v="${v}">${esc(t)}</button>`).join('')}
+        ${[['all', `Todas (${eco.works.length})`], ['myth', nat('myth').nation], ['scad', nat('scad').nation], ['pendiente', `Sin auditar (${eco.works.filter(w => w.status === 'pendiente').length})`]].map(([v, t]) => `<button class="filter-pill ${worksF === v ? 'active' : ''}" data-action="works-filter" data-v="${v}">${esc(t)}</button>`).join('')}
       </div>
       <div style="overflow-x:auto;">
         ${works.length ? `<table class="mc-table"><thead><tr><th>Dueño</th><th>Obra</th><th>Puntos</th><th>Estado</th><th></th></tr></thead><tbody>
@@ -915,66 +993,135 @@
 
     // Acciones
     const sharesPanel = panel(`
-      ${head('INVERSIÓN', 'cyan', `ACCIONES DE LOS ESTADOS ${tip('acciones')} ${tip('dividendo')}`,
-        `Cada Estado tiene ${state.settings.sharesTotal} acciones. Precio = capitalización ÷ ${state.settings.sharesTotal}. Un invitado (o el otro Estado) compra acciones al tesoro; si el Estado construye y audita obras, la acción sube y puede revenderla al Estado con ganancia. El Estado puede repartir dividendos.`)}
+      ${head('INVERSIÓN', 'cyan', `ACCIONES Y DIVIDENDOS ${tip('acciones')} ${tip('dividendo')}`,
+        `Cada Estado emite ${state.settings.sharesTotal} acciones (valor = capitalización ÷ ${state.settings.sharesTotal}). Los dividendos recompensan a socios e invitados accionistas.`)}
       <div class="grid-2">
         ${STATES.map(s => {
           const book = E.shareBook(state, s);
+          const outside = Object.entries(book).filter(([p]) => p !== s).reduce((a, [, n]) => a + n, 0);
+          const pctOut = Math.round((outside / Math.max(1, state.settings.sharesTotal)) * 100);
           return `<div class="mc-panel-dark p-md">
-            <div class="flex-between" style="margin-bottom:8px;"><strong class="font-mono text-${stateColor(s)} text-sm">${esc(nat(s).nation)}</strong><span class="font-mono text-xs text-white">${money(E.sharePrice(state, s, CATS), curOf(s))} / acción</span></div>
-            <ul class="mc-list" style="margin-bottom:10px;">${Object.entries(book).map(([pid, n]) => `<li>${ptag(pid)}<span class="font-mono text-xs text-white">${n} acciones${pid === s ? ' (tesoro)' : ''}</span></li>`).join('')}</ul>
-            ${field('Quién', `<select id="sh-who-${s}" class="mc-select font-mono">${peopleOpts(participants().find(p => p !== s), participants().filter(p => p !== s))}</select>`)}
+            <div class="flex-between" style="margin-bottom:6px;"><strong class="font-mono text-${stateColor(s)} text-sm">${esc(nat(s).nation)}</strong><span class="font-mono text-xs text-white">${money(E.sharePrice(state, s, CATS), curOf(s))} / acc.</span></div>
+            <div class="boss-bar-track" style="height:7px;margin-bottom:8px;" title="${pctOut}% en manos externas"><div class="boss-bar-fill" style="width:${pctOut}%;background:var(--c-aqua);"></div></div>
+            <ul class="mc-list" style="margin-bottom:10px;">${Object.entries(book).map(([pid, n]) => `<li>${ptag(pid)}<span class="font-mono text-xs text-white">${n} acc.${pid === s ? ' (tesoro)' : ''}</span></li>`).join('')}</ul>
+            ${field('Inversor', `<select id="sh-who-${s}" class="mc-select font-mono">${peopleOpts(participants().find(p => p !== s), participants().filter(p => p !== s))}</select>`)}
             <div class="grid-3" style="gap:6px;margin-top:8px;align-items:end;">
-              ${field('Acciones', `<input id="sh-n-${s}" type="number" min="1" value="5" class="mc-input font-mono"/>`)}
+              ${field('Cantidad', `<input id="sh-n-${s}" type="number" min="1" value="5" class="mc-input font-mono"/>`)}
               <button class="mc-btn mc-btn-emerald" data-action="sh-buy" data-s="${s}">Comprar</button>
               <button class="mc-btn" data-action="sh-sell" data-s="${s}">Vender</button>
             </div>
             <div class="grid-3" style="gap:6px;margin-top:8px;align-items:end;">
-              ${field('Dividendo / acción', `<input id="sh-div-${s}" type="number" step="0.01" min="0" value="0.1" class="mc-input font-mono"/>`)}
-              <button class="mc-btn mc-btn-gold" data-action="sh-div" data-s="${s}" style="grid-column:span 2;">Pagar dividendo</button>
+              ${field('Dividendo / acc.', `<input id="sh-div-${s}" type="number" step="0.01" min="0" value="0.1" class="mc-input font-mono"/>`)}
+              <button class="mc-btn mc-btn-gold" data-action="sh-div" data-s="${s}" style="grid-column:span 2;">Repartir dividendo</button>
             </div>
           </div>`;
         }).join('')}
       </div>`);
 
-    // Libro mayor
+    // Libro mayor (TRD 130-01)
     const ledgerPanel = panel(`
-      ${head('REGISTRO', 'slate', `LIBRO MAYOR ${tip('libroMayor')}`, 'Todo movimiento queda aquí, sin límite. Es el registro oficial: los billetes físicos deben coincidir con estos saldos. Si te equivocaste, usa Deshacer (últimos 20 movimientos) o el Ajuste manual de saldos en Estados y Leyes.')}
+      ${head('TRD 130-01 · CT', 'slate', `LIBRO MAYOR CONTABLE ${tip('libroMayor')}`,
+        'Conservación Total (CT): todo movimiento queda registrado y los billetes físicos deben coincidir con estos saldos. Nunca se elimina historia; solo se anula en reversa (<span class="font-mono">void</span>).')}
       <div data-undo-slot style="margin-bottom:10px;"></div>
-      <input class="mc-input" data-bind-live="ui.ledgerQ" data-rerender="economy" value="${esc(state.ui.ledgerQ || '')}" placeholder="Buscar…" style="margin-bottom:10px;"/>
-      <div style="max-height:420px;overflow-y:auto;">
-        ${ledger.length ? `<table class="mc-table"><thead><tr><th>Fecha</th><th>Tipo</th><th>Detalle</th><th></th></tr></thead><tbody>
+      <div class="flex-between" style="gap:8px;margin-bottom:10px;">
+        <div class="flex-row-wrap" style="gap:5px;">
+          ${[['all', `Todos (${eco.ledger.length})`], ['compra', 'Compras / Pagos'], ['cambio', 'Cámara / Cambio'], ['emision', 'Emisión / Quema'], ['credito', 'Crédito / Acciones'], ['void', `Anulados (${eco.ledger.filter(x => x.void).length})`]].map(([v, t]) => `<button class="filter-pill ${ledgerTypeF === v ? 'active' : ''}" data-action="ledger-filter" data-v="${v}">${esc(t)}</button>`).join('')}
+        </div>
+        <input class="mc-input" style="max-width:260px;" data-bind-live="ui.ledgerQ" data-rerender="economy" value="${esc(state.ui.ledgerQ || '')}" placeholder="🔍 Buscar asiento…"/>
+      </div>
+      <div style="max-height:430px;overflow-y:auto;">
+        ${ledger.length ? `<table class="mc-table"><thead><tr><th>Fecha</th><th>Tipo</th><th>Detalle contable</th><th></th></tr></thead><tbody>
           ${ledger.map(l => `<tr style="${l.void ? 'opacity:.5;' : ''}"><td class="font-mono text-xs text-dim" style="white-space:nowrap;">${when(l.t)}</td>
             <td><span class="mc-tag ${l.void ? 'tag-redstone' : 'tag-slate'}">${l.void ? 'ANULADO' : esc(l.type)}</span></td>
             <td class="text-xs text-muted" style="${l.void ? 'text-decoration:line-through;' : ''}">${esc(l.text)}${l.edited ? ' <span class="text-dim">(editado)</span>' : ''}${l.by ? ` <span class="text-dim">· ${esc(l.by)}</span>` : ''}</td>
             <td><div class="flex-row-wrap" style="gap:4px;flex-wrap:nowrap;">
-              <button class="mc-btn" style="padding:2px 6px;" data-action="led-edit" data-id="${l.id}" title="Editar texto">✎</button>
-              ${!l.void && VOIDABLE.has(l.type) ? `<button class="mc-btn mc-btn-redstone" style="padding:2px 6px;" data-action="led-void" data-id="${l.id}" title="Revertir el dinero de este movimiento">Anular</button>` : ''}
+              <button class="mc-btn" style="padding:2px 6px;" data-action="led-edit" data-id="${l.id}" title="Editar nota del asiento">✎</button>
+              ${!l.void && VOIDABLE.has(l.type) ? `<button class="mc-btn mc-btn-redstone" style="padding:2px 6px;" data-action="led-void" data-id="${l.id}" title="Revertir contablemente este movimiento">Anular</button>` : ''}
             </div></td></tr>`).join('')}
-        </tbody></table>` : empty('Sin movimientos.')}
+        </tbody></table>` : empty('Sin asientos contables que coincidan.')}
+      </div>`);
+
+    // Manual Económico y Contable (exclusivo de Economía, ligado a TRD 120-01 y TRD 130-01)
+    const ecoManualData = D.ECONOMY_MANUAL || { chapters: [], considerando: [] };
+    const ecoManualQ = (state.ui.ecoManualQ || '').trim().toLowerCase();
+    const ecoGlossaryItems = Object.values(D.GLOSSARY || {}).filter(g => !ecoManualQ || (tx(g.t) + ' ' + tx(g.d) + ' ' + tx(g.ex || '')).toLowerCase().includes(ecoManualQ));
+    const ecoManualPanel = panel(`
+      ${head('MANUAL ECONÓMICO · TRD 120-01 / 130-01', 'gold', esc(ecoManualData.title || 'MANUAL ECONÓMICO DE MISCOLANDIA'),
+        'Manual operativo y contable exclusivo del módulo Económico (separado de Estados y Leyes; articulado con las series archivísticas <strong>TRD 120-01</strong> y <strong>TRD 130-01</strong> de Miscolandia).')}
+      <div class="flex-between" style="margin-bottom:12px;gap:8px;">
+        <div class="flex-row-wrap" style="gap:6px;">
+          <span class="mc-tag tag-gold">${esc(ecoManualData.code || 'MNL-ECO-01')}</span>
+          <span class="mc-tag tag-cyan">${esc(ecoManualData.trd || 'TRD 120-01 · 130-01')}</span>
+          <span class="mc-tag tag-emerald">Economía &amp; Archivística Contable</span>
+        </div>
+        <button class="mc-btn mc-btn-diamond" data-action="eco-manual-copy">📖 Copiar Manual para Libro / Archivo</button>
+      </div>
+      <div class="mc-panel-dark p-md" style="margin-bottom:14px;">
+        ${ecoManualData.epigraph ? `<div class="norm-epigraph">${esc(tx(ecoManualData.epigraph))}</div>` : ''}
+        <div class="norm-dispone" style="color:var(--c-aqua);margin-top:6px;">CONSIDERANDO:</div>
+        ${(ecoManualData.considerando || []).map(c => `<div class="norm-considerando">${esc(tx(c))}</div>`).join('')}
+      </div>
+      <div class="section-stack" style="gap:12px;">
+        ${(ecoManualData.chapters || []).map(ch => `
+          <div class="eco-book-chapter ${esc(ch.tone || '')}">
+            <div class="flex-between" style="margin-bottom:6px;">
+              <div class="flex-row-wrap" style="gap:6px;">
+                <span class="mc-tag tag-${ch.tone === 'archival' ? 'cyan' : ch.tone || 'gold'}">${esc(ch.num)}</span>
+                <strong class="text-white text-sm">${esc(tx(ch.title))}</strong>
+              </div>
+              <span class="mc-tag tag-slate">${esc(ch.trd)}</span>
+            </div>
+            <p class="text-xs text-diamond" style="margin:0 0 8px 0;">${esc(tx(ch.summary))}</p>
+            <div class="norm-body">${(ch.articles || []).map(art => {
+              const m = esc(tx(art)).match(/^(Art[íi]culo\s+\d+\.[^.]+\.)(.*)$/);
+              return `<div class="norm-art">${m ? `<strong class="text-white">${m[1]}</strong>${m[2]}` : esc(tx(art))}</div>`;
+            }).join('')}</div>
+            ${ch.concordancias ? `<div class="norm-concordancias" style="margin-top:8px;"><strong class="text-diamond">🔗 Archivo y Concordancias:</strong> ${esc(tx(ch.concordancias))}</div>` : ''}
+          </div>`).join('')}
+      </div>
+      ${ecoManualData.vigencia ? `<div class="norm-vigencia" style="margin-top:12px;"><strong class="text-emerald">Alcance:</strong> ${esc(tx(ecoManualData.vigencia))}</div>` : ''}
+      <div class="mc-panel-dark p-md" style="margin-top:16px;">
+        <div class="flex-between" style="margin-bottom:10px;gap:8px;">
+          <div>
+            <strong class="font-pixel text-emerald text-sm">GLOSARIO ECONÓMICO EN LENGUAJE CLARO</strong>
+            <div class="text-xs text-dim">Los mismos conceptos de los botones "?" explicados con ejemplos de Miscolandia.</div>
+          </div>
+          <input class="mc-input" style="max-width:240px;" data-bind-live="ui.ecoManualQ" data-rerender="economy" value="${esc(state.ui.ecoManualQ || '')}" placeholder="🔍 Buscar concepto…"/>
+        </div>
+        <div class="grid-2" style="gap:10px;">
+          ${ecoGlossaryItems.length ? ecoGlossaryItems.map(g => `<div class="mc-slot p-sm"><strong class="text-gold text-xs">${esc(tx(g.t))}</strong>
+            <div class="text-xs text-white" style="margin-top:4px;line-height:1.5;">${esc(tx(g.d))}</div>
+            ${g.ex ? `<div class="text-xs text-muted" style="margin-top:4px;"><strong class="text-emerald">Ejemplo:</strong> ${esc(tx(g.ex))}</div>` : ''}</div>`).join('') : empty('Sin términos que coincidan con esa búsqueda.')}
+        </div>
       </div>`);
 
     const ecoTab = state.ui.ecoTab || 'overview';
     const pendingWorks = eco.works.filter(w => w.status === 'pendiente').length;
     const activeLoans = eco.loans.filter(l => l.status !== 'pagado').length;
     const rNow = E.rate(state);
+    const mythCap = E.capitalization(state, 'myth', CATS), mythIss = E.issued(state, 'M'), mythH = E.holdings(state, 'myth');
+    const scadCap = E.capitalization(state, 'scad', CATS), scadIss = E.issued(state, 'S'), scadH = E.holdings(state, 'scad');
     const kpiStrip = `
       <div class="kpi-strip">
         <div class="kpi-box">
-          <div class="kpi-label">Tipo de Cambio</div>
+          <div class="kpi-label">Tipo de Cambio Vivo</div>
           <div class="kpi-val text-emerald">1 ${esc(sym('M'))} = ${rNow.toFixed(3)} ${esc(sym('S'))}</div>
+          <div class="kpi-sub"><span>1 ${esc(sym('U'))} = ${E.uiValue(state, 'M').toFixed(2)} ${esc(sym('M'))}</span><span>${Math.abs(rNow - 1) < 0.02 ? 'Paridad' : rNow > 1 ? sym('M') + ' ↑' : sym('S') + ' ↑'}</span></div>
         </div>
         <div class="kpi-box">
-          <div class="kpi-label">${esc(nat('myth').nation)} (Cap. / Emisión)</div>
-          <div class="kpi-val text-royal">${fmt(E.capitalization(state, 'myth', CATS))} / ${fmt(E.issued(state, 'M'))}</div>
+          <div class="kpi-label">${esc(nat('myth').nation)} (${esc(sym('M'))})</div>
+          <div class="kpi-val text-royal">${fmt(mythH.M)} <span class="text-xs text-dim">tesoro</span></div>
+          <div class="kpi-sub"><span>Techo ${fmt(mythIss)}/${fmt(mythCap)}</span>${mythIss > mythCap + 1e-6 ? '<span class="text-redstone">⚠ Inflación</span>' : '<span class="text-emerald">✔ Sana</span>'}</div>
         </div>
         <div class="kpi-box">
-          <div class="kpi-label">${esc(nat('scad').nation)} (Cap. / Emisión)</div>
-          <div class="kpi-val text-emerald">${fmt(E.capitalization(state, 'scad', CATS))} / ${fmt(E.issued(state, 'S'))}</div>
+          <div class="kpi-label">${esc(nat('scad').nation)} (${esc(sym('S'))})</div>
+          <div class="kpi-val text-emerald">${fmt(scadH.S)} <span class="text-xs text-dim">tesoro</span></div>
+          <div class="kpi-sub"><span>Techo ${fmt(scadIss)}/${fmt(scadCap)}</span>${scadIss > scadCap + 1e-6 ? '<span class="text-redstone">⚠ Inflación</span>' : '<span class="text-emerald">✔ Sana</span>'}</div>
         </div>
         <div class="kpi-box">
-          <div class="kpi-label">${esc(state.settings.bankName)}</div>
+          <div class="kpi-label">${esc(state.settings.bankName)} · TRD</div>
           <div class="kpi-val text-amethyst">${fmt(eco.bank.M)} ${esc(sym('M'))} · ${fmt(eco.bank.S)} ${esc(sym('S'))}</div>
+          <div class="kpi-sub"><span>${eco.ledger.length} asientos (130-01)</span><span>${auditedWorks.length} obras</span></div>
         </div>
       </div>`;
 
@@ -984,28 +1131,20 @@
         <button class="subnav-btn ${ecoTab === 'shops' ? 'active' : ''}" data-action="eco-tab" data-v="shops">🏪 Tiendas &amp; Oferta Sellada</button>
         <button class="subnav-btn ${ecoTab === 'works' ? 'active' : ''}" data-action="eco-tab" data-v="works">🏗️ Obras &amp; Auditoría ${pendingWorks ? `<span class="mc-tag tag-gold">${pendingWorks}</span>` : ''}</button>
         <button class="subnav-btn ${ecoTab === 'finance' ? 'active' : ''}" data-action="eco-tab" data-v="finance">🏦 Crédito, Acciones &amp; Libro Mayor ${activeLoans ? `<span class="mc-tag tag-amethyst">${activeLoans}</span>` : ''}</button>
+        <button class="subnav-btn ${ecoTab === 'manual' ? 'active' : ''}" data-action="eco-tab" data-v="manual">📘 Manual Económico <span class="mc-tag tag-cyan">TRD 130-01</span></button>
       </div>`;
 
     const views = {
-      overview: top + trade,
+      overview: top + trade + overviewFooter,
       shops: prices + sealedPanel + guide,
       works: worksPanel,
-      finance: `<div class="grid-2">${loansPanel}${sharesPanel}</div>` + ledgerPanel
+      finance: `<div class="grid-2">${loansPanel}${sharesPanel}</div>` + ledgerPanel,
+      manual: ecoManualPanel
     };
     $('view-economy').innerHTML = kpiStrip + ecoNav + (views[ecoTab] || views.overview);
     syncBuyForm();
     updateSwapPreview();
     updateLoanLimit();
-  }
-
-  function modeBar() {
-    const adv = Boolean(state.ui.advanced);
-    return `<div class="flex-between mc-panel p-md">
-      <span class="text-xs text-muted">${adv ? 'Modo avanzado: todo el sistema económico (banco, préstamos, acciones, libro mayor).' : 'Modo simple: lo del día a día. El resto está en Modo avanzado.'}</span>
-      <div class="flex-row-wrap" style="gap:4px;">
-        <button class="filter-pill ${adv ? '' : 'active'}" data-action="mode-simple">Simple</button>
-        <button class="filter-pill ${adv ? 'active' : ''}" data-action="mode-advanced">Avanzado</button>
-      </div></div>`;
   }
 
   function syncBuyForm() {
@@ -1835,6 +1974,33 @@
   const ACTIONS = {
     filter: el => { state.ui.filter = el.dataset.v; commit('roadmap'); },
     'eco-tab': el => { state.ui.ecoTab = el.dataset.v || 'overview'; save(true); renderEconomy(); },
+    'mint-fill': el => {
+      const inp = $(`mint-${el.dataset.s}`);
+      if (inp) { inp.value = el.dataset.v; inp.focus(); }
+    },
+    'ledger-filter': el => { state.ui.ledgerType = el.dataset.v || 'all'; save(true); renderEconomy(); },
+    'eco-manual-copy': () => {
+      const m = D.ECONOMY_MANUAL;
+      if (!m) return;
+      const lines = [
+        `[${m.code} · ${m.trd}]`,
+        tx(m.title),
+        '',
+        `EPÍGRAFE: ${tx(m.epigraph)}`,
+        'CONSIDERANDO:',
+        ...(m.considerando || []).map(tx),
+        '',
+        ...(m.chapters || []).flatMap(ch => [
+          `=== ${ch.num}: ${tx(ch.title)} (${ch.trd}) ===`,
+          ...(ch.articles || []).map(tx),
+          ch.concordancias ? `Concordancias: ${tx(ch.concordancias)}` : '',
+          ''
+        ]),
+        `Vigencia: ${tx(m.vigencia || '')}`
+      ].join('\n');
+      copyText(lines);
+      toast('Manual Económico copiado', 'Listo para pegar en Libro Firmado o Archivo (TRD 130-01).', 'book');
+    },
     'state-tab': el => { state.ui.stateTab = el.dataset.v || 'laws'; save(true); renderStatePage(); },
     'jump-era': el => {
       const id = el.dataset.era;
@@ -2791,7 +2957,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
   /* ---------- Deshacer (guarda copias del estado antes de cada acción) ---------- */
   let editingLawId = null;
   const UNDO_KEY = 'forever_world_undo';
-  const NO_UNDO = new Set(['form', 'shop-edit', 'mode-simple', 'mode-advanced', 'eco-tab', 'state-tab', 'jump-era', 'law-template', 'law-edit', 'tip', 'filter', 'works-filter', 'law-doc-filter', 'law-rev-filter', 'law-book', 'vg-filter', 'vg-kind-btn', 'vg-copy-tag', 'vg-card', 'price-buy', 'price-challenge', 'open-reset', 'confirm-reset', 'open-backup',
+  const NO_UNDO = new Set(['form', 'shop-edit', 'mode-simple', 'mode-advanced', 'eco-tab', 'mint-fill', 'ledger-filter', 'eco-manual-copy', 'state-tab', 'jump-era', 'law-template', 'law-edit', 'tip', 'filter', 'works-filter', 'law-doc-filter', 'law-rev-filter', 'law-book', 'vg-filter', 'vg-kind-btn', 'vg-copy-tag', 'vg-card', 'price-buy', 'price-challenge', 'open-reset', 'confirm-reset', 'open-backup',
     'open-report', 'copy-report', 'close-modal', 'undo',
     'cloud-pull', 'cloud-push-force', 'cloud-snapshot', 'cloud-restore-snap', 'cloud-save-cfg', 'cloud-reset-cfg', 'cloud-copy-link', 'cloud-copy-snippet']);
   const UNDO_LABELS = {

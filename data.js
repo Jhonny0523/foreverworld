@@ -768,10 +768,95 @@ window.FW_DATA = (() => {
     { id: 'exotico', name: 'Otra especie (Sniffer / Armadillo / Strider / Zorro)' }
   ];
 
+  /* -------------------- Manual Económico y Contable de Miscolandia (vive en Economía, ligado a TRD 120-01 y 130-01) -------------------- */
+  const ECONOMY_MANUAL = {
+    code: 'MNL-ECO-01',
+    trd: 'TRD 120-01 · TRD 130-01 (Conservación Total · CT)',
+    title: 'Manual Oficial de Economía, Tesoro y Archivística Contable de Miscolandia',
+    epigraph: 'Por el cual se unifican en lenguaje claro las reglas de emisión monetaria, tipo de cambio, precios, crédito, acciones y registro archivístico de los bienes económicos de {NMYTH} y {NSCAD}.',
+    considerando: [
+      '1. Que la confianza económica entre naciones y visitantes exige que toda moneda emitida tenga respaldo real en obras construidas y verificadas.',
+      '2. Que conforme a la archivística de Miscolandia, la contabilidad pública (TRD 130-01) y el catastro de obras (TRD 120-01) son series de Conservación Total (CT): jamás se borran asientos ni se oculta historia fiscal.'
+    ],
+    chapters: [
+      {
+        id: 'cap-1',
+        num: 'Capítulo I',
+        tone: 'emerald',
+        trd: 'TRD 120-01',
+        title: 'Emisión Monetaria, Respaldo Real e Inflación',
+        summary: 'Cuánto dinero puede existir sin perder valor y cómo respaldar cada unidad emitida.',
+        articles: [
+          'Artículo 1. Techo de capitalización. Cada Estado inicia con su emisión fundacional y solo amplía su techo monetario mediante obras públicas, infraestructura, servicios o reliquias verificadas por el otro Estado en "Obras & Auditoría" (TRD 120-01).',
+          'Artículo 2. Regla contra repetición estéril. Guardar cofres con ítems no crea respaldo. Repetir granjas del mismo producto aplica rendimiento decreciente (100%, 50%, 25%...), premiando infraestructura diversa y útil.',
+          'Artículo 3. Emisión sana vs. inflación. Imprimir dentro del techo disponible mantiene moneda sana. Imprimir por encima genera exceso sin respaldo: la moneda cae proporcionalmente en {BANK} y se bloquea el acceso a crédito hasta auditar nuevas obras o quemar billetes sobrantes.'
+        ],
+        concordancias: 'Serie TRD 120-01 (Obras y Contratos) · Código de Convivencia Libro II · Resolución 006.'
+      },
+      {
+        id: 'cap-2',
+        num: 'Capítulo II',
+        tone: 'amethyst',
+        trd: 'TRD 130-01',
+        title: 'La Cámara Neutral y el Tipo de Cambio Flotante',
+        summary: 'Cómo determina el mercado el valor entre {DR} y {CU}, y para qué sirve la unidad neutra {OE}.',
+        articles: [
+          'Artículo 4. Fondo neutral de reservas. {BANK} conserva reservas conjuntas en {DR} y {CU} mediante fórmula de producto constante con inercia configurable. Ningún gobernante fija la tasa a dedo: el comercio real mueve el cambio.',
+          'Artículo 5. Equilibrio comercial automático. Si un territorio importa más de lo que vende, entrega su divisa a la Cámara y su valor baja suavemente, abaratando sus productos para estimular que el socio vuelva a comprarle.',
+          'Artículo 6. Unidad de cuenta {OE}. Un {OE} equivale a media divisa de cada Estado (½ {DR} + ½ {CU}) al tipo de cambio del día. Es ideal para contratos largos, tasas y préstamos bilaterales para repartir riesgos cambiarios.'
+        ],
+        concordancias: 'Serie TRD 130-01 (Contabilidad y Tesoro) · Acuerdo 001 · Acuerdo 003.'
+      },
+      {
+        id: 'cap-3',
+        num: 'Capítulo III',
+        tone: 'gold',
+        trd: 'TRD 110-03',
+        title: 'Tiendas Públicas, Regla del Minuto y Oferta Sellada',
+        summary: 'Precios transparentes para habitantes y visitantes, y solución imparcial cuando no hay acuerdo.',
+        articles: [
+          'Artículo 7. Lista pública única y Regla del Minuto. Todo Estado publica sus precios en su propia moneda, iguales para el socio y para visitantes. Como punto de partida inicial, 1 unidad monetaria equivale aproximadamente a 1 minuto de juego ahorrado.',
+          'Artículo 8. Sesión de Tarifas e impugnación. Los precios solo cambian en Sesión de Tarifas (TRD 110-03). Si una parte considera desproporcionado un valor, puede activar Oferta Sellada directamente desde el botón ⚖ de la tienda.',
+          'Artículo 9. Mecanismo de Oferta Sellada. Vendedor (mínimo aceptable) y comprador (máximo ofrecido) ingresan cifras en secreto hasta por 2 intentos; si hay rango común, o al concluir el segundo intento, rige el punto medio exacto.'
+        ],
+        concordancias: 'Ley 010 (Canasta Básica) · Acuerdo 001 (Sesión de Tarifas) · Circular 001.'
+      },
+      {
+        id: 'cap-4',
+        num: 'Capítulo IV',
+        tone: 'cyan',
+        trd: 'TRD 130-01',
+        title: 'Crédito, Inversión en Acciones y Rol de Visitantes',
+        summary: 'Financiación estatal, límites prudenciales, acciones y dividendos.',
+        articles: [
+          'Artículo 10. Préstamos de {BANK} y entre pares. La Cámara presta solo a Estados sin mora previa ni inflación, respetando topes sobre capitalización y liquidez. Visitantes y socios pueden conceder préstamos directos pactando interés y vencimiento.',
+          'Artículo 11. Acciones estatales. Cada Estado divide su capitalización en acciones cotizadas en su moneda. Quien trabaje o venda botín manual puede comprar acciones y ganar valor cuando el Estado audita obras o reparte dividendos.',
+          'Artículo 12. Independencia económica de visitantes e invitados. Sus contratos, compras, préstamos y dividendos quedan respaldados en el Libro Mayor (TRD 130-01) sin requerir tener Estado propio.'
+        ],
+        concordancias: 'Ley 003 (Hospitalidad y Derechos Económicos) · Ley 008 (Crédito y Cobro).'
+      },
+      {
+        id: 'cap-5',
+        num: 'Capítulo V',
+        tone: 'archival',
+        trd: 'TRD 120-01 · 130-01',
+        title: 'Archivística Contable (CT), No Borrado y Billetes Físicos',
+        summary: 'Cómo se conectan el Libro Mayor, el Archivo Nacional de Miscolandia y los libros firmados.',
+        articles: [
+          'Artículo 13. Conservación Total e inalterabilidad del Libro Mayor. En la serie TRD 130-01 jamás se elimina un asiento para ocultar errores. Toda corrección se realiza mediante contra-asiento de anulación ("ANULADO / void") o asiento de ajuste motivado, conservando fecha, autoría y rastro íntegro.',
+          'Artículo 14. Catálogo catastral y evidencia de obra. Toda obra auditable radicada en TRD 120-01 exige nombre claro en el mundo, categoría, coordenadas exactas y aprobación cruzada del Estado socio; si una reliquia nacional se extravía, se marca como perdida sin suprimir su folio.',
+          'Artículo 15. Conciliación con billetes físicos (Libros Firmados Originales). En el juego, solo constituyen medio de pago válido los libros escritos y firmados marcados como "Original". Imprimir moneda en tesorería obliga a expedir los billetes equivalentes; quemar moneda obliga a destruir físicamente esos billetes para mantener paridad exacta con el Libro Mayor.'
+        ],
+        concordancias: 'Ley 011 (Archivo Nacional) · Resolución 001 (TRD) · Resolución 006 (Cierre Contable) · Manual 002.'
+      }
+    ],
+    vigencia: 'Documento rector del módulo Económico (TRD 120-01 / TRD 130-01). No reemplaza las leyes de Estado; operacionaliza su registro contable y archivístico.'
+  };
+
   return {
     DEFAULT_BANK_NAME, DEFAULT_BASKET, DEFAULT_NATIONS, MONOPOLIES, PACT_RULES, PROFESSIONS, ANIMAL_SPECIES, WORK_CATEGORIES,
     TRACKS, ERAS, SEASON_CHECKLIST, SEASON_POOLS, MEGAPROJECTS,
     WORLD_PROMPTS, NATION_PROMPTS, GUEST_QUESTS, DEFAULT_LAWS, DEFAULT_RP_LAWS,
-    DOC_TYPES, DEFAULT_TRD, DEFAULT_PENAL_PACK, PRICE_GUIDE, RELICS, GLOSSARY
+    DOC_TYPES, DEFAULT_TRD, DEFAULT_PENAL_PACK, PRICE_GUIDE, RELICS, GLOSSARY, ECONOMY_MANUAL
   };
 })();
