@@ -45,6 +45,36 @@ export function stripFormatCodes(input) {
     .replace(/[&§][0-9a-fA-Fk-oK-OrR]/g, '');
 }
 
+export function isMultiAuthor(authorText) {
+  return /,|\s+(?:y|e)\s+|\s*&\s*|\s*\+\s*/i.test(String(authorText || ''));
+}
+
+export function extractAuthorOption(rawArg, defaultAuthor = 'NotOutContext') {
+  const src = String(rawArg || '').trim();
+  const patterns = [
+    /\s*\|{1,2}\s*(?:autores|autor|firmado(?:\s+por)?|por|by)\s*:\s*([^|]+?)\s*$/i,
+    /(?:^|\s+)(?:autores|autor|by)\s*:\s*([^|]+?)\s*$/i
+  ];
+  if (!src.includes('|')) {
+    patterns.push(/(?:^|\s+)(?:firmado(?:\s+por)?|por)\s*:\s*(.+?)\s*$/i);
+  }
+  for (const re of patterns) {
+    const match = src.match(re);
+    if (!match) continue;
+    const cleanArg = src.slice(0, match.index).trim();
+    const rawAuthor = stripFormatCodes(match[1])
+      .replace(/[\r\n]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 80);
+    if (rawAuthor) {
+      return { cleanArg, author: rawAuthor, isCustomAuthor: true };
+    }
+    return { cleanArg, author: defaultAuthor, isCustomAuthor: false };
+  }
+  return { cleanArg: src, author: defaultAuthor, isCustomAuthor: false };
+}
+
 function sameStyle(a, b) {
   return a.color === b.color
     && a.bold === b.bold
@@ -317,14 +347,22 @@ export function extractSelectedWritableBook(rconReply) {
   return { isWritableBook: true, count, pages };
 }
 
-export function buildWrittenBookComponents({ titleRaw, author, pagesRaw, loreLines = [] }) {
+export function buildWrittenBookComponents({ titleRaw, author, signer = '', pagesRaw, loreLines = [] }) {
   const cleanTitle = stripFormatCodes(titleRaw).replace(/[\r\n]+/g, ' ').trim().slice(0, 32) || 'Certificado Oficial';
-  const safeAuthor = String(author || 'NotOutContext').trim().slice(0, 32) || 'NotOutContext';
+  const safeAuthor = stripFormatCodes(author || signer || 'NotOutContext')
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80) || 'NotOutContext';
+  const safeSigner = stripFormatCodes(signer || '').replace(/[\r\n]+/g, ' ').trim().slice(0, 32);
   const customNameSnbt = buildItemNameSnbt(titleRaw || '&6&lCertificado Oficial', 'gold');
 
-  const finalLore = loreLines.length
-    ? loreLines
-    : ['&bArchivo Nacional de Miscolandia', `&7Sellado por ${safeAuthor}`];
+  const defaultLore = isMultiAuthor(safeAuthor)
+    ? ['&bArchivo Nacional de Miscolandia', `&7Autores: ${safeAuthor}`]
+    : (safeSigner && safeAuthor.toLowerCase() !== safeSigner.toLowerCase()
+      ? ['&bArchivo Nacional de Miscolandia', `&7Autor: ${safeAuthor}`, `&8Sellado por ${safeSigner}`]
+      : ['&bArchivo Nacional de Miscolandia', `&7Sellado por ${safeAuthor}`]);
+  const finalLore = loreLines.length ? loreLines : defaultLore;
   const loreSnbt = `[${finalLore.map(line => buildItemNameSnbt(line, 'gray')).join(',')}]`;
 
   const pages = (Array.isArray(pagesRaw) && pagesRaw.length ? pagesRaw : [''])
@@ -337,6 +375,7 @@ export function buildWrittenBookComponents({ titleRaw, author, pagesRaw, loreLin
 
   return {
     plainTitle: cleanTitle,
+    author: safeAuthor,
     giveItemArg,
     headerComponentsSnbt,
     pageSnbtList: pages
@@ -355,7 +394,11 @@ export function buildColoredPaperItemArg({ nameRaw, loreRaw = '' }) {
 export function buildCertificatePreset(presetKey, restText, author) {
   const key = String(presetKey || '').toLowerCase();
   const parts = String(restText || '').split('|').map(s => s.trim());
-  const signer = String(author || 'NotOutContext').trim();
+  const signer = stripFormatCodes(author || 'NotOutContext')
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80) || 'NotOutContext';
 
   if (key === 'aval') {
     const norma = parts[0] || 'Norma de Miscolandia';
@@ -374,7 +417,7 @@ export function buildCertificatePreset(presetKey, restText, author) {
     const estado = parts[2] || 'APROBADA';
     return {
       titleRaw: `&2&lAuditoría · ${stripFormatCodes(obra).slice(0, 17)}`,
-      loreLines: ['&bManual 003 · TRD 120-01', `&7Auditor: ${signer}`],
+      loreLines: ['&bManual 003 · TRD 120-01', isMultiAuthor(signer) ? `&7Auditores: ${signer}` : `&7Auditor: ${signer}`],
       pagesRaw: [
         `&2&l=================\n   &6&lACTA DE AUDITORÍA\n&2&l=================\n\n&0Obra:\n&1&l${obra}\n\n&0Avalúo final: &2&l${pts}\n&0Dictamen: &6&l${estado}\n\n&8Con arreglo al Manual 003\n&8Serie TRD 120-01`
       ]
@@ -396,7 +439,7 @@ export function buildCertificatePreset(presetKey, restText, author) {
     const motivo = parts[1] || 'Obligaciones cumplidas';
     return {
       titleRaw: `&a&lPaz y Salvo · ${stripFormatCodes(target).slice(0, 16)}`,
-      loreLines: ['&bResolución 005 · TRD 100-02', `&7Archivista: ${signer}`],
+      loreLines: ['&bResolución 005 · TRD 100-02', isMultiAuthor(signer) ? `&7Firmado por ${signer}` : `&7Archivista: ${signer}`],
       pagesRaw: [
         `&2&l=================\n    &a&lPAZ Y SALVO\n&2&l=================\n\n&0A favor de:\n&1&l${target}\n\n&0Concepto:\n&8${motivo}\n\n&2&lCUMPLIDO SIN PENDIENTES\n&8Resolución 005 · Archivo`
       ]

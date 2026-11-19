@@ -11,6 +11,7 @@ import { WorldEvents } from './events.mjs';
 import {
   COLOR_PALETTE_LIST,
   parseFormattedText,
+  extractAuthorOption,
   extractSelectedWritableBook,
   buildWrittenBookComponents,
   buildColoredPaperItemArg,
@@ -289,7 +290,7 @@ const COMMAND_DOCS = {
   lore: 'Muestra el lore oficial del mundo y últimas crónicas de la web, o responde una pregunta de historia. Uso: !lore [pregunta].',
   memoria: 'Muestra los recuerdos de sesiones pasadas y notas guardadas. Fundadores: !memoria compactar | !memoria limpiar.',
   recuerda: 'Guarda un dato o acuerdo importante en la memoria permanente del Pregonero. Uso: !recuerda <dato>.',
-  certificado: 'Exclusivo Archivista (NotOutContext): convierte tu Libro y Pluma en libro firmado con colores (&6, &a, &l, &#RRGGBB). Uso: !certificado <Título> (en mano) | !certificado <Título> | <Texto> | !certificado aval/obra/residencia/paz ...',
+  certificado: 'Exclusivo Archivista (NotOutContext): convierte tu Libro y Pluma en libro firmado con colores (&6, &a, &l, &#RRGGBB). Uso: !certificado <Título> (en mano) | !certificado <Título> | <Texto> | !certificado aval/obra/residencia/paz ... Añade autor: <NotOutContext y MythStorm> al final para 2 o más autores.',
   papel: 'Exclusivo Archivista (NotOutContext): sella 1 papel real de tu inventario con nombre/subtítulo en colores (&). Uso: !papel <&6&lNombre> [| &7Subtítulo].',
   colores: 'Muestra la paleta de códigos &0-&f, &l/&o/&n/&m/&r y &#RRGGBB para !certificado y !papel.'
 };
@@ -342,7 +343,7 @@ const BOT_COMMANDS_DOC = [
   '  * Archivista / Auditor / Cronista / Bibliotecario: auditoría oficial de obras (Manual 003, TRD 120-01), lore del mundo, crónicas (TRD 140-01), cédulas (TRD 150-01) y recuerdos pasados.',
   '  * Pregonero: chismes de la plaza, opinión económica y libreta permanente ("pregonero recuerda que...").',
   '- Utilidades operativas que ejecutan permisos/control del servidor: !duelo [min|fin] (PvP consensuado), !trato [min|fin] (intercambio libre), !pase <jug|todos>, !mod [on|off], !chat [on|off], !memoria y !ayuda.',
-  '- Certificados y sellos oficiales (EXCLUSIVO Archivista NotOutContext): !certificado <Título> (sella en colores el Libro y Pluma en mano consumiéndolo, o !certificado <Título> | <Texto> / aval / obra / residencia / paz con 1 writable_book en inventario), !papel <Nombre> [| <Lore>] (consume 1 papel real) y !colores.',
+  '- Certificados y sellos oficiales (EXCLUSIVO Archivista NotOutContext): !certificado <Título> (sella en colores el Libro y Pluma en mano consumiéndolo, o !certificado <Título> | <Texto> / aval / obra / residencia / paz con 1 writable_book en inventario; admite autor: <Autor1 y Autor2> para coautoría), !papel <Nombre> [| <Lore>] (consume 1 papel real) y !colores.',
   '- Acuerdos en chat: "vamos a hacer un trato" o "pvp consensuado / vamos a hacer un duelo" pausan automáticamente al aduanero.',
   '- Permisos expresos que no se borran: !permiso <jugador> [semillas|ganado|aldeanos] [tiempo|permanente] [nota]. Cada Estado solo autoriza su monopolio (MythStorm: agricultura, semillas y abejas; Scadrial0523: ganadería y pesca); aldeanos, cualquiera de los dos; un producto con granja auditada (hierro, oro, blaze, slime, madera…), solo el dueño de esa granja. Se quitan con !permiso quitar <jugador> y se consultan con !permisos. Si alguien tiene un permiso vigente (aparece en la memoria), lo que hace dentro de ese permiso es legal: no lo regañes.'
 ].join('\n');
@@ -668,25 +669,35 @@ async function handleChatCommand(player, message, ctx) {
         { text: '2) Rápido: ', color: 'aqua', bold: true },
         { text: '!certificado <&6Título> | <&2Pág 1\\nLínea> || <&bPág 2>\n', color: 'gold' },
         { text: '3) Plantillas: ', color: 'aqua', bold: true },
-        { text: '!certificado aval|obra|residencia|paz <datos> · Paleta: !colores', color: 'white' }
+        { text: '!certificado aval|obra|residencia|paz <datos>\n', color: 'white' },
+        { text: '4) Coautores: ', color: 'aqua', bold: true },
+        { text: 'añade al final autor: NotOutContext y MythStorm (o | autores: A, B y C) · Paleta: !colores', color: 'gold' }
       ]);
       return;
     }
 
-    const firstToken = (arg.split(/\s+/)[0] || '').toLowerCase();
-    const restAfterToken = arg.slice(firstToken.length).trim();
-    const presetSpec = buildCertificatePreset(firstToken, restAfterToken, player);
+    const { cleanArg, author: bookAuthor } = extractAuthorOption(arg, player);
+    if (!cleanArg) {
+      await sendLine(rcon, player, 'Archivo', 'yellow', [
+        { text: 'Falta el título del certificado. Ej: !certificado <&6Título> autor: NotOutContext y MythStorm', color: 'white' }
+      ]);
+      return;
+    }
+
+    const firstToken = (cleanArg.split(/\s+/)[0] || '').toLowerCase();
+    const restAfterToken = cleanArg.slice(firstToken.length).trim();
+    const presetSpec = buildCertificatePreset(firstToken, restAfterToken, bookAuthor);
 
     let bookSpec = null;
     let modeUsed = '';
 
     if (presetSpec) {
-      bookSpec = buildWrittenBookComponents({ ...presetSpec, author: player });
+      bookSpec = buildWrittenBookComponents({ ...presetSpec, author: bookAuthor, signer: player });
       modeUsed = 'preset';
-    } else if (arg.includes('|')) {
-      const barIdx = arg.indexOf('|');
-      const titleRaw = arg.slice(0, barIdx).trim();
-      const bodyRaw = arg.slice(barIdx + 1).trim();
+    } else if (cleanArg.includes('|')) {
+      const barIdx = cleanArg.indexOf('|');
+      const titleRaw = cleanArg.slice(0, barIdx).trim();
+      const bodyRaw = cleanArg.slice(barIdx + 1).trim();
       if (!titleRaw || !bodyRaw) {
         await sendLine(rcon, player, 'Archivo', 'yellow', [
           { text: 'Formato: !certificado <&6Título> | <&2Texto página 1> (usa || para cambiar de página).', color: 'white' }
@@ -694,7 +705,7 @@ async function handleChatCommand(player, message, ctx) {
         return;
       }
       const pagesRaw = bodyRaw.split('||').map(s => s.trim()).filter(Boolean);
-      bookSpec = buildWrittenBookComponents({ titleRaw, author: player, pagesRaw });
+      bookSpec = buildWrittenBookComponents({ titleRaw, author: bookAuthor, signer: player, pagesRaw });
       modeUsed = 'inline';
     } else {
       const selRaw = await rcon.send(`data get entity ${player} SelectedItem`);
@@ -706,12 +717,12 @@ async function handleChatCommand(player, message, ctx) {
         ]);
         return;
       }
-      bookSpec = buildWrittenBookComponents({ titleRaw: arg, author: player, pagesRaw: held.pages });
+      bookSpec = buildWrittenBookComponents({ titleRaw: cleanArg, author: bookAuthor, signer: player, pagesRaw: held.pages });
       const canReplaceHand = held.count === 1 && Buffer.byteLength(`item replace entity ${player} weapon.mainhand with ${bookSpec.giveItemArg} 1`, 'utf8') <= 1380;
       if (canReplaceHand) {
         await deliverWrittenBook(rcon, player, bookSpec, { replaceMainHand: true });
         await sendLine(rcon, player, 'Archivo', 'aqua', [
-          { text: `Certificado "${bookSpec.plainTitle}" sellado y firmado por ${player} (Libro y Pluma convertido).`, color: 'white' }
+          { text: `Certificado "${bookSpec.plainTitle}" sellado (autor: ${bookSpec.author}; Libro y Pluma convertido).`, color: 'white' }
         ]);
         return;
       }
@@ -735,7 +746,7 @@ async function handleChatCommand(player, message, ctx) {
       return;
     }
     await sendLine(rcon, player, 'Archivo', 'aqua', [
-      { text: `Certificado "${bookSpec.plainTitle}" expedido en colores (${modeUsed}, firmado por ${player}; 1 Libro y Pluma consumido).`, color: 'white' }
+      { text: `Certificado "${bookSpec.plainTitle}" expedido en colores (${modeUsed}, autor: ${bookSpec.author}; 1 Libro y Pluma consumido).`, color: 'white' }
     ]);
     return;
   }
@@ -2144,7 +2155,7 @@ async function runSmokeTest(cfg) {
   }
   console.log(`9) Multi-NPC Cast & Judge Etiquette test: PASS`);
 
-  // 10. Scribe: Colored Certificates & Paper unit check
+  // 10. Scribe: Colored Certificates, Multi-Author & Paper unit check
   const colorCheck = parseFormattedText('&6&lCERTIFICADO &rde &aObra &#ff8800TRD §bOK');
   if (!colorCheck.some(c => c.color === 'gold' && c.bold) || !colorCheck.some(c => c.color === 'green') || !colorCheck.some(c => c.color === '#ff8800') || !colorCheck.some(c => c.color === 'aqua')) {
     throw new Error(`parseFormattedText colores inválidos: ${JSON.stringify(colorCheck)}`);
@@ -2158,15 +2169,42 @@ async function runSmokeTest(cfg) {
   if (certSpec.plainTitle.length > 32 || !certSpec.giveItemArg.includes('generation:0') || !certSpec.giveItemArg.includes('minecraft:custom_name=') || certSpec.pageSnbtList.length !== 2) {
     throw new Error(`buildWrittenBookComponents falló: ${JSON.stringify(certSpec)}`);
   }
-  const presetSpec = buildCertificatePreset('aval', 'Ley 011 | Sin observaciones', 'NotOutContext');
+  const authHand1 = extractAuthorOption('&6Tratado autor: NotOutContext y MythStorm', 'NotOutContext');
+  const authHand2 = extractAuthorOption('&6Tratado | autores: NotOutContext, MythStorm y Scadrial0523', 'NotOutContext');
+  const authInline = extractAuthorOption('&6Acta | &2P1 || &bP2 | autor: NotOutContext y MythStorm', 'NotOutContext');
+  const authPreset = extractAuthorOption('aval Ley 011 | Sin notas | autores: NotOutContext y MythStorm', 'NotOutContext');
+  const authNoFalsePositive = extractAuthorOption('&6Acta | &0Aprobado por: el Concejo', 'NotOutContext');
+  if (
+    authHand1.cleanArg !== '&6Tratado' || authHand1.author !== 'NotOutContext y MythStorm' ||
+    authHand2.cleanArg !== '&6Tratado' || authHand2.cleanArg.includes('|') || authHand2.author !== 'NotOutContext, MythStorm y Scadrial0523' ||
+    authInline.cleanArg !== '&6Acta | &2P1 || &bP2' || authInline.author !== 'NotOutContext y MythStorm' ||
+    authPreset.cleanArg !== 'aval Ley 011 | Sin notas' || authPreset.author !== 'NotOutContext y MythStorm' ||
+    authNoFalsePositive.cleanArg !== '&6Acta | &0Aprobado por: el Concejo' || authNoFalsePositive.author !== 'NotOutContext'
+  ) {
+    throw new Error(`extractAuthorOption falló: ${JSON.stringify({ authHand1, authHand2, authInline, authPreset, authNoFalsePositive })}`);
+  }
+  const multiSpec = buildWrittenBookComponents({
+    titleRaw: '&6Tratado',
+    author: 'NotOutContext, MythStorm y Scadrial0523',
+    signer: 'NotOutContext',
+    pagesRaw: ['&2Hola']
+  });
+  if (
+    multiSpec.author !== 'NotOutContext, MythStorm y Scadrial0523' ||
+    !multiSpec.giveItemArg.includes('author:"NotOutContext, MythStorm y Scadrial0523"') ||
+    !multiSpec.giveItemArg.includes('Autores: NotOutContext, MythStorm y Scadrial0523')
+  ) {
+    throw new Error(`buildWrittenBookComponents multi-autor falló: ${JSON.stringify(multiSpec)}`);
+  }
+  const presetSpec = buildCertificatePreset('aval', 'Ley 011 | Sin observaciones', 'NotOutContext y MythStorm');
   const paperSpec = buildColoredPaperItemArg({ nameRaw: '&6&lSello &bJuan', loreRaw: '&7Archivo Nacional' });
-  if (!presetSpec || !paperSpec.startsWith('minecraft:paper[minecraft:custom_name=')) {
+  if (!presetSpec || !presetSpec.loreLines.some(l => l.includes('NotOutContext y MythStorm')) || !paperSpec.startsWith('minecraft:paper[minecraft:custom_name=')) {
     throw new Error('Preset o Paper builder falló');
   }
   if (!isArchivistaPlayer('NotOutContext', state) || isArchivistaPlayer('MythStorm', state)) {
     throw new Error('isArchivistaPlayer debe permitir solo a NotOutContext');
   }
-  console.log(`10) Scribe Certificates & Colored Paper test: PASS`);
+  console.log(`10) Scribe Certificates, Multi-Author & Colored Paper test: PASS`);
   console.log('=== TODOS LOS TESTS PASARON ===');
 }
 
