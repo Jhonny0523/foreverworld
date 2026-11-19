@@ -8,6 +8,15 @@ import { askModerator, askNpc, generateRoast, generateSocialMessage, compactSess
 import { RuleEnforcer } from './enforcer.mjs';
 import { SessionMemory, PERMIT_SCOPES } from './memory.mjs';
 import { WorldEvents } from './events.mjs';
+import {
+  COLOR_PALETTE_LIST,
+  parseFormattedText,
+  extractSelectedWritableBook,
+  buildWrittenBookComponents,
+  buildColoredPaperItemArg,
+  buildCertificatePreset,
+  deliverWrittenBook
+} from './scribe.mjs';
 
 // Palabras que entienden !permiso para cada alcance
 const PERMIT_SCOPE_ALIASES = {
@@ -279,7 +288,10 @@ const COMMAND_DOCS = {
   ooc: 'Responde dudas técnicas OOC, reglas de Eras o uso del bot. Uso: !ooc <tu pregunta>.',
   lore: 'Muestra el lore oficial del mundo y últimas crónicas de la web, o responde una pregunta de historia. Uso: !lore [pregunta].',
   memoria: 'Muestra los recuerdos de sesiones pasadas y notas guardadas. Fundadores: !memoria compactar | !memoria limpiar.',
-  recuerda: 'Guarda un dato o acuerdo importante en la memoria permanente del Pregonero. Uso: !recuerda <dato>.'
+  recuerda: 'Guarda un dato o acuerdo importante en la memoria permanente del Pregonero. Uso: !recuerda <dato>.',
+  certificado: 'Exclusivo Archivista (NotOutContext): convierte tu Libro y Pluma en libro firmado con colores (&6, &a, &l, &#RRGGBB). Uso: !certificado <Título> (en mano) | !certificado <Título> | <Texto> | !certificado aval/obra/residencia/paz ...',
+  papel: 'Exclusivo Archivista (NotOutContext): sella 1 papel real de tu inventario con nombre/subtítulo en colores (&). Uso: !papel <&6&lNombre> [| &7Subtítulo].',
+  colores: 'Muestra la paleta de códigos &0-&f, &l/&o/&n/&m/&r y &#RRGGBB para !certificado y !papel.'
 };
 
 const COMMAND_ALIASES = {
@@ -312,7 +324,12 @@ const COMMAND_ALIASES = {
   apunta: 'recuerda',
   permisos: 'permiso',
   autorizo: 'permiso',
-  autorizar: 'permiso'
+  autorizar: 'permiso',
+  sellar: 'certificado',
+  cert: 'certificado',
+  libro: 'certificado',
+  color: 'colores',
+  formato: 'colores'
 };
 
 const BOT_COMMANDS_DOC = [
@@ -325,6 +342,7 @@ const BOT_COMMANDS_DOC = [
   '  * Archivista / Auditor / Cronista / Bibliotecario: auditoría oficial de obras (Manual 003, TRD 120-01), lore del mundo, crónicas (TRD 140-01), cédulas (TRD 150-01) y recuerdos pasados.',
   '  * Pregonero: chismes de la plaza, opinión económica y libreta permanente ("pregonero recuerda que...").',
   '- Utilidades operativas que ejecutan permisos/control del servidor: !duelo [min|fin] (PvP consensuado), !trato [min|fin] (intercambio libre), !pase <jug|todos>, !mod [on|off], !chat [on|off], !memoria y !ayuda.',
+  '- Certificados y sellos oficiales (EXCLUSIVO Archivista NotOutContext): !certificado <Título> (sella en colores el Libro y Pluma en mano consumiéndolo, o !certificado <Título> | <Texto> / aval / obra / residencia / paz con 1 writable_book en inventario), !papel <Nombre> [| <Lore>] (consume 1 papel real) y !colores.',
   '- Acuerdos en chat: "vamos a hacer un trato" o "pvp consensuado / vamos a hacer un duelo" pausan automáticamente al aduanero.',
   '- Permisos expresos que no se borran: !permiso <jugador> [semillas|ganado|aldeanos] [tiempo|permanente] [nota]. Cada Estado solo autoriza su monopolio (MythStorm: agricultura, semillas y abejas; Scadrial0523: ganadería y pesca); aldeanos, cualquiera de los dos; un producto con granja auditada (hierro, oro, blaze, slime, madera…), solo el dueño de esa granja. Se quitan con !permiso quitar <jugador> y se consultan con !permisos. Si alguien tiene un permiso vigente (aparece en la memoria), lo que hace dentro de ese permiso es legal: no lo regañes.'
 ].join('\n');
@@ -420,6 +438,18 @@ function buildPlayerIdentity(player, role, state, bridge) {
     return `${player} — Archivista Nacional, Revisor de normas y Auditor Oficial de Obras (sin Estado propio, no pertenece a ${mythNat} ni a ${scadNat})`;
   }
   return `${player} — Visitante sin Estado (no pertenece a ${mythNat} ni a ${scadNat})`;
+}
+
+function isArchivistaPlayer(player, state) {
+  const clean = String(player || '').trim();
+  if (!clean) return false;
+  if (/^notout(?:of)?context$/i.test(clean)) return true;
+  const revId = state?.settings?.reviewerId;
+  if (revId) {
+    const guest = (state?.guests || []).find(g => g.id === revId);
+    if (guest && String(guest.nick || '').trim().toLowerCase() === clean.toLowerCase()) return true;
+  }
+  return false;
 }
 
 const aiCooldown = new Map();
@@ -580,7 +610,180 @@ async function handleChatCommand(player, message, ctx) {
       { text: ' · ', color: 'gray' },
       { text: '!chat', color: 'aqua', bold: true },
       { text: ' · ', color: 'gray' },
-      { text: '!memoria', color: 'aqua', bold: true }
+      { text: '!memoria', color: 'aqua', bold: true },
+      { text: '\nArchivo: ', color: 'gray' },
+      { text: '!certificado', color: 'gold', bold: true },
+      { text: ' · ', color: 'gray' },
+      { text: '!papel', color: 'gold', bold: true },
+      { text: ' · ', color: 'gray' },
+      { text: '!colores', color: 'aqua', bold: true }
+    ]);
+    return;
+  }
+
+  if (cmd === 'colores' || cmd === 'color' || cmd === 'formato') {
+    const paletteParts = COLOR_PALETTE_LIST.flatMap((c, i) => [
+      { text: i > 0 ? ' ' : '', color: 'gray' },
+      { text: `${c.code} ${c.name}`, color: c.color }
+    ]);
+    await rcon.tellraw(player, [
+      '',
+      buildBadge('Archivo', 'aqua'),
+      { text: 'Colores para !certificado y !papel:\n', color: 'white' },
+      ...paletteParts,
+      { text: '\nEstilos: ', color: 'gray' },
+      { text: '&l Negrita', color: 'white', bold: true },
+      { text: ' · ', color: 'gray' },
+      { text: '&o Cursiva', color: 'white', italic: true },
+      { text: ' · ', color: 'gray' },
+      { text: '&n Subrayado', color: 'white', underlined: true },
+      { text: ' · ', color: 'gray' },
+      { text: '&m Tachado', color: 'white', strikethrough: true },
+      { text: ' · ', color: 'gray' },
+      { text: '&r Reset · &#RRGGBB Hex\n', color: 'aqua' },
+      { text: 'Tip: escribe en tu Libro y Pluma con &6, &a, &l... y usa ', color: 'gray' },
+      { text: '!certificado <Titulo>', color: 'gold', bold: true }
+    ]);
+    return;
+  }
+
+  if (cmd === 'certificado' || cmd === 'sellar' || cmd === 'cert' || cmd === 'libro') {
+    const { state } = await bridge.fetchWorld(false);
+    if (!isArchivistaPlayer(player, state)) {
+      await sendLine(rcon, player, 'Archivo', 'red', [
+        { text: 'Solo el Archivista Nacional (NotOutContext) puede expedir certificados y libros sellados.', color: 'yellow' }
+      ]);
+      return;
+    }
+    if (!arg || isHelpQuestion(arg)) {
+      await rcon.tellraw(player, [
+        '',
+        buildBadge('Archivo', 'aqua'),
+        { text: 'Uso de ', color: 'white' },
+        { text: '!certificado', color: 'gold', bold: true },
+        { text: ' (consume 1 Libro y Pluma real):\n', color: 'gray' },
+        { text: '1) En mano: ', color: 'aqua', bold: true },
+        { text: 'escribe un Libro y Pluma con &6, &a, &l... y pon ', color: 'white' },
+        { text: '!certificado <&6Título>\n', color: 'gold' },
+        { text: '2) Rápido: ', color: 'aqua', bold: true },
+        { text: '!certificado <&6Título> | <&2Pág 1\\nLínea> || <&bPág 2>\n', color: 'gold' },
+        { text: '3) Plantillas: ', color: 'aqua', bold: true },
+        { text: '!certificado aval|obra|residencia|paz <datos> · Paleta: !colores', color: 'white' }
+      ]);
+      return;
+    }
+
+    const firstToken = (arg.split(/\s+/)[0] || '').toLowerCase();
+    const restAfterToken = arg.slice(firstToken.length).trim();
+    const presetSpec = buildCertificatePreset(firstToken, restAfterToken, player);
+
+    let bookSpec = null;
+    let modeUsed = '';
+
+    if (presetSpec) {
+      bookSpec = buildWrittenBookComponents({ ...presetSpec, author: player });
+      modeUsed = 'preset';
+    } else if (arg.includes('|')) {
+      const barIdx = arg.indexOf('|');
+      const titleRaw = arg.slice(0, barIdx).trim();
+      const bodyRaw = arg.slice(barIdx + 1).trim();
+      if (!titleRaw || !bodyRaw) {
+        await sendLine(rcon, player, 'Archivo', 'yellow', [
+          { text: 'Formato: !certificado <&6Título> | <&2Texto página 1> (usa || para cambiar de página).', color: 'white' }
+        ]);
+        return;
+      }
+      const pagesRaw = bodyRaw.split('||').map(s => s.trim()).filter(Boolean);
+      bookSpec = buildWrittenBookComponents({ titleRaw, author: player, pagesRaw });
+      modeUsed = 'inline';
+    } else {
+      const selRaw = await rcon.send(`data get entity ${player} SelectedItem`);
+      const held = extractSelectedWritableBook(selRaw);
+      const nonEmptyPages = (held.pages || []).filter(p => String(p || '').trim().length > 0);
+      if (!held.isWritableBook || !nonEmptyPages.length) {
+        await sendLine(rcon, player, 'Archivo', 'yellow', [
+          { text: 'Sostén en tu mano principal un Libro y Pluma ya escrito (con códigos &6, &a, &l...) y repite !certificado <Título>, o usa !certificado <Título> | <Texto> con 1 Libro y Pluma en tu inventario.', color: 'white' }
+        ]);
+        return;
+      }
+      bookSpec = buildWrittenBookComponents({ titleRaw: arg, author: player, pagesRaw: held.pages });
+      const canReplaceHand = held.count === 1 && Buffer.byteLength(`item replace entity ${player} weapon.mainhand with ${bookSpec.giveItemArg} 1`, 'utf8') <= 1380;
+      if (canReplaceHand) {
+        await deliverWrittenBook(rcon, player, bookSpec, { replaceMainHand: true });
+        await sendLine(rcon, player, 'Archivo', 'aqua', [
+          { text: `Certificado "${bookSpec.plainTitle}" sellado y firmado por ${player} (Libro y Pluma convertido).`, color: 'white' }
+        ]);
+        return;
+      }
+      modeUsed = 'hand';
+    }
+
+    const clr = await rcon.send(`clear ${player} minecraft:writable_book 1`);
+    if (!/Removed\s+1\s+item/i.test(String(clr || ''))) {
+      await sendLine(rcon, player, 'Archivo', 'red', [
+        { text: 'Necesitas tener al menos 1 Libro y Pluma (minecraft:writable_book) en tu inventario para expedir el certificado.', color: 'yellow' }
+      ]);
+      return;
+    }
+    try {
+      await deliverWrittenBook(rcon, player, bookSpec, { replaceMainHand: false });
+    } catch (err) {
+      await rcon.send(`give ${player} minecraft:writable_book 1`).catch(() => {});
+      await sendLine(rcon, player, 'Archivo', 'red', [
+        { text: `No se pudo sellar el libro (${err.message}); te devolví tu Libro y Pluma.`, color: 'yellow' }
+      ]);
+      return;
+    }
+    await sendLine(rcon, player, 'Archivo', 'aqua', [
+      { text: `Certificado "${bookSpec.plainTitle}" expedido en colores (${modeUsed}, firmado por ${player}; 1 Libro y Pluma consumido).`, color: 'white' }
+    ]);
+    return;
+  }
+
+  if (cmd === 'papel') {
+    const { state } = await bridge.fetchWorld(false);
+    if (!isArchivistaPlayer(player, state)) {
+      await sendLine(rcon, player, 'Archivo', 'red', [
+        { text: 'Solo el Archivista Nacional (NotOutContext) puede sellar papeles oficiales de colores.', color: 'yellow' }
+      ]);
+      return;
+    }
+    if (!arg || isHelpQuestion(arg)) {
+      await sendLine(rcon, player, 'Archivo', 'aqua', [
+        { text: 'Uso: !papel <&6&lNombre del documento> [| &7Subtítulo]. Consume 1 Papel real de tu inventario. Paleta: !colores', color: 'white' }
+      ]);
+      return;
+    }
+    const barIdx = arg.indexOf('|');
+    const nameRaw = (barIdx >= 0 ? arg.slice(0, barIdx) : arg).trim();
+    const loreRaw = barIdx >= 0 ? arg.slice(barIdx + 1).trim() : '';
+    if (!nameRaw) {
+      await sendLine(rcon, player, 'Archivo', 'yellow', [{ text: 'Escribe un nombre después de !papel.', color: 'white' }]);
+      return;
+    }
+    const clr = await rcon.send(`clear ${player} minecraft:paper 1`);
+    if (!/Removed\s+1\s+item/i.test(String(clr || ''))) {
+      await sendLine(rcon, player, 'Archivo', 'red', [
+        { text: 'Necesitas tener al menos 1 Papel (minecraft:paper) en tu inventario.', color: 'yellow' }
+      ]);
+      return;
+    }
+    const paperArg = buildColoredPaperItemArg({ nameRaw, loreRaw });
+    try {
+      const giveRes = await rcon.send(`give ${player} ${paperArg} 1`);
+      if (/^(?:Unknown|Malformed|Expected|Incorrect|Invalid|No player)/i.test(String(giveRes || '').trim())) {
+        throw new Error(giveRes);
+      }
+      await rcon.send(`execute at ${player} run playsound minecraft:block.enchantment_table.use master ${player} ~ ~ ~ 0.8 1.2`).catch(() => {});
+    } catch (err) {
+      await rcon.send(`give ${player} minecraft:paper 1`).catch(() => {});
+      await sendLine(rcon, player, 'Archivo', 'red', [
+        { text: `No se pudo sellar el papel (${err.message}); te devolví tu papel.`, color: 'yellow' }
+      ]);
+      return;
+    }
+    await sendLine(rcon, player, 'Archivo', 'aqua', [
+      { text: `Papel oficial sellado y entregado (1 papel consumido).`, color: 'white' }
     ]);
     return;
   }
@@ -1940,6 +2143,30 @@ async function runSmokeTest(cfg) {
     throw new Error(`Respuesta de auditoría del Archivista incompleta: ${JSON.stringify(auditRes)}`);
   }
   console.log(`9) Multi-NPC Cast & Judge Etiquette test: PASS`);
+
+  // 10. Scribe: Colored Certificates & Paper unit check
+  const colorCheck = parseFormattedText('&6&lCERTIFICADO &rde &aObra &#ff8800TRD §bOK');
+  if (!colorCheck.some(c => c.color === 'gold' && c.bold) || !colorCheck.some(c => c.color === 'green') || !colorCheck.some(c => c.color === '#ff8800') || !colorCheck.some(c => c.color === 'aqua')) {
+    throw new Error(`parseFormattedText colores inválidos: ${JSON.stringify(colorCheck)}`);
+  }
+  const mockSnbt = 'NotOutContext has the following entity data: {id: "minecraft:writable_book", count: 1, components: {"minecraft:writable_book_content": {pages: [{raw: "&6&lPrimera \\"pagina\\"\\nLinea 2"}, "&aSegunda pagina"]}}}';
+  const extractedBook = extractSelectedWritableBook(mockSnbt);
+  if (!extractedBook.isWritableBook || extractedBook.count !== 1 || extractedBook.pages.length !== 2 || !extractedBook.pages[0].includes('"pagina"') || !extractedBook.pages[0].includes('\nLinea 2') || extractedBook.pages[1] !== '&aSegunda pagina') {
+    throw new Error(`extractSelectedWritableBook falló: ${JSON.stringify(extractedBook)}`);
+  }
+  const certSpec = buildWrittenBookComponents({ titleRaw: '&6&lTitulo Muy Largo Que Supera Los Treinta Y Dos Caracteres', author: 'NotOutContext', pagesRaw: extractedBook.pages });
+  if (certSpec.plainTitle.length > 32 || !certSpec.giveItemArg.includes('generation:0') || !certSpec.giveItemArg.includes('minecraft:custom_name=') || certSpec.pageSnbtList.length !== 2) {
+    throw new Error(`buildWrittenBookComponents falló: ${JSON.stringify(certSpec)}`);
+  }
+  const presetSpec = buildCertificatePreset('aval', 'Ley 011 | Sin observaciones', 'NotOutContext');
+  const paperSpec = buildColoredPaperItemArg({ nameRaw: '&6&lSello &bJuan', loreRaw: '&7Archivo Nacional' });
+  if (!presetSpec || !paperSpec.startsWith('minecraft:paper[minecraft:custom_name=')) {
+    throw new Error('Preset o Paper builder falló');
+  }
+  if (!isArchivistaPlayer('NotOutContext', state) || isArchivistaPlayer('MythStorm', state)) {
+    throw new Error('isArchivistaPlayer debe permitir solo a NotOutContext');
+  }
+  console.log(`10) Scribe Certificates & Colored Paper test: PASS`);
   console.log('=== TODOS LOS TESTS PASARON ===');
 }
 
