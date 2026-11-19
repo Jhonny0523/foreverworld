@@ -67,7 +67,8 @@ window.FW_DATA = (() => {
   const PACT_RULES = [
     { t: 'Qué es un monopolio', d: 'Derecho exclusivo a PRODUCIR A ESCALA (granjas, aldeanos, fábricas) un bien y a VENDÉRSELO al otro. No prohíbe tener el objeto.' },
     { t: 'La comida no tiene autoconsumo', d: 'Desde el día 0, solo {MYTH} toca la agricultura y solo {SCAD} la ganadería y la pesca, aunque sea una huerta o un corral manual. La comida del otro se compra.' },
-    { t: 'Autoconsumo de lo demás', d: 'Fuera de la comida, cualquiera puede minar o conseguir A MANO lo que necesite para su propio uso. Lo prohibido es automatizarlo o venderlo.' },
+    { t: 'Autoconsumo de lo demás', d: 'Fuera de la comida, cualquiera puede minar o conseguir A MANO lo que necesite para su propio uso mientras no exista la granja de ese producto. Lo prohibido es automatizarlo o venderlo.' },
+    { t: 'Cuando hay granja, se compra', d: 'Desde que el otro Estado audita una granja automática de un producto (hierro, oro, slime, madera…), conseguirlo a mano queda bloqueado para todos menos su dueño: se compra en su tienda. El moderador lo vigila solo; el dueño puede dar !permiso. Si la granja se pierde, el bloqueo se levanta.' },
     { t: 'Aldeanos por gremio', d: 'Cada Estado comercia solo con aldeanos de sus profesiones (ver tabla de reparto). Las esmeraldas son economía interna con NPCs, no moneda entre ustedes.' },
     { t: 'Obligación de abastecimiento', d: 'Si alguien te paga el precio de tu lista vigente, debes entregar en un plazo razonable (sugerido: 2 sesiones). Sin precios secretos ni precios distintos por persona.' },
     { t: 'Licencia forzosa', d: 'Si el monopolista no entrega a tiempo, el comprador puede producir ese lote él mismo pagando el 50% del precio de lista como regalía.' },
@@ -309,6 +310,7 @@ window.FW_DATA = (() => {
     { title: '[OOC] Reglas de juego y versión', text: 'Ámbito: Fuera de rol (OOC). Dificultad: Difícil. keepInventory desactivado. Para pasar la noche basta con que duerma una persona.\nEl mundo solo se actualiza de versión de Minecraft si ambos fundadores están de acuerdo y tras verificar un backup.\nProhibido usar comandos, mods de ventaja (X-Ray, freecam abusiva) o editores de mundo, salvo acuerdo previo para reparar un bug.', sanction: 'Uso no autorizado de comandos: reversión de lo hecho + multa IC equivalente a 20 {OE}.' },
     { title: '[OOC] Copias de seguridad y caídas del servidor', text: 'Ámbito: Fuera de rol (OOC). El servidor mantiene como mínimo un backup automático diario y una prueba de restauración por temporada.\nSi ocurre una caída del servidor, lag grave, desconexión involuntaria o bug de chunks durante una sanción IC (celda, obra o duelo), todo reloj o plazo IC se pausa de inmediato sin perjuicio para la persona afectada.\nSolo se restaura un backup completo por fallo técnico grave si ambos fundadores lo aprueban.', sanction: '' },
     { title: '[OOC] Uso de la app, identidad ("Soy:") y registro', text: 'Ámbito: Fuera de rol (OOC). Cada persona elige su nombre real en el selector "Soy:" al abrir la app para firmar normas, auditar obras o revisar trámites.\nLos saldos de la app y Supabase son la fuente de verdad técnica frente a errores de cálculo físico; todo movimiento de dinero o censo debe registrarse en la app en la misma sesión.\nLas cédulas nominales IC (CC para aldeanos y CA para animales/mascotas) se implementan técnicamente en Minecraft mediante Etiquetas de Nombre (Name Tags) crafteables (papel + pepita), copiando el rótulo oficial desde la pestaña Territorio al yunque.', sanction: 'Descuadre contable menor a 15 {OE} sin dolo: ajuste manual transparente en Libro Mayor.' },
+    { title: '[OOC] Bloqueo automático por granjas', text: 'Ámbito: Fuera de rol (OOC). Mientras no exista la granja automática de un producto, cualquiera puede conseguirlo a mano para su propio uso (salvo la comida, que es monopolio desde el día 0).\nCuando el otro Estado audita en la app una obra de categoría "Granja automática" de un producto del catálogo, conseguir ese producto a mano queda bloqueado para todos menos el dueño de la granja: se compra en su tienda.\nEl moderador del servidor vigila el bloqueo y entrega al dueño lo que se consiga a mano. El dueño puede autorizar excepciones con !permiso <jugador> <producto> [tiempo].\nSi la granja se marca como perdida, el bloqueo se levanta solo. Los bloqueos vigentes se ven en Economía → Obras & Auditoría.', sanction: 'Lo obtenido a mano se entrega al dueño de la granja. Reincidencia en la misma sesión: multa IC de 10 {OE}.' },
     { title: '[OOC] Pacto técnico de monopolios y granjas', text: 'Ámbito: Fuera de rol (OOC). Rige el reparto técnico de granjas automáticas y profesiones de aldeanos configurado en la app.\nComida desde el día 0: agricultura solo {MYTH}; ganadería y pesca solo {SCAD} (incluidas granjas manuales).\nProhibido construir granjas que causen lag severo cerca de las capitales; las granjas extremas (oro, raids, wither skeletons) van al Distrito Industrial Remoto en la Era XII.', sanction: 'Primera vez: desmonte de la granja. Reincidencia: multa IC de 30 {OE}.' },
     { title: '[OOC] Moneda física (Libros Firmados Originales)', text: 'Ámbito: Fuera de rol (OOC). En el juego, solo tienen validez técnica como billete los Libros Escritos Firmados con sello "Original" (no "Copia de original").\nImprimir o quemar billetes en la app debe ir acompañado de la emisión o destrucción física en lava dentro del juego.', sanction: 'Circulación de copias no originales o sin registro en la app: destrucción de ítems + sanción según CCJ Libro II.' },
     { title: '[OOC] Entregas, plazos por sesiones e invitados', text: 'Ámbito: Fuera de rol (OOC). Todo pedido pagado al precio oficial de lista se entrega en un máximo de 2 sesiones reales de juego.\nLos hitos opcionales de invitados en la app nunca bloquean ni suman para desbloquear Eras de los Estados.\nSi una persona muere, nadie toma sus objetos (salvo para guardarlos y devolverlos); si la muerte fue por trampa sin señalizar de otro jugador, ese jugador ayuda a recuperar o reponer.', sanction: 'Incumplimiento de entrega en 2 sesiones: licencia temporal para autoproducir ese lote pagando 50% de regalía.' },
@@ -397,6 +399,20 @@ window.FW_DATA = (() => {
       title: 'Ley 011 · Ley Orgánica del Archivo Nacional, TRD y Memoria Plural',
       text: 'EPÍGRAFE: Por la cual se organiza el Archivo Nacional, se adopta la Tabla de Retención Documental (TRD), se impone el lenguaje claro en toda norma y se garantiza la pluralidad de la memoria histórica.\nCONSIDERANDO:\n1. Que inspirados en la tradición archivística de Miscolandia (Ley Orgánica 594 del Archivo), todo documento público debe clasificarse por series, redactarse en lenguaje comprensible para toda persona y conservarse conforme a su disposición final.\n2. Que la historia de Nueva Alejandría y Luthadel puede ofrecer miradas distintas sobre un mismo acontecimiento y ambas merecen preservación íntegra.\nDISPONE:\nArtículo 1. Objeto, lenguaje claro y custodia.\nEl Archivo Nacional resguarda las leyes, códigos, decretos, resoluciones, acuerdos, circulares, manuales, guías, sentencias, censos y crónicas de ambas naciones, procurando siempre claridad, trato incluyente y acceso público.\nArtículo 2. Actos de registro obligatorio.\nSe radicarán obligatoriamente: fundaciones urbanas, obras públicas, hallazgos o pérdidas de reliquias, tratados bilaterales, decisiones sancionatorias (TRD 100-02) y actas de cierre de temporada.\nArtículo 3. Principio de memoria histórica plural.\nCada nación conserva el derecho inviolable de redactar y conservar su propia crónica sobre cualquier acontecimiento; ningún relato suprime ni reemplaza al del territorio hermano.\nArtículo 4. Funciones del Archivista Nacional y Revisor.\nEl Archivista designado (o Revisor invitado) garantiza el consecutivo único, la serie TRD adecuada, el respaldo de las series de Conservación Total (CT) y la revisión previa de proyectos en el Buzón de Trámite.\nConcordancias: Resolución 001 de Foliado y TRD (TRD 110-02); Circular 001 de Revisión Jurídica (TRD 110-04); Manual 002 de Gestión Documental (TRD 110-05).\nVigencia: Rige desde su firma bilateral y deroga toda disposición contraria.',
       sanction: 'Alteración, ocultamiento o borrado deliberado de folios CT: reposición manuscrita en Libro Firmado + reparación de 20 {OE}.'
+    },
+    {
+      docType: 'ley',
+      trdCode: '100-01',
+      title: 'Ley 012 · Honra, Buen Nombre, Calumnia e Injuria',
+      text: 'EPÍGRAFE: Por la cual se protege la honra y el buen nombre de toda persona en Nueva Alejandría y Luthadel, y se regulan la calumnia, la injuria y la difamación económica, sin sacrificar la sátira, el humor ni la memoria plural.\nCONSIDERANDO:\n1. Que en un mundo de dos Estados que comercian, se auditan y se juzgan entre sí, una acusación falsa puede causar multas injustas, mover el tipo de cambio o romper un tratado.\n2. Que el humor, la sátira y las versiones distintas de un mismo hecho son parte de la vida pública y no deben castigarse.\nDISPONE:\nArtículo 1. Bien protegido.\nSe protegen la honra y el buen nombre de los jugadores fundadores, de las personas visitantes e invitadas y de los Estados mismos.\nArtículo 2. Conductas.\na) Calumnia: atribuir a alguien, sabiendo que es falso, una conducta sancionable (robo, sabotaje, contrabando, trampa en Oferta Sellada, violación del Pacto de monopolios).\nb) Injuria: deshonrar a alguien con palabras o actos (letreros, libros firmados, nombres puestos con yunque a aldeanos o mascotas, estatuas o construcciones burlescas en territorio ajeno).\nc) Difamación económica: difundir datos falsos sobre la economía de un Estado (quiebra, mora, inflación, granjas inexistentes) para mover el tipo de cambio, el precio de sus acciones o sus ventas.\nArtículo 3. Dónde aplica.\nAplica al chat del servidor, letreros, libros, nombres, construcciones, crónicas de la app y a lo que un jugador le pida difundir al Pregonero.\nParágrafo 1 (El Pregonero): Los chismes del Pregonero son rumor de plaza y no tienen valor de prueba ni constituyen calumnia por sí mismos. Pero si un jugador le pide registrar o difundir algo falso (por ejemplo, con "pregonero recuerda que…"), responde ese jugador.\nArtículo 4. Lo que NO es calumnia ni injuria.\na) La verdad demostrada con pruebas (capturas, Libro Mayor, registros de la Aduana o del Archivo).\nb) La sátira o el humor evidente del rol, y las pullas propias de la convivencia.\nc) La crítica a la gestión de un Estado (precios, obras, leyes, economía).\nd) Las versiones distintas de un mismo hecho en el Archivo, según la Ley 011.\nArtículo 5. Procedimiento.\nLa persona afectada denuncia ante el Juez o con una crónica de tipo Disputa. Quien es señalado presenta sus descargos y sus pruebas en la misma sesión o en la siguiente. Si demuestra que lo dicho era verdad, se archiva el caso.\nArtículo 6. Rectificación.\nQuien resulte responsable rectifica en el mismo medio y con el mismo alcance: mensaje público en el chat, crónica de rectificación en el Archivo y retiro de letreros, libros, nombres o construcciones ofensivas en la siguiente sesión.\nArtículo 7. Reparación por difamación económica.\nSi la mentira movió el cambio o causó pérdidas registradas en el Libro Mayor, quien la difundió las repara.\nParágrafo 2 (Multas injustas): Si una calumnia causó una multa o una confiscación, esta se anula y lo pagado se devuelve.\nParágrafo 3 (Fuera del rol): Lo que pase fuera del rol entre los jugadores se habla directamente y no se multa por esta ley.\nConcordancias: Ley 001 (sanciones y debido proceso); Ley 011 (Archivo y memoria plural); Código de Convivencia y Justicia.',
+      sanction: 'Injuria: rectificación + 10 {OE}. Calumnia: rectificación pública + 25 {OE} + anulación de cualquier multa injusta que haya causado. Difamación económica: 40 {OE} + reparación de las pérdidas registradas. Reincidencia: el doble y pérdida del derecho a publicar crónicas durante una temporada.'
+    },
+    {
+      docType: 'ley',
+      trdCode: '100-01',
+      title: 'Ley 013 · Reserva de Estado y Construcciones Confidenciales',
+      text: 'EPÍGRAFE: Por la cual se permite a cada Estado mantener bajo reserva construcciones, ubicaciones, diseños e información estratégica, con límites que impiden usar la reserva para ocultar infracciones.\nCONSIDERANDO:\n1. Que todo Estado tiene derecho a guardar en secreto sus bóvedas, sus diseños de ingeniería y sus planes, como parte de su soberanía y del juego entre ambos.\n2. Que la reserva no puede convertirse en un escondite para violar el Pacto de monopolios, emitir dinero sin respaldo o esconder reliquias nacionales.\nDISPONE:\nArtículo 1. Objeto de reserva.\nCada Estado puede declarar reservada una construcción, una zona, un diseño de redstone, unas coordenadas o un documento (por ejemplo: bóvedas, búnkeres, salas de reliquias, prototipos, rutas secretas o planes de obras).\nArtículo 2. Declaración.\nLa reserva se declara con una Resolución registrada en la app que indica solo un nombre genérico (ej. "Instalación Norte"), el Estado que la reserva, la fecha y el plazo. No se publican coordenadas ni contenido. En el mundo, el perímetro se marca con un letrero visible: "ZONA RESERVADA – [Estado]".\nArtículo 3. Plazo.\nLa reserva dura hasta dos temporadas y se puede prorrogar una vez con nueva Resolución. Al vencer, el lugar deja de ser reservado y su existencia se puede registrar en el Archivo.\nArtículo 4. Efectos.\nNinguna persona ajena al Estado puede, sin autorización expresa: entrar al perímetro, revelar sus coordenadas, compartir capturas o descripciones, ni copiar sus diseños. La autorización se da por escrito (libro firmado o mensaje en el chat) y puede ser parcial o temporal.\nArtículo 5. Límites de la reserva.\nNo puede declararse reservado:\na) Lo que viole el Pacto de monopolios (granjas o producción prohibida).\nb) Las obras públicas, la sede de La Gran Cámara del Ender ni la zona neutral.\nc) Las reliquias nacionales registradas según la Ley 005, cuya existencia debe constar aunque su ubicación sea reservada.\nArtículo 6. Auditoría reservada.\nUna obra reservada puede respaldar moneda solo si el otro Estado la audita en visita acompañada. Quien audita guarda el secreto de lo que vio y en la app la obra se registra con nombre genérico y sin coordenadas.\nArtículo 7. Levantamiento.\nLa reserva se levanta por vencimiento del plazo, por renuncia del Estado o por decisión del Juez cuando haya indicios serios de que oculta una infracción. En ese caso se hace una inspección acompañada y, si se confirma, se sanciona la infracción.\nParágrafo 1 (Lo técnico): La reserva es de rol. No impide el mantenimiento técnico del servidor ni los respaldos, pero lo que se vea por esa vía no se usa dentro del juego.\nParágrafo 2 (Espionaje): Obtener información reservada espiando, engañando o sobornando a un invitado también es violación de la reserva.\nConcordancias: Ley 005 (reliquias y patrimonio); Ley 006 (obras públicas); Ley 012 (honra y buen nombre); Pacto técnico de monopolios y granjas.',
+      sanction: 'Entrar a una zona reservada sin autorización: salida inmediata + 15 {OE}. Revelar coordenadas, capturas o detalles: 30 {OE} + rectificación. Copiar un diseño reservado: desmantelar la copia + 40 {OE}. Usar la reserva para ocultar una infracción: se levanta la reserva y la sanción de esa infracción se duplica.'
     }
   ];
 
@@ -732,6 +748,65 @@ window.FW_DATA = (() => {
     ['g-46', 7, 'haz', 'g', 'Prueba Ominosa: 5 bóvedas ominosas', 'Completar una Trial Chamber entera bajo efecto de Bad Omen (Ominous Trial) y abrir 5 bóvedas ominosas.', 'Captura + botín pesado/trim.']
   ].map(([id, era, track, who, title, desc, proof]) => ({ id, era, track, who, title, desc, proof }));
 
+  /* -------------------- Bloqueo automático por granjas --------------------
+     Cuando el otro Estado AUDITA una obra de categoría "Granja automática" cuyo producto
+     coincide con una de estas entradas, conseguir ese producto A MANO queda bloqueado para
+     todos menos el dueño de la granja (salvo !permiso). Si la granja se pierde, se levanta.
+     watch: [objetivo del marcador (máx. 16 letras), criterio de Minecraft, ítems MÍNIMOS que suelta cada evento
+            (se usa el mínimo garantizado para no quitar nunca algo comprado)]
+     items: lo que el bot confisca (solo lo obtenido, nunca lo comprado) y entrega al dueño. */
+  const LOGS = ['oak', 'spruce', 'birch', 'jungle', 'acacia', 'dark_oak', 'mangrove', 'cherry', 'pale_oak'];
+  const FARM_LOCKS = [
+    { id: 'madera', label: 'Madera', owner: 'myth', aliases: ['madera', 'arbol', 'arboles', 'tronco', 'troncos', 'tala', 'leña'],
+      watch: LOGS.map((w, i) => [`fw_l_log${i}`, `minecraft.mined:minecraft.${w}_log`, 1]),
+      items: LOGS.map(w => `minecraft:${w}_log`) },
+    { id: 'bambu', label: 'Bambú', owner: 'myth', aliases: ['bambu', 'bamboo'],
+      watch: [['fw_l_bamboo', 'minecraft.mined:minecraft.bamboo', 1]], items: ['minecraft:bamboo'] },
+    { id: 'kelp', label: 'Kelp (algas)', owner: 'myth', aliases: ['kelp', 'alga', 'algas'],
+      watch: [['fw_l_kelp', 'minecraft.mined:minecraft.kelp', 1], ['fw_l_kelpp', 'minecraft.mined:minecraft.kelp_plant', 1]], items: ['minecraft:kelp'] },
+    { id: 'cactus', label: 'Cactus', owner: 'myth', aliases: ['cactus'],
+      watch: [['fw_l_cactus', 'minecraft.mined:minecraft.cactus', 1]], items: ['minecraft:cactus'] },
+    { id: 'slime', label: 'Slime', owner: 'myth', aliases: ['slime', 'babosa', 'babosas'],
+      watch: [['fw_l_slime', 'minecraft.killed:minecraft.slime', 1]], items: ['minecraft:slime_ball'] },
+    { id: 'polvora', label: 'Pólvora (creepers)', owner: 'myth', aliases: ['polvora', 'creeper', 'creepers'],
+      watch: [['fw_l_creeper', 'minecraft.killed:minecraft.creeper', 1]], items: ['minecraft:gunpowder'] },
+    { id: 'hierro', label: 'Hierro', owner: 'scad', aliases: ['hierro', 'iron', 'golem', 'golems'],
+      watch: [['fw_l_golem', 'minecraft.killed:minecraft.iron_golem', 3], ['fw_l_fe', 'minecraft.mined:minecraft.iron_ore', 1], ['fw_l_fed', 'minecraft.mined:minecraft.deepslate_iron_ore', 1]],
+      items: ['minecraft:iron_ingot', 'minecraft:raw_iron'] },
+    { id: 'oro', label: 'Oro', owner: 'scad', aliases: ['oro', 'gold', 'piglin', 'piglins'],
+      watch: [['fw_l_zpig', 'minecraft.killed:minecraft.zombified_piglin', 1], ['fw_l_au', 'minecraft.mined:minecraft.gold_ore', 1], ['fw_l_aud', 'minecraft.mined:minecraft.deepslate_gold_ore', 1], ['fw_l_aun', 'minecraft.mined:minecraft.nether_gold_ore', 2]],
+      items: ['minecraft:gold_nugget', 'minecraft:gold_ingot', 'minecraft:raw_gold'] },
+    { id: 'blaze', label: 'Varas de blaze', owner: 'scad', aliases: ['blaze', 'blazes'],
+      watch: [['fw_l_blaze', 'minecraft.killed:minecraft.blaze', 1]], items: ['minecraft:blaze_rod'] },
+    { id: 'brujas', label: 'Brujas (glowstone y azúcar)', owner: 'scad', aliases: ['bruja', 'brujas', 'witch', 'glowstone'],
+      watch: [['fw_l_witch', 'minecraft.killed:minecraft.witch', 2]],
+      items: ['minecraft:glowstone_dust', 'minecraft:sugar', 'minecraft:spider_eye', 'minecraft:redstone'] },
+    { id: 'guardianes', label: 'Prismarina (guardianes)', owner: 'scad', aliases: ['guardian', 'guardianes', 'prismarina', 'prismarine'],
+      watch: [['fw_l_guard', 'minecraft.killed:minecraft.guardian', 1]], items: ['minecraft:prismarine_shard', 'minecraft:prismarine_crystals'] }
+  ];
+  const normTxt = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  // Qué entrada del catálogo corresponde a una obra (por lockId o por palabras del producto / nombre)
+  function farmLockForWork(w) {
+    if (!w || w.cat !== 'granja') return null;
+    if (w.lockId) return FARM_LOCKS.find(l => l.id === w.lockId) || null;
+    const words = normTxt(`${w.product || ''} ${w.name || ''}`).split(/[^a-z0-9]+/).filter(Boolean);
+    return FARM_LOCKS.find(l => l.aliases.some(a => words.includes(normTxt(a)))) || null;
+  }
+  // Bloqueos vigentes: granjas auditadas (y no perdidas) del catálogo. Una por producto.
+  function activeFarmLocks(state) {
+    const out = [];
+    const works = (state && state.economy && state.economy.works) || [];
+    works.filter(w => w.status === 'auditada').forEach(w => {
+      const lock = farmLockForWork(w);
+      if (lock && !out.some(x => x.lock.id === lock.id)) out.push({ lock, work: w, owner: w.owner, since: w.auditedAt || w.createdAt || 0 });
+    });
+    return out;
+  }
+  function findFarmLock(word) {
+    const n = normTxt(word);
+    return FARM_LOCKS.find(l => l.id === n || l.aliases.some(a => normTxt(a) === n)) || null;
+  }
+
   const WORLD_PROMPTS = [
     { id: 'worldName', label: 'Nombre del mundo', ph: '¿Cómo llaman ustedes a este mundo?' },
     { id: 'origin', label: 'Mito u origen', ph: '¿Cómo empezó todo según cada pueblo? (pueden contradecirse)' },
@@ -857,6 +932,7 @@ window.FW_DATA = (() => {
     DEFAULT_BANK_NAME, DEFAULT_BASKET, DEFAULT_NATIONS, MONOPOLIES, PACT_RULES, PROFESSIONS, ANIMAL_SPECIES, WORK_CATEGORIES,
     TRACKS, ERAS, SEASON_CHECKLIST, SEASON_POOLS, MEGAPROJECTS,
     WORLD_PROMPTS, NATION_PROMPTS, GUEST_QUESTS, DEFAULT_LAWS, DEFAULT_RP_LAWS,
-    DOC_TYPES, DEFAULT_TRD, DEFAULT_PENAL_PACK, PRICE_GUIDE, RELICS, GLOSSARY, ECONOMY_MANUAL
+    DOC_TYPES, DEFAULT_TRD, DEFAULT_PENAL_PACK, PRICE_GUIDE, RELICS, GLOSSARY, ECONOMY_MANUAL,
+    FARM_LOCKS, farmLockForWork, activeFarmLocks, findFarmLock
   };
 })();

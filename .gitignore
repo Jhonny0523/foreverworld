@@ -1,0 +1,8 @@
+# Local Minecraft Vanilla server, world save, RCON secrets & backups
+local-server/*
+!local-server/bot/
+!local-server/bot/*.mjs
+!local-server/*.bat
+!local-server/update-snapshot.mjs
+!local-server/snapshot-version.json
+!local-server/server-icon.png

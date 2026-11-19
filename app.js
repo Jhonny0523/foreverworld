@@ -913,12 +913,33 @@
           ${field('Dueño', `<select id="w-owner" class="mc-select font-mono">${stateOpts(E.isState(me) ? me : 'myth')}</select>`)}
           ${field('Categoría', `<select id="w-cat" class="mc-select" data-action-change="w-cat">${opts(CATS.map(c => [c.id, `${c.name} (${c.pts})`]), 'edif')}</select>`)}
           ${field('Nombre en el mundo', `<input id="w-name" class="mc-input" placeholder="Ej. Siderúrgica del Norte"/>`)}
-          ${field('Producto (granja) o reliquia', `<input id="w-product" class="mc-input" list="relic-list" placeholder="Ej. hierro / Tridente"/><datalist id="relic-list">${D.RELICS.map(r => `<option value="${esc(r.name)}"></option>`).join('')}</datalist>`)}
+          ${field('Producto (granja) o reliquia', `<input id="w-product" class="mc-input" list="relic-list" placeholder="Ej. hierro / Tridente"/><datalist id="relic-list">${(D.FARM_LOCKS || []).map(l => `<option value="${esc(l.aliases[0])}">Granja: ${esc(l.label)} (bloquea a mano al auditarse)</option>`).join('')}${D.RELICS.map(r => `<option value="${esc(r.name)}"></option>`).join('')}</datalist>`)}
           ${field('Coordenadas', `<input id="w-coords" class="mc-input font-mono" placeholder="X, Y, Z"/>`)}
           ${field('Puntos propuestos', `<input id="w-pts" type="number" min="1" value="10" class="mc-input font-mono"/>`)}
           <div style="grid-column:span 2;display:flex;align-items:end;"><button class="mc-btn mc-btn-emerald" data-action="work-add" style="width:100%;">+ Registrar obra (TRD 120-01)</button></div>
         </div>
       </div>`;
+    // Bloqueo automático por granjas: lo que el moderador del servidor ya no deja conseguir a mano
+    const locksNow = typeof D.activeFarmLocks === 'function' ? D.activeFarmLocks(state) : [];
+    const lockedIds = new Set(locksNow.map(x => x.lock.id));
+    const farmLocksCard = `
+      <div class="mc-panel-dark p-md" style="margin-bottom:14px;">
+        <div class="flex-between" style="margin-bottom:8px;">
+          <strong class="font-mono text-gold text-sm">🔒 BLOQUEOS ACTIVOS POR GRANJA</strong>
+          <span class="text-xs text-muted">${locksNow.length} de ${(D.FARM_LOCKS || []).length} productos</span>
+        </div>
+        <p class="text-xs text-muted" style="margin:0 0 10px 0;line-height:1.5;">Cuando auditan una obra de categoría <strong>Granja automática</strong> cuyo producto está en esta lista, conseguir ese producto <strong>a mano</strong> queda bloqueado para todos menos el dueño de la granja: se compra en su tienda. El moderador del servidor lo vigila y le entrega al dueño lo que otros consigan a mano. Excepciones: <span class="font-mono text-diamond">!permiso &lt;jugador&gt; &lt;producto&gt; [tiempo]</span>, que solo puede dar el dueño. Si la granja se marca como perdida, el bloqueo se levanta.</p>
+        ${locksNow.length ? `<div class="section-stack" style="gap:6px;margin-bottom:10px;">${locksNow.map(x => `
+          <div class="flex-between mc-slot p-sm">
+            <div><strong class="text-white text-sm">${esc(x.lock.label)}</strong> <span class="text-xs text-muted">· granja «${esc(x.work.name)}» de</span> ${ptag(x.owner)}</div>
+            <span class="text-xs text-dim">desde ${x.since ? when(x.since) : '—'}</span>
+          </div>`).join('')}</div>` : `<div class="text-xs text-dim" style="margin-bottom:10px;">Ningún bloqueo todavía: fuera de la comida, todo se puede conseguir a mano para uso propio.</div>`}
+        <details class="mc-details"><summary class="text-xs text-diamond">▸ Productos que se bloquean al auditar su granja</summary>
+          <div class="flex-row-wrap" style="gap:6px;margin-top:8px;">${(D.FARM_LOCKS || []).map(l => `<span class="mc-tag ${lockedIds.has(l.id) ? 'tag-redstone' : `tag-${stateColor(l.owner)}`}" title="Palabras que lo reconocen: ${esc(l.aliases.join(', '))}">${lockedIds.has(l.id) ? '🔒 ' : ''}${esc(l.label)} · ${esc(nat(l.owner).nation)}</span>`).join('')}</div>
+          <div class="text-xs text-dim" style="margin-top:6px;">Para que cuente, escriban el producto en «Producto (granja)» al registrar la obra (ej. «hierro», «slime», «madera»).</div>
+        </details>
+      </div>`;
+
     const worksPanel = panel(`
       ${head('TRD 120-01 · CATASTRO', 'emerald', `OBRAS, RELIQUIAS Y AUDITORÍA ${tip('obra')} ${tip('reliquia')}`,
         `Cada obra respalda emisión monetaria y valor de acciones tras auditoría cruzada del Estado socio. Repetir granjas del mismo producto aplica rendimiento decreciente (100%, 50%, 25%…).`)}
@@ -928,6 +949,7 @@
         <div class="kpi-box"><div class="kpi-label">Respaldo obras ${esc(nat('myth').nation)}</div><div class="kpi-val text-royal">+${fmt(mythWorkPts)} pts</div></div>
         <div class="kpi-box"><div class="kpi-label">Respaldo obras ${esc(nat('scad').nation)}</div><div class="kpi-val text-emerald">+${fmt(scadWorkPts)} pts</div></div>
       </div>
+      ${farmLocksCard}
       ${workForm}
       <div class="flex-row-wrap" style="gap:6px;margin-bottom:10px;">
         ${[['all', `Todas (${eco.works.length})`], ['myth', nat('myth').nation], ['scad', nat('scad').nation], ['pendiente', `Sin auditar (${eco.works.filter(w => w.status === 'pendiente').length})`]].map(([v, t]) => `<button class="filter-pill ${worksF === v ? 'active' : ''}" data-action="works-filter" data-v="${v}">${esc(t)}</button>`).join('')}
@@ -2890,6 +2912,22 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     return state.laws.filter(l => (l.kind || 'servidor') === kind && (l.docType || ((l.kind || 'servidor') === 'servidor' ? 'servidor' : 'ley')) === dt)
       .reduce((m, l) => Math.max(m, l.num), 0) + 1;
   };
+  // Leyes nuevas que se postulan solas como BORRADOR (sin firmas). Se hace después de sincronizar
+  // con la nube y se compara por título, para que no queden duplicadas si ambos abren la página.
+  const POSTED_LAWS = ['Ley 012 · Honra, Buen Nombre, Calumnia e Injuria', 'Ley 013 · Reserva de Estado y Construcciones Confidenciales'];
+  function postNewLaws() {
+    const have = new Set(state.laws.map(l => (l.title || '').toLowerCase()));
+    const fresh = (D.DEFAULT_RP_LAWS || []).filter(d => POSTED_LAWS.includes(d.title) && !have.has(d.title.toLowerCase()));
+    if (!fresh.length) return;
+    fresh.forEach(d => {
+      const docType = d.docType || 'ley';
+      state.laws.push({ id: uid('ley'), kind: 'rol', docType, trdCode: d.trdCode || '100-01', num: nextLawNum('rol', docType), title: d.title, text: tx(d.text), sanction: tx(d.sanction), signs: { myth: false, scad: false }, review: { status: 'none', notes: [] }, repealed: false, t: Date.now() });
+    });
+    save();
+    renderAll();
+    toast('Leyes postuladas', `${fresh.length} proyecto(s) de ley nuevos en Estados y Leyes. Rigen cuando firmen ambos.`, 'gavel');
+  }
+
   function addDefaultLaws(kind = 'servidor') {
     const source = kind === 'penal' ? (D.DEFAULT_PENAL_PACK || []) : kind === 'rol' ? (D.DEFAULT_RP_LAWS || []) : D.DEFAULT_LAWS;
     const targetKind = kind === 'servidor' ? 'servidor' : 'rol';
@@ -3578,7 +3616,12 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
             toast('Copia local conservada', 'Para subirla, toca Supabase arriba → Forzar subida.', 'gold');
           }
         }
-      });
+      }).then(info => {
+        // Ya con la partida de la nube cargada: postular leyes nuevas sin duplicarlas
+        if (info && ['synced', 'unconfigured', 'offline'].includes(info.status)) postNewLaws();
+      }).catch(() => {});
+    } else {
+      postNewLaws();
     }
   });
 })();
