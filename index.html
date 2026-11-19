@@ -3,11 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>Forever World</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Pixelify+Sans:wght@400;500;600;700&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20261119083500" />
+  <script>document.write('<link rel="stylesheet" href="styles.css?v=' + Date.now() + '" />');</script>
 </head>
 <body>
 
@@ -163,12 +166,13 @@
   <div id="toast-container"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase-config.js?v=20261119083500"></script>
-  <script src="cloud.js?v=20261119083500"></script>
-  <script src="icons.js?v=20261119083500"></script>
-  <script src="eras.js?v=20261119083500"></script>
-  <script src="data.js?v=20261119083500"></script>
-  <script src="engine.js?v=20261119083500"></script>
-  <script src="app.js?v=20261119083500"></script>
+  <script>
+    (function () {
+      var v = Date.now();
+      ['supabase-config.js', 'cloud.js', 'icons.js', 'eras.js', 'data.js', 'engine.js', 'app.js'].forEach(function (f) {
+        document.write('<script src="' + f + '?v=' + v + '"><\/script>');
+      });
+    })();
+  </script>
 </body>
 </html>

@@ -3629,9 +3629,9 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
             toast('Copia local conservada', 'Para subirla, toca Supabase arriba → Forzar subida.', 'gold');
           }
         }
-      }).then(info => {
+      }).then(() => {
         // Ya con la partida de la nube cargada: postular leyes nuevas sin duplicarlas
-        if (info && ['synced', 'unconfigured', 'offline'].includes(info.status)) postNewLaws();
+        postNewLaws();
       }).catch(() => {});
     } else {
       postNewLaws();
