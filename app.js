@@ -942,7 +942,7 @@
 
     const worksPanel = panel(`
       ${head('TRD 120-01 · CATASTRO', 'emerald', `OBRAS, RELIQUIAS Y AUDITORÍA ${tip('obra')} ${tip('reliquia')}`,
-        `Cada obra respalda emisión monetaria y valor de acciones tras auditoría cruzada del Estado socio. Repetir granjas del mismo producto aplica rendimiento decreciente (100%, 50%, 25%…).`)}
+        `Cada obra respalda emisión monetaria y valor de acciones tras auditoría del Archivista Auditor (o verificación supletoria del Estado socio, Manual 003). Repetir granjas del mismo producto aplica rendimiento decreciente (100%, 50%, 25%…).`)}
       <div class="kpi-strip" style="margin-bottom:14px;">
         <div class="kpi-box"><div class="kpi-label">Por auditar</div><div class="kpi-val ${eco.works.some(w => w.status === 'pendiente') ? 'text-gold' : 'text-white'}">${eco.works.filter(w => w.status === 'pendiente').length}</div></div>
         <div class="kpi-box"><div class="kpi-label">Auditadas vigentes</div><div class="kpi-val text-emerald">${auditedWorks.length}</div></div>
@@ -1967,13 +1967,21 @@
   function reviewerId() {
     const cfg = state.settings && state.settings.reviewerId;
     if (cfg && participants().includes(cfg)) return cfg;
-    const notOut = state.guests.find(g => g.nick.toLowerCase() === 'notoutofcontext');
+    const notOut = state.guests.find(g => /^notout(?:of)?context$/i.test(String(g.nick || '').trim()));
     return notOut ? notOut.id : '';
   }
   function requireReviewer(why) {
     const rid = reviewerId();
     if (!rid) { fail('No hay un revisor asignado. Agrega un invitado o elige el Revisor en Estados y Leyes.'); return false; }
     return requireMe(rid, why);
+  }
+  function requireWorkAuditor(w, why) {
+    const rid = reviewerId();
+    const other = E.otherState(w.owner);
+    if ((rid && me === rid) || me === other) return true;
+    const allowed = rid ? `${pname(rid)} (Archivista Auditor) o ${pname(other)}` : pname(other);
+    fail(`Para ${why} elige "Soy: ${allowed}" arriba.`);
+    return false;
   }
   function ensureLawReview(l) {
     if (!l.review || typeof l.review !== 'object') l.review = { status: 'none', notes: [] };
@@ -2203,13 +2211,14 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       const owner = val('w-owner');
       state.economy.works.unshift({ id: uid('obr'), owner, cat: val('w-cat'), name, product: val('w-product'), coords: val('w-coords'), proposed: num(val('w-pts'), 0), status: 'pendiente', createdAt: Date.now() });
       log('Obra', `${nat(owner).nation} registra "${name}" (pendiente de auditoría).`);
-      toast('Obra registrada', `Falta que ${pname(E.otherState(owner))} la audite.`, 'gold');
+      const rid = reviewerId();
+      toast('Obra registrada', `Falta que ${rid ? `${pname(rid)} (Archivista) o ` : ''}${pname(E.otherState(owner))} la audite.`, 'gold');
       state.ui.form = '';
       commit('economy');
     },
     'work-approve': el => {
       const w = state.economy.works.find(x => x.id === el.dataset.id);
-      if (!w || !requireMe(E.otherState(w.owner), 'auditar esta obra')) return;
+      if (!w || !requireWorkAuditor(w, 'auditar esta obra')) return;
       w.final = num(val(`wpts-${w.id}`), w.proposed);
       w.status = 'auditada'; w.auditedBy = me; w.auditedAt = Date.now();
       log('Auditoría', `${pname(me)} aprueba "${w.name}" de ${nat(w.owner).nation}: ${fmt(w.final)} puntos.`);
@@ -2218,7 +2227,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     },
     'work-reject': el => {
       const w = state.economy.works.find(x => x.id === el.dataset.id);
-      if (!w || !requireMe(E.otherState(w.owner), 'auditar esta obra')) return;
+      if (!w || !requireWorkAuditor(w, 'auditar esta obra')) return;
       w.status = 'rechazada'; w.auditedBy = me;
       log('Auditoría', `${pname(me)} rechaza "${w.name}".`);
       commit('economy');
@@ -2235,7 +2244,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     },
     'work-reopen': el => {
       const w = state.economy.works.find(x => x.id === el.dataset.id);
-      if (!w || !requireMe(E.otherState(w.owner), 'reabrir esta auditoría')) return;
+      if (!w || !requireWorkAuditor(w, 'reabrir esta auditoría')) return;
       w.status = 'pendiente'; w.proposed = w.final ?? w.proposed;
       log('Auditoría', `"${w.name}" vuelve a revisión.`);
       commit('economy');
@@ -2914,7 +2923,11 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
   };
   // Leyes nuevas que se postulan solas como BORRADOR (sin firmas). Se hace después de sincronizar
   // con la nube y se compara por título, para que no queden duplicadas si ambos abren la página.
-  const POSTED_LAWS = ['Ley 012 · Honra, Buen Nombre, Calumnia e Injuria', 'Ley 013 · Reserva de Estado y Construcciones Confidenciales'];
+  const POSTED_LAWS = [
+    'Ley 012 · Honra, Buen Nombre, Calumnia e Injuria',
+    'Ley 013 · Reserva de Estado y Construcciones Confidenciales',
+    'Manual 003 · Manual Oficial del Archivista Auditor y Auditoría de Obras (TRD 120-01)'
+  ];
   function postNewLaws() {
     const have = new Set(state.laws.map(l => (l.title || '').toLowerCase()));
     const fresh = (D.DEFAULT_RP_LAWS || []).filter(d => POSTED_LAWS.includes(d.title) && !have.has(d.title.toLowerCase()));

@@ -425,11 +425,20 @@ export class SupabaseBridge {
   findRelevantNorms(state, query, { limit = 6, isJuez = false, includeOoc = false } = {}) {
     const tx = this.makeTx(state);
     const tokens = tokenize(query);
-    const pool = (state.laws || []).filter(l => {
+    const rawLaws = (state.laws || []).filter(l => {
       if (l.repealed) return false;
       return includeOoc ? true : (l.kind || 'servidor') === 'rol';
     });
+    const haveTitles = new Set((state.laws || []).map(l => String(l.title || '').toLowerCase()));
+    const canonicalAuditTitle = 'Manual 003 · Manual Oficial del Archivista Auditor y Auditoría de Obras (TRD 120-01)';
+    const fallbackManual = (this.D.DEFAULT_RP_LAWS || []).find(
+      d => d.title === canonicalAuditTitle && !haveTitles.has(d.title.toLowerCase())
+    );
+    const pool = fallbackManual
+      ? [...rawLaws, { ...fallbackManual, kind: 'rol', num: 3, review: { status: 'approved', notes: [] } }]
+      : rawLaws;
 
+    const isAuditQuery = /(?:audit\w*|obra\w*|reliquia\w*|punt\w*|catastro|120-01|manual\s*0*3)/i.test(normalizeText(query));
     const scored = pool.map(l => {
       const titleN = normalizeText(l.title);
       const bodyN = normalizeText(`${l.text || ''} ${l.sanction || ''} ${l.trdCode || ''}`);
@@ -446,6 +455,9 @@ export class SupabaseBridge {
       if (isJuez && (titleN.includes('ley 001') || titleN.includes('libro iv') || titleN.includes('resolucion 005'))) {
         score += 3;
       }
+      if (isAuditQuery && (titleN.includes('manual 003') || titleN.includes('ley 006') || titleN.includes('ley 013'))) {
+        score += 5;
+      }
       return { l, score };
     });
 
@@ -456,8 +468,14 @@ export class SupabaseBridge {
     const results = fallback.map(({ l }) => {
       const meta = (this.D.DOC_TYPES || {})[l.docType || 'ley'] || { prefix: 'LEY' };
       const revSt = l.review?.status === 'approved' ? 'Avalada/Sellada' : 'Vigente bilateral (pendiente de aval)';
-      return `[${meta.prefix} ${l.num} · TRD ${l.trdCode || '100-01'} · ${revSt}] ${l.title}\n${tx(l.text || '').slice(0, 1400)}${l.sanction ? `\nMedida/Sanción: ${tx(l.sanction)}` : ''}`;
+      return `[${meta.prefix} ${l.num} · TRD ${l.trdCode || '100-01'} · ${revSt}] ${l.title}\n${tx(l.text || '').slice(0, 2400)}${l.sanction ? `\nMedida/Sanción: ${tx(l.sanction)}` : ''}`;
     });
+
+    if (isAuditQuery) {
+      const cats = (this.D.WORK_CATEGORIES || []).map(c => `${c.name}: ${c.pts} pts`).join(' | ');
+      const rels = (this.D.RELICS || []).slice(0, 6).map(r => `${r.name} (${r.pts} pts)`).join(', ');
+      results.unshift(`[REFERENCIA DE AUDITORÍA TRD 120-01]: Audita oficialmente el Archivista Nacional (NotOutContext / Revisor designado; supletoriamente el Estado socio).\nCategorías: ${cats}.\nReliquias principales (solo 1.ª por tipo): ${rels}.`);
+    }
 
     if (/(era|granja|nether|end|encant|villager|aldean|portal|beacon|elytra|metro|tren|riel|vagoneta|piston|tolva|cobre|trial|hierro|wither|warden|shulker)/i.test(normalizeText(query))) {
       const era = this.getCurrentEra(state);
@@ -671,7 +689,7 @@ export class SupabaseBridge {
       .filter(l => (l.kind || 'servidor') === 'servidor' && !l.repealed)
       .map(l => `[REG ${l.num} · TRD ${l.trdCode || '160-01'}] ${l.title}\n${tx(l.text || '')}${l.sanction ? `\nSanción: ${tx(l.sanction)}` : ''}`);
 
-    const identitiesSection = `[IDENTIDADES OFICIALES]: MythStorm = Gobernante de ${mythNat} | Scadrial0523 = Gobernante de ${scadNat} | NotOutContext = Visitante sin nación (invitado).`;
+    const identitiesSection = `[IDENTIDADES OFICIALES]: MythStorm = Gobernante de ${mythNat} | Scadrial0523 = Gobernante de ${scadNat} | NotOutContext = Archivista Nacional, Revisor de normas y Auditor Oficial de Obras (TRD 120-01, sin Estado propio).`;
 
     const eraSection = [
       `[ERA ACTUAL DEL MUNDO: ${era.code} · ${era.name} (${era.reqDone}/${era.reqTotal} obligatorios)]`,

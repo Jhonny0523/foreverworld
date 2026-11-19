@@ -322,7 +322,7 @@ const BOT_COMMANDS_DOC = [
   '  * Su Excelencia / Su Señoría / Señor Juez: leyes IC, disputas y multas (si le dicen solo "juez" sin título de respeto, responde indignado y de mala forma).',
   '  * Fiscal / Policía / Alguacil / Aduana: pacto de monopolios, contrabando, PvP OOC, tratos y salvoconductos.',
   '  * Banquero / Don Tesoro / Contador: tasa cambiaria DR/CU, reservas de la Cámara, saldos y precios de catálogo.',
-  '  * Archivista / Cronista / Bibliotecario: lore del mundo, crónicas (TRD 140-01), cédulas (TRD 150-01) y recuerdos pasados.',
+  '  * Archivista / Auditor / Cronista / Bibliotecario: auditoría oficial de obras (Manual 003, TRD 120-01), lore del mundo, crónicas (TRD 140-01), cédulas (TRD 150-01) y recuerdos pasados.',
   '  * Pregonero: chismes de la plaza, opinión económica y libreta permanente ("pregonero recuerda que...").',
   '- Utilidades operativas que ejecutan permisos/control del servidor: !duelo [min|fin] (PvP consensuado), !trato [min|fin] (intercambio libre), !pase <jug|todos>, !mod [on|off], !chat [on|off], !memoria y !ayuda.',
   '- Acuerdos en chat: "vamos a hacer un trato" o "pvp consensuado / vamos a hacer un duelo" pausan automáticamente al aduanero.',
@@ -334,7 +334,7 @@ const NPC_HELP_DOCS = {
   juez: 'Juez (o Excelencia / Su Senoria / Senor Juez): leyes IC, disputas y multas. Ej: "excelencia que multa aplica?"',
   fiscal: 'Fiscal (o policia / alguacil / aduana): monopolios, contrabando, PvP, tratos y pases. Ej: "fiscal puedo pasar trigo?"',
   banquero: 'Banquero (o Don Tesoro / contador): tasa DR/CU, reservas, saldos y precios. Ej: "banquero cuanto vale el trigo?"',
-  archivista: 'Archivista (o cronista / bibliotecario): lore, cronicas, cedulas y recuerdos. Ej: "archivista que dice el lore?"',
+  archivista: 'Archivista (o auditor / cronista / bibliotecario): auditoria de obras (Manual 003), lore, cronicas, cedulas y recuerdos. Ej: "auditor como audito una granja?"',
   pregonero: 'Pregonero: chismes, economia y libreta de memoria. Ej: "pregonero recuerda que..."'
 };
 
@@ -365,6 +365,9 @@ const NPC_HELP_ALIASES = {
   economia: 'banquero',
   'economía': 'banquero',
   banco: 'banquero',
+  auditor: 'archivista',
+  auditoria: 'archivista',
+  'auditoría': 'archivista',
   cronista: 'archivista',
   bibliotecario: 'archivista',
   lore: 'archivista',
@@ -412,6 +415,9 @@ function buildPlayerIdentity(player, role, state, bridge) {
   }
   if (role === 'scad') {
     return `${player} — Gobernante de ${scadNat} (monopolios: Metalurgia/Forja/Hierro, Alquimia, Transporte/Rieles/Trenes, Ganadería/Pesca, Construcción)`;
+  }
+  if (/^notout(?:of)?context$/i.test(String(player || '').trim())) {
+    return `${player} — Archivista Nacional, Revisor de normas y Auditor Oficial de Obras (sin Estado propio, no pertenece a ${mythNat} ni a ${scadNat})`;
   }
   return `${player} — Visitante sin Estado (no pertenece a ${mythNat} ni a ${scadNat})`;
 }
@@ -557,7 +563,7 @@ async function handleChatCommand(player, message, ctx) {
       { text: ': tasa, saldos y precios\n', color: 'white' },
       { text: '  - ', color: 'gray' },
       { text: 'Archivista', color: 'aqua', bold: true },
-      { text: ': lore, cronicas y cedulas\n', color: 'white' },
+      { text: ': auditoria, lore, cronicas y cedulas\n', color: 'white' },
       { text: '  - ', color: 'gray' },
       { text: 'Pregonero', color: 'light_purple', bold: true },
       { text: ': chismes y "recuerda <dato>"\n', color: 'white' },
@@ -1103,7 +1109,7 @@ async function maybeHandleChatTruce(player, clean, { bridge, rcon, enforcer }) {
 
 const DIRECT_PREGONERO_RE = /\bpregonero\b/i;
 const JUDGE_HONORIFIC_RE = /\b(?:su\s+excelencia|excelencia|su\s+se[ñn]or[ií]a|se[ñn]or\s+juez|magistrad[oa]|vuestra\s+merced)\b/i;
-const RULE_QUESTION_RE = /\b(?:puedo|puede|podemos|se\s+puede|permitid\w*|prohibid\w*|ley\w*|norma\w*|multa\w*|sanci[oó]n\w*|era\w*|pacto|monopolio\w*|aldean\w*|comando\w*|tasa|cambio|saldo\w*|precio\w*|c[eé]dula\w*|metro|tren\w*|riel\w*|granja\w*|nether|end|pvp|duelo|trato|pase|huevo\w*|semilla\w*|vaca\w*|pollo\w*|lore|cr[oó]nica\w*|historia)\b/i;
+const RULE_QUESTION_RE = /\b(?:puedo|puede|podemos|se\s+puede|permitid\w*|prohibid\w*|ley\w*|norma\w*|multa\w*|sanci[oó]n\w*|era\w*|pacto|monopolio\w*|aldean\w*|comando\w*|tasa|cambio|saldo\w*|precio\w*|c[eé]dula\w*|audit\w*|obra\w*|reliquia\w*|punt\w*|metro|tren\w*|riel\w*|granja\w*|nether|end|pvp|duelo|trato|pase|huevo\w*|semilla\w*|vaca\w*|pollo\w*|lore|cr[oó]nica\w*|historia)\b/i;
 let lastDirectPregoneroAt = 0;
 let lastDirectNpcAt = 0;
 
@@ -1184,7 +1190,8 @@ const NPC_CAST = [
       return [
         BOT_COMMANDS_DOC,
         bridge.getEraExpectationsSummary(state),
-        ...bridge.findOocContext(state, q)
+        ...bridge.findOocContext(state, q),
+        ...bridge.findRelevantNorms(state, q, { limit: 3, isJuez: false, includeOoc: true })
       ].filter(Boolean);
     }
   },
@@ -1199,7 +1206,7 @@ const NPC_CAST = [
       return {
         polite: true,
         selfIdentity: 'TÚ eres Don Tesoro, el Banquero de La Gran Cámara del Ender en Miscolandia.',
-        roleDesc: 'Eres Don Tesoro, el Banquero de La Gran Cámara del Ender en Miscolandia. Hablas como contador tacaño, obsesionado con los decimales del cambio DR/CU, las reservas, la inflación y el respaldo; eres un poco cascarrabias con el gasto, pero das las cifras y reglas exactas del Manual Económico.',
+        roleDesc: 'Eres Don Tesoro, el Banquero de La Gran Cámara del Ender en Miscolandia. Hablas como contador tacaño, obsesionado con los decimales del cambio DR/CU, las reservas, la inflación y el respaldo; eres un poco cascarrabias con el gasto, pero das las cifras y reglas exactas del Manual Económico y de Auditoría.',
         temperature: 0.4
       };
     },
@@ -1212,7 +1219,8 @@ const NPC_CAST = [
         BOT_COMMANDS_DOC,
         `[DATOS ECONÓMICOS EN VIVO]\nCambio: ${b.fxText}\nReservas Cámara: ${b.bankReserves}\nSaldos: ${bal.states.join(' ; ')}${bal.guests.length ? ` | Invitados: ${bal.guests.join(' ; ')}` : ''}`,
         priceLines.length ? `[CATÁLOGO DE PRECIOS COINCIDENTE]\n${priceLines.join('\n')}` : '',
-        ...bridge.getEconomyManualExcerpts(state, q)
+        ...bridge.getEconomyManualExcerpts(state, q),
+        ...bridge.findRelevantNorms(state, q, { limit: 2, isJuez: false, includeOoc: false })
       ].filter(Boolean);
     }
   },
@@ -1221,13 +1229,13 @@ const NPC_CAST = [
     badge: 'Archivista',
     badgeColor: 'aqua',
     logName: 'Archivista',
-    re: /\b(?:archivista|cronista|bibliotecario)\b/i,
-    stripRe: /\b(?:archivista|cronista|bibliotecario)\b[:,!\s]*/gi,
+    re: /\b(?:archivista|auditor|cronista|bibliotecario)\b/i,
+    stripRe: /\b(?:archivista|auditor|cronista|bibliotecario)\b[:,!\s]*/gi,
     buildPersona() {
       return {
         polite: true,
-        selfIdentity: 'TÚ eres El Archivista Oficial de Miscolandia.',
-        roleDesc: 'Eres El Archivista Oficial de Miscolandia (TRD 140-01 y 150-01). Hablas como cronista erudito apasionado por los folios, los sellos de aval, las cédulas y las crónicas; respondes usando el lore web, cédulas, normas y recuerdos reales de sesiones pasadas.',
+        selfIdentity: 'TÚ eres El Archivista Oficial y Auditor Nacional de Obras de Miscolandia.',
+        roleDesc: 'Eres El Archivista Oficial y Auditor Nacional de Obras de Miscolandia (TRD 120-01, 140-01 y 150-01). Hablas como cronista y auditor erudito, meticuloso con los folios, los avales, la auditoría técnica de obras (Manual 003), las cédulas y las crónicas; respondes usando el lore web, cédulas, Manual 003, normas y recuerdos reales de sesiones pasadas.',
         temperature: 0.4
       };
     },
@@ -1241,7 +1249,7 @@ const NPC_CAST = [
         BOT_COMMANDS_DOC,
         loreTxt,
         cedTxt,
-        ...bridge.findRelevantNorms(state, q, { limit: 4, isJuez: false, includeOoc: false })
+        ...bridge.findRelevantNorms(state, q, { limit: 5, isJuez: false, includeOoc: true })
       ].filter(Boolean);
     }
   }
@@ -1908,6 +1916,28 @@ async function runSmokeTest(cfg) {
   console.log(`9e) Pregonero (sin ojos) reply:`, blindSocial);
   if (!blindSocial || !/(?:no\s+tengo\s+ojos|sin\s+ojos|no\s+(?:puedo|te\s+puedo|logro)\s+ver|no\s+veo|ciego|no\s+tengo\s+c[aá]mara)/i.test(blindSocial)) {
     throw new Error(`Se esperaba rechazo por falta de ojos (Pregonero): ${blindSocial}`);
+  }
+  const archNpc = NPC_CAST.find(n => n.id === 'archivista');
+  const auditQuery = 'auditor como se audita una obra y cuantos puntos vale una granja?';
+  if (detectAddressedNpc(auditQuery)?.id !== 'archivista') {
+    throw new Error('Routing de "auditor" -> archivista falló');
+  }
+  const archSpec = archNpc.buildPersona(auditQuery);
+  const auditRes = await askNpc({
+    config: cfg,
+    mode: 'archivista',
+    roleDesc: archSpec.roleDesc,
+    selfIdentity: archSpec.selfIdentity,
+    extraRules: archSpec.extraRules || [],
+    temperature: archSpec.temperature,
+    player: 'NotOutContext',
+    playerIdentity: buildPlayerIdentity('NotOutContext', 'guest', state, bridge),
+    query: auditQuery,
+    contextText: archNpc.buildContext(state, auditQuery, { bridge }).join('\n\n---\n\n')
+  });
+  console.log(`9f) NPC Archivista Auditor reply:`, auditRes);
+  if (!auditRes.respuesta_corta || !/25/.test(auditRes.respuesta_corta) || !/(?:Manual\s*0*3|TRD\s*120-01|Archivista)/i.test(`${auditRes.respuesta_corta} ${auditRes.normas_citadas.join(' ')}`)) {
+    throw new Error(`Respuesta de auditoría del Archivista incompleta: ${JSON.stringify(auditRes)}`);
   }
   console.log(`9) Multi-NPC Cast & Judge Etiquette test: PASS`);
   console.log('=== TODOS LOS TESTS PASARON ===');
