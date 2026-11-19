@@ -1126,7 +1126,7 @@ const NPC_CAST = [
         temperature: 0.45,
         extraRules: polite
           ? []
-          : ['11. ¡OBLIGATORIO! Empieza tu respuesta quejándote con mal genio de que no te llamaron "Excelencia" ni "Señor Juez" antes de darle la respuesta.']
+          : ['12. ¡OBLIGATORIO! Empieza tu respuesta quejándote con mal genio de que no te llamaron "Excelencia" ni "Señor Juez" antes de darle la respuesta.']
       };
     },
     buildContext(state, q, { bridge }) {
@@ -1877,6 +1877,37 @@ async function runSmokeTest(cfg) {
   console.log(`9c) NPC Arquitecto (ERA I) reply:`, arqRes);
   if (!arqRes.respuesta_corta || !/(?:casa|b[oó]veda|huerta|corral|camino|banco|c[aá]mara|ERA\s*I)/i.test(arqRes.respuesta_corta)) {
     throw new Error(`Arquitecto no mencionó obras de ERA I: ${arqRes.respuesta_corta}`);
+  }
+  const blindArqQuery = 'arquitecto como ves mi casa nueva?';
+  const blindArqRes = await askNpc({
+    config: cfg,
+    mode: 'arquitecto',
+    roleDesc: arqSpec.roleDesc,
+    selfIdentity: arqSpec.selfIdentity,
+    extraRules: arqSpec.extraRules || [],
+    temperature: arqSpec.temperature,
+    player: 'MythStorm',
+    playerIdentity: buildPlayerIdentity('MythStorm', 'myth', state, bridge),
+    query: blindArqQuery,
+    contextText: arqNpc.buildContext(state, blindArqQuery, { bridge }).join('\n\n---\n\n')
+  });
+  console.log(`9d) NPC Arquitecto (sin ojos) reply:`, blindArqRes);
+  if (!blindArqRes.respuesta_corta || !/(?:no\s+tengo\s+ojos|sin\s+ojos|no\s+(?:puedo|logro)\s+ver|no\s+veo|ciego|no\s+tengo\s+c[aá]mara)/i.test(blindArqRes.respuesta_corta)) {
+    throw new Error(`Se esperaba rechazo por falta de ojos (Arquitecto): ${blindArqRes.respuesta_corta}`);
+  }
+  const blindSocial = await generateSocialMessage({
+    config: cfg,
+    kind: 'direct',
+    player: 'Scadrial0523',
+    role: 'scad',
+    worldContext: worldCtx,
+    eraContext: eraCtx,
+    stanceContext: stanceCtx,
+    triggerMessage: 'pregonero como ves mi casa y mi granja?'
+  });
+  console.log(`9e) Pregonero (sin ojos) reply:`, blindSocial);
+  if (!blindSocial || !/(?:no\s+tengo\s+ojos|sin\s+ojos|no\s+(?:puedo|te\s+puedo|logro)\s+ver|no\s+veo|ciego|no\s+tengo\s+c[aá]mara)/i.test(blindSocial)) {
+    throw new Error(`Se esperaba rechazo por falta de ojos (Pregonero): ${blindSocial}`);
   }
   console.log(`9) Multi-NPC Cast & Judge Etiquette test: PASS`);
   console.log('=== TODOS LOS TESTS PASARON ===');

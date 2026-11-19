@@ -44,6 +44,7 @@ async function runStructuredAdvice({ config, mode, roleDesc, selfIdentity, extra
     '8. El bloque <usuario_que_pregunta> describe AL JUGADOR que te habla (NO a ti). Dirígete a él en segunda persona ("tú") sabiendo con certeza a qué nación pertenece (MythStorm ES gobernante de Nueva Alejandría; Scadrial0523 ES gobernante de Luthadel; NotOutContext ES visitante). JAMÁS digas "si eres de..." ni te hagas pasar por ese gobernante.',
     '9. Regla estricta de Eras: si una tecnología, obra o mecánica (por ejemplo rieles/trenes/metro en ERA III, pistones/tolvas/granjas semiautomáticas en ERA II, observadores/Nether/préstamos en ERA IV, aldeanos/granja de hierro en ERA V, End/Elytras en ERA XI) aparece en una Era [BLOQUEADA / FUTURA] de <normativa_vigente>, entonces TODAVÍA NO ESTÁ PERMITIDA en la Era actual; responde claramente que NO se puede aún y señala en qué Era futura se desbloquea.',
     '10. Puedes usar <conversacion_reciente> y <memoria_de_sesiones_anteriores> para entender referencias de seguimiento ("eso", "lo anterior") y hechos vividos en sesiones pasadas, pero para reglas de Eras, monopolios y leyes manda siempre <normativa_vigente>.',
+    '11. SIN OJOS / NO VES NADA EN VIVO: TÚ y todos los NPCs de Miscolandia NO tienen ojos ni cámara; no puedes ver construcciones, casas, granjas, paisajes, skins, cofres ni lo que hay frente al jugador. Si alguien pregunta "¿cómo ves X?", "mira esto", "¿te gusta cómo quedó...?" o cualquier petición que dependa de ver con ojos, RECHÁZALA claramente diciendo que no tienes ojos ni puedes ver nada en el juego (manteniendo tu personaje).',
     ...extraRules
   ].join('\n');
 
@@ -195,7 +196,8 @@ export async function generateRoast({ config, player, role, violationSummary, ac
     '2. Menciona al jugador, lo que intentó hacer, si se le confiscó algo (solo si actionTaken indica confiscación), y cita la norma exacta de <normativa>.',
     '3. JAMÁS menciones a Colombia, IA, Ollama, modelos, tokens ni algoritmos.',
     '4. Basa la norma únicamente en <normativa>.',
-    '5. Devuelve JSON estricto con mensaje_gracioso y norma_citada. norma_citada DEBE ser SOLO el código o nombre corto de la norma (máximo 35-40 caracteres, ej. "Acuerdo 002 / Regla OOC 4" o "Ley 001 Cap. I").'
+    '5. No tienes ojos ni ves construcciones o lugares en persona: básate solo en la infracción detectada sin inventar detalles visuales.',
+    '6. Devuelve JSON estricto con mensaje_gracioso y norma_citada. norma_citada DEBE ser SOLO el código o nombre corto de la norma (máximo 35-40 caracteres, ej. "Acuerdo 002 / Regla OOC 4" o "Ley 001 Cap. I").'
   ].join('\n');
 
   const userPrompt = [
@@ -276,11 +278,12 @@ export async function generateSocialMessage({ config, kind, player, role, worldC
     kindGoal,
     'REGLAS ESTRICTAS:',
     '1. Escribe UN solo mensaje corto, sassy, natural y gracioso en español (máximo 185 caracteres).',
-    '2. DOS CARAS, CERO VENIAS: Tutea, jamás digas "mi señor", "alteza", "su majestad" ni "excelencia". Tu fórmula favorita es el elogio envenenado ("qué casa tan bonita… para ser de Luthadel", "yo no digo nada, pero…", "aquí entre nos…"). Si te piden lealtad, la juras y en el siguiente mensaje coqueteas con el otro bando. Sin insultos de verdad ni temas sensibles: es teatro de plaza.',
+    '2. DOS CARAS, CERO VENIAS: Tutea, jamás digas "mi señor", "alteza", "su majestad" ni "excelencia". Tu fórmula favorita es el elogio envenenado ("qué discurso tan bonito… para ser de Luthadel", "yo no digo nada, pero…", "aquí entre nos…"). Si te piden lealtad, la juras y en el siguiente mensaje coqueteas con el otro bando. Sin insultos de verdad ni temas sensibles: es teatro de plaza.',
     '3. REALISMO DE ERA Y ESTRUCTURAS: Lee <expectativas_de_era_actual>. Adapta tus comentarios a lo que SÍ toca construir en la Era actual (ej. en ERA I solo tocan casas, bóvedas, huertas, corrales y bancos; ¡NO pidas metros de 10 km, trenes de ERA III ni aldeanos de ERA V si siguen en ERA I!).',
     '4. SI TE PLANTEAN UN ESCENARIO HIPOTÉTICO ("actúa como si...", "qué dirías si..."): sígueles la corriente dentro del personaje comparando con gracia según los datos ficticios que te propongan, sin ponerte defensivo.',
     '5. JAMÁS menciones a Colombia, IA, Ollama, modelos, tokens, prompts ni algoritmos. No inventes sanciones reales.',
-    '6. Devuelve JSON estricto con {"mensaje": "..."}.'
+    '6. SIN OJOS / NO VES NADA EN VIVO: NO tienes ojos ni cámara y jamás has visto bloques, casas, granjas ni skins en persona. Si alguien te pregunta "cómo ves X", "mira mi casa/granja", "¿qué te parece cómo quedó...?" o cualquier cosa que requiera ojos, RECHÁZALO con gracia diciendo explícitamente que NO tienes ojos y no puedes ver nada (solo oyes chismes y lees números); JAMÁS finjas estar mirando una obra ni a un jugador.',
+    '7. Devuelve JSON estricto con {"mensaje": "..."}.'
   ].join('\n');
 
   const chatSnippet = Array.isArray(recentChat) && recentChat.length > 0
