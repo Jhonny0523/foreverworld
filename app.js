@@ -597,6 +597,7 @@
     const c = curOf(s);
     const oc = E.otherCur(c);
     const h = E.holdings(state, s);
+    const wPts = E.worksPoints(state, s, CATS);
     const cap = E.capitalization(state, s, CATS);
     const iss = E.issued(state, c);
     const room = Math.max(0, E.r4(cap - iss));
@@ -639,7 +640,7 @@
             ${over > 0 ? `<span class="text-redstone">Exceso ${money(over, c)}</span>` : `<span class="text-emerald">Margen +${money(room, c)}</span>`}
           </div>
           <div class="boss-bar-track"><div class="boss-bar-fill" style="width:${pctUsed}%;background:${over > 0 ? '#ff5555' : pctUsed > 85 ? '#ffaa00' : '#55ff55'};"></div></div>
-          ${over > 0 ? `<div class="text-xs text-redstone font-mono" style="margin-top:5px;">⚠ Inflación ${tip('inflacion')}: quema ${money(over, c)} o audita obras para restaurar paridad.</div>` : room > 0 ? `<div class="text-xs text-emerald font-mono" style="margin-top:5px;">▲ Superávit de respaldo (+${fmt(room)} pts): valoriza el ${esc(nat(s).currency)} mientras no se imprima.</div>` : ''}
+          ${over > 0 ? `<div class="text-xs text-redstone font-mono" style="margin-top:5px;">⚠ Inflación ${tip('inflacion')}: quema ${money(over, c)} o audita obras para restaurar paridad.</div>` : room > 0 ? `<div class="text-xs text-emerald font-mono" style="margin-top:5px;">▲ Respaldo en obras (+${fmt(wPts)} pts) + margen sin imprimir (+${fmt(room)}): valoriza el ${esc(nat(s).currency)}.</div>` : wPts > 0 ? `<div class="text-xs text-emerald font-mono" style="margin-top:5px;">▲ Respaldo en obras (+${fmt(wPts)} pts): fortalece el ${esc(nat(s).currency)} en ${esc(state.settings.bankName)}.</div>` : ''}
         </div>
         <div style="margin-top:auto;">
           <div class="flex-between text-xs text-muted font-mono" style="margin-bottom:5px;">
@@ -958,7 +959,7 @@
     const auditorName = rid ? pname(rid) : 'Archivista Auditor';
     const worksPanel = panel(`
       ${head('TRD 120-01 · CATASTRO', 'emerald', `OBRAS, RELIQUIAS Y AUDITORÍA ${tip('obra')} ${tip('reliquia')}`,
-        `Cada obra respalda emisión monetaria, valoriza la moneda (mientras no se imprima el margen) y las acciones tras auditoría exclusiva de <strong>${esc(auditorName)}</strong> (Archivista Auditor, Manual 003). Repetir granjas del mismo producto aplica rendimiento decreciente (100%, 50%, 25%…).`)}
+        `Cada obra respalda emisión monetaria, fortalece/valoriza la moneda (incluso tras emitir dentro del techo, con bono extra si se conserva margen) y las acciones tras auditoría exclusiva de <strong>${esc(auditorName)}</strong> (Archivista Auditor, Manual 003). Repetir granjas del mismo producto aplica rendimiento decreciente (100%, 50%, 25%…).`)}
       <div class="kpi-strip" style="margin-bottom:14px;">
         <div class="kpi-box"><div class="kpi-label">Por auditar</div><div class="kpi-val ${eco.works.some(w => w.status === 'pendiente') ? 'text-gold' : 'text-white'}">${eco.works.filter(w => w.status === 'pendiente').length}</div></div>
         <div class="kpi-box"><div class="kpi-label">Auditadas vigentes</div><div class="kpi-val text-emerald">${auditedWorks.length}</div></div>

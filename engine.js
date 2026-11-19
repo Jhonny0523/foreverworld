@@ -5,10 +5,12 @@
    1. EMISIÓN: cuánto dinero puede existir.
       Techo = capitalización = emisión fundacional + puntos de obras AUDITADAS.
       Acumular ítems en cofres no cuenta para nada.
-      Conservar respaldo auditado sin imprimirlo valoriza la moneda; imprimir por encima la devalúa.
+      Toda obra auditada fortalece la moneda en el cambio (con bono adicional si
+      se conserva margen sin imprimir); emitir por encima del techo la devalúa.
    2. TIPO DE CAMBIO: cuánto vale una moneda frente a la otra.
-      Lo fija el Banco Internacional (neutral) por sus reservas, el superávit auditado no emitido
-      (que fortalece la moneda) y el exceso sin respaldo (que la devalúa).
+      Lo fija el Banco Internacional (neutral) por sus reservas, el respaldo real en
+      obras auditadas (que fortalece la moneda incluso tras emitir dentro del techo),
+      el superávit no emitido (bono extra) y el exceso sin respaldo (que la devalúa).
       (producto constante con "inercia" virtual). Nadie lo decide: lo mueve el
       comercio y el respaldo real. Si un Estado compra más de lo que vende, su moneda baja.
    3. PRECIOS: cuánto cuesta cada cosa. Lista pública en la moneda del vendedor,
@@ -72,12 +74,16 @@
     return out;
   }
 
-  function capitalization(st, s, categories) {
-    const eff = effectiveWorkPoints(st, categories);
-    const pts = st.economy.works
+  function worksPoints(st, s, categories) {
+    const cats = categories || CATS_REF;
+    const eff = effectiveWorkPoints(st, cats);
+    return r4(st.economy.works
       .filter(w => w.owner === s && w.status === 'auditada')
-      .reduce((sum, w) => sum + (eff[w.id] || 0), 0);
-    return r4(Number(st.settings.baseIssue || 0) + pts);
+      .reduce((sum, w) => sum + (eff[w.id] || 0), 0));
+  }
+
+  function capitalization(st, s, categories) {
+    return r4(Number(st.settings.baseIssue || 0) + worksPoints(st, s, categories));
   }
 
   // Dinero en existencia de una moneda (en manos de todos + reservas del banco)
@@ -134,12 +140,15 @@
   function inertia(st) { return Math.max(0, Number(st.settings.fxInertia || 0)); }
 
   // Profundidad efectiva de cada lado del cambio:
-  // - excess(c): dinero sin respaldo de c inunda el mercado y DEVALÚA c.
-  // - surplus(oc): respaldo sobrante de la moneda contraria (obras auditadas no impresas)
-  //   aumenta la solidez relativa de oc y la AVALÚA frente a c.
+  // - bank[c] + inertia: liquidez de mercado (comercio en La Gran Cámara)
+  // - excess(c): emisión SIN respaldo de c → DEVALÚA c
+  // - worksPoints(otherState): obras auditadas del otro Estado (solidez/PIB real) → AVALÚA al otro Estado
+  //   de forma permanente incluso tras emitir dentro de su techo
+  // - surplus(oc): respaldo sobrante NO impreso del otro Estado → bono extra de apreciación por escasez
   function depth(st, c) {
     const oc = otherCur(c);
-    return st.economy.bank[c] + inertia(st) + excess(st, c) + surplus(st, oc);
+    const os = stateOfCur(oc);
+    return st.economy.bank[c] + inertia(st) + excess(st, c) + worksPoints(st, os, CATS_REF) + surplus(st, oc);
   }
 
   // Precio de 1 M expresado en S
@@ -426,7 +435,7 @@
   }
 
   root.FW_ENGINE = {
-    r4, fmt, uid, setCategories, excess, surplus, depth, curOfState, stateOfCur, otherCur, otherState, isState, holdings,
+    r4, fmt, uid, setCategories, excess, surplus, worksPoints, depth, curOfState, stateOfCur, otherCur, otherState, isState, holdings,
     effectiveWorkPoints, capitalization, issued, inDefault, mint, burn,
     rate, quoteForOut, quoteForIn, pay, swap, jointDeposit, convert, uiValue,
     loanDue, settleCur, bankDebt, bankLoanLimits, createLoan, repayLoan,

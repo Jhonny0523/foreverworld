@@ -162,7 +162,7 @@ window.FW_DATA = (() => {
     acciones: { t: 'Acciones', d: 'Cada país está dividido en partes. Un invitado (o el otro país) puede comprar partes. Si el país construye más, cada parte vale más y se puede revender con ganancia.', ex: 'Compras 5 acciones a 1 {DR}; el país construye y suben a 1,3: las vendes y ganas 1,5 {DR}.' },
     precioAccion: { t: 'Precio por acción', d: 'Respaldo del país dividido entre el número de acciones. Sube cuando el país construye.', ex: 'Respaldo 130 ÷ 100 acciones = 1,3 por acción.' },
     dividendo: { t: 'Dividendo', d: 'Un regalo en dinero que el país reparte a quienes tienen sus acciones.', ex: '0,1 por acción: quien tiene 5 acciones recibe 0,5.' },
-    obra: { t: 'Obra auditada', d: 'Algo que construiste y que únicamente el Archivista Auditor (NotOutContext) revisó en el juego y aprobó. Sube tu respaldo y valoriza la moneda mientras no se imprima el margen.', ex: 'Registras tu bóveda; el Archivista Auditor la inspecciona, le pone puntos y la aprueba.' },
+    obra: { t: 'Obra auditada', d: 'Algo que construiste y que únicamente el Archivista Auditor (NotOutContext) revisó en el juego y aprobó. Sube tu respaldo y fortalece/valoriza tu moneda en el cambio (con bono adicional si no imprimes el margen).', ex: 'Registras tu bóveda; el Archivista Auditor la inspecciona, le pone puntos y la aprueba.' },
     reliquia: { t: 'Reliquia', d: 'Un objeto único (tridente, elytra, huevo de dragón…). La primera de cada tipo suma respaldo. Si se pierde, se descuenta.', ex: '' },
     ofertaSellada: { t: 'Oferta Sellada', d: 'Para fijar un precio sin pelear: el vendedor escribe en secreto lo mínimo que acepta y el comprador lo máximo que pagaría. Si alcanza, el precio es el punto medio.', ex: 'Pides mínimo 20, te ofrecen hasta 30: queda en 25.' },
     tarifa: { t: 'Lista de precios', d: 'Lo que vende cada país y a cuánto, en su propia moneda. Es igual para todos y solo cambia en la Sesión de Tarifas.', ex: '' },
@@ -871,7 +871,7 @@ window.FW_DATA = (() => {
         articles: [
           'Artículo 1. Techo de capitalización. Cada Estado inicia con su emisión fundacional y solo amplía su techo monetario mediante obras públicas, infraestructura, servicios o reliquias auditadas y aprobadas exclusivamente en "Obras & Auditoría" (TRD 120-01) por el Archivista Auditor Nacional.',
           'Artículo 2. Regla contra repetición estéril. Guardar cofres con ítems no crea respaldo. Repetir granjas del mismo producto aplica rendimiento decreciente (100%, 50%, 25%...), premiando infraestructura diversa y útil.',
-          'Artículo 3. Emisión sana, superávit e inflación. Conservar superávit de respaldo (obras auditadas por encima del dinero emitido) valoriza y fortalece la moneda en {BANK} mientras no se imprima ese margen. Imprimir dentro del techo mantiene moneda sana. Imprimir por encima genera exceso sin respaldo: la moneda cae proporcionalmente en {BANK} y se bloquea el acceso a crédito hasta auditar nuevas obras o quemar billetes sobrantes.'
+          'Artículo 3. Emisión sana, respaldo real e inflación. Toda obra auditada fortalece de forma permanente la moneda en {BANK} incluso tras emitir dentro del techo, y conservar margen sin imprimir aporta un bono extra de valorización. Imprimir dentro del techo mantiene moneda sana; imprimir por encima genera exceso sin respaldo: la moneda cae proporcionalmente en {BANK} y se bloquea el acceso a crédito hasta auditar nuevas obras o quemar billetes sobrantes.'
         ],
         concordancias: 'Serie TRD 120-01 (Obras y Contratos) · Código de Convivencia Libro II · Resolución 006.'
       },
@@ -883,7 +883,7 @@ window.FW_DATA = (() => {
         title: 'La Cámara Neutral y el Tipo de Cambio Flotante',
         summary: 'Cómo determina el mercado el valor entre {DR} y {CU}, y para qué sirve la unidad neutra {OE}.',
         articles: [
-          'Artículo 4. Fondo neutral de reservas. {BANK} conserva reservas conjuntas en {DR} y {CU} mediante fórmula de producto constante con inercia configurable. Ningún gobernante fija la tasa a dedo: la mueven el comercio real, el superávit de respaldo auditado no emitido (que fortalece la divisa) y cualquier exceso sin respaldo (que la devalúa).',
+          'Artículo 4. Fondo neutral de reservas. {BANK} conserva reservas conjuntas en {DR} y {CU} mediante fórmula de producto constante con inercia configurable. Ningún gobernante fija la tasa a dedo: la mueven el comercio real, las obras auditadas (que fortalecen permanentemente la moneda con bono extra si no se imprime el margen) y cualquier exceso sin respaldo (que la devalúa).',
           'Artículo 5. Equilibrio comercial automático. Si un territorio importa más de lo que vende, entrega su divisa a la Cámara y su valor baja suavemente, abaratando sus productos para estimular que el socio vuelva a comprarle.',
           'Artículo 6. Unidad de cuenta {OE}. Un {OE} equivale a media divisa de cada Estado (½ {DR} + ½ {CU}) al tipo de cambio del día. Es ideal para contratos largos, tasas y préstamos bilaterales para repartir riesgos cambiarios.'
         ],
