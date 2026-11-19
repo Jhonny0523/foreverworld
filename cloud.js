@@ -9,7 +9,7 @@ window.FW_CLOUD = (() => {
   const REV_PREFIX = 'forever_world_cloud_rev_';
   const BASE_PREFIX = 'forever_world_cloud_base_';
   const WORLD_UI_KEYS = ['rpLawsSeeded', 'foodRuleV1', 'guestSeedV1', 'luthadelV1'];
-  const APP_VER = '20261119091500';
+  const APP_VER = '20261119092000';
   let warnedOutdated = false;
 
   let client = null;

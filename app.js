@@ -3021,19 +3021,54 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     'Ley 013 · Reserva de Estado y Construcciones Confidenciales',
     'Manual 003 · Manual Oficial del Archivista Auditor y Auditoría de Obras (TRD 120-01)'
   ];
+  function dedupePostedLaws() {
+    if (!Array.isArray(state.laws) || state.laws.length < 2) return false;
+    const rank = l => {
+      let s = 0;
+      if (l.review && l.review.status === 'approved') s += 100;
+      else if (l.review && l.review.status && l.review.status !== 'none') s += 20;
+      if (l.signs && l.signs.myth) s += 10;
+      if (l.signs && l.signs.scad) s += 10;
+      if (l.review && Array.isArray(l.review.notes)) s += l.review.notes.length;
+      return s;
+    };
+    const bestByKey = new Map();
+    for (const l of state.laws) {
+      const k = String(l.title || '').trim().toLowerCase();
+      if (!k) continue;
+      const prev = bestByKey.get(k);
+      if (!prev || rank(l) > rank(prev) || (rank(l) === rank(prev) && (l.t || 0) < (prev.t || 0))) {
+        bestByKey.set(k, l);
+      }
+    }
+    const before = state.laws.length;
+    const keepIds = new Set([...bestByKey.values()].map(x => x.id));
+    state.laws = state.laws.filter(l => !String(l.title || '').trim() || keepIds.has(l.id));
+    return state.laws.length !== before;
+  }
+
   function postNewLaws() {
-    const have = new Set(state.laws.map(l => (l.title || '').toLowerCase()));
+    const deduped = dedupePostedLaws();
+    const have = new Set(state.laws.map(l => String(l.title || '').trim().toLowerCase()));
     const allPack = [...(D.DEFAULT_RP_LAWS || []), ...(D.DEFAULT_PENAL_PACK || [])];
-    const fresh = allPack.filter(d => POSTED_LAWS.includes(d.title) && !have.has(d.title.toLowerCase()));
-    if (!fresh.length) return;
+    const fresh = [];
+    for (const d of allPack) {
+      const k = String(d.title || '').trim().toLowerCase();
+      if (POSTED_LAWS.includes(d.title) && !have.has(k)) {
+        have.add(k);
+        fresh.push(d);
+      }
+    }
+    if (!fresh.length && !deduped) return;
     fresh.forEach(d => {
       const docType = d.docType || 'ley';
       const trdCode = d.trdCode || ((D.DOC_TYPES || {})[docType] || {}).trd || '100-01';
-      state.laws.push({ id: uid('ley'), kind: 'rol', docType, trdCode, num: nextLawNum('rol', docType), title: d.title, text: tx(d.text), sanction: tx(d.sanction), signs: { myth: false, scad: false }, review: { status: 'none', notes: [] }, repealed: false, t: Date.now() });
+      const stableId = 'ley-post-' + String(d.title || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').slice(0, 40);
+      state.laws.push({ id: stableId, kind: 'rol', docType, trdCode, num: nextLawNum('rol', docType), title: d.title, text: tx(d.text), sanction: tx(d.sanction), signs: { myth: false, scad: false }, review: { status: 'none', notes: [] }, repealed: false, t: Date.now() });
     });
     save();
     renderAll();
-    toast('Leyes postuladas', `${fresh.length} documento(s) nuevos en Estados y Leyes. Rigen cuando firmen ambos.`, 'gavel');
+    if (fresh.length) toast('Leyes postuladas', `${fresh.length} documento(s) nuevos en Estados y Leyes. Rigen cuando firmen ambos.`, 'gavel');
   }
 
   function addDefaultLaws(kind = 'servidor') {
@@ -3321,6 +3356,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     if (needCloudRename && CLOUD) CLOUD.schedulePush(() => state);
     if (CLOUD) CLOUD.setPresence({ id: me, name: me ? pname(me) : 'Visitante' });
     if (meta.fromRealtime) clearUndoStack();
+    if (dedupePostedLaws() && CLOUD) CLOUD.schedulePush(() => state);
     renderAll();
     if ($('modal-backup') && $('modal-backup').classList.contains('open')) renderCloudPanel(false);
     if (meta.fromRealtime) {
@@ -3666,7 +3702,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
 
   /* ======================== Actualización en vivo (anti-caché) ======================== */
 
-  const CURRENT_APP_VER = (CLOUD && CLOUD.APP_VER) || '20261119091500';
+  const CURRENT_APP_VER = (CLOUD && CLOUD.APP_VER) || '20261119092000';
   let detectedNewVer = '';
 
   function forceLiveReload(targetVer) {
