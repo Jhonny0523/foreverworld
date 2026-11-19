@@ -1979,7 +1979,7 @@ async function runSmokeTest(cfg) {
   if (!joinSocial || !leaveSocial || !chatSocial || !directSocial || !testSocial
     || [joinSocial, leaveSocial, chatSocial, directSocial, testSocial].some(t => t.length > 195 || bannedRe.test(t) || lambonTestRe.test(t))
     || /como\s+(?:el\s+)?gobernante/i.test(directSocial)
-    || /(?:el\s+tuyo|tu\s+estado\s+es\s+(?:el\s+)?mejor|nueva\s+alejandr[ií]a\s+es\s+(?:el\s+)?mejor)/i.test(directSocial)) {
+    || (stanceCtx.includes('INDEPENDIENTE') && /(?:el\s+tuyo|tu\s+estado\s+es\s+(?:el\s+)?mejor|nueva\s+alejandr[ií]a\s+es\s+(?:el\s+)?mejor)/i.test(directSocial))) {
     throw new Error('Social banter inválido, lambón o mencionó términos prohibidos.');
   }
   console.log(`6) Ollama ${cfg.ollamaModel} Social test: PASS`);

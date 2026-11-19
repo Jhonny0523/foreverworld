@@ -83,6 +83,9 @@ export class SupabaseBridge {
     this.E = windowObj.FW_ENGINE;
     if (!this.cfg?.url || !this.cfg?.anonKey) throw new Error('supabase-config.js incompleto.');
     if (!this.D || !this.E) throw new Error('No se pudo cargar FW_DATA o FW_ENGINE.');
+    if (typeof this.E.setCategories === 'function') {
+      this.E.setCategories(this.D.WORK_CATEGORIES || []);
+    }
     this.E.setCategories(this.D.WORK_CATEGORIES || []);
   }
 
@@ -329,8 +332,8 @@ export class SupabaseBridge {
     const noAvalCount = icLaws.filter(l => !(l.review && l.review.status === 'approved')).length;
     const activeLoans = (state.economy?.loans || []).filter(l => l.status !== 'pagado');
     const moras = activeLoans.filter(l => l.status === 'mora').length;
-    const mythEx = E.excess(state, 'myth', CATS);
-    const scadEx = E.excess(state, 'scad', CATS);
+    const mythEx = E.excess(state, 'M');
+    const scadEx = E.excess(state, 'S');
     const era = this.getCurrentEra(state);
     return {
       eraCode: era.code,
@@ -362,7 +365,7 @@ export class SupabaseBridge {
       const h = E.holdings(state, s);
       const cap = E.capitalization(state, s, CATS);
       const iss = E.issued(state, c);
-      const ex = E.excess(state, s, CATS);
+      const ex = E.excess(state, c);
       const mora = E.inDefault(state, s);
       const tag = mora ? 'EN MORA' : ex > 0 ? `INFLACION (+${E.fmt(ex)})` : 'Sana';
       return `${nat.nation} (${nat.player}): ${this.money(state, h[c], c)}${h[oc] > 0 ? ` + ${this.money(state, h[oc], oc)}` : ''} | Techo ${E.fmt(iss)}/${E.fmt(cap)} | ${tag}`;

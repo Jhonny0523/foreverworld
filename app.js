@@ -277,9 +277,15 @@
     $('hud-xp-bar').style.width = `${pct}%`;
     const r = E.rate(state);
     $('hud-fx-rate').textContent = `1 ${sym('M')} = ${r.toFixed(3)} ${sym('S')}`;
+    const fxDrift = Math.abs(r - 1);
+    const fxMood = fxDrift < 0.005
+      ? 'Paridad'
+      : r > 1
+        ? `${nat('myth').currency} +${((r - 1) * 100).toFixed(1)}%`
+        : `${nat('scad').currency} +${(((1 / r) - 1) * 100).toFixed(1)}%`;
     $('hud-fx-status').textContent = state.economy.bank.M + state.economy.bank.S > 0
-      ? (Math.abs(r - 1) < 0.02 ? 'Paridad' : r > 1 ? `${nat('myth').currency} fuerte` : `${nat('scad').currency} fuerte`)
-      : `${state.settings.bankName}: sin fundar`;
+      ? fxMood
+      : `${fxMood} · Cámara sin reservas`;
     const sel = $('me-select');
     sel.innerHTML = `<option value="">— elegir —</option>` + peopleOpts(me) + `<option value="__new__">+ Agregar invitado...</option>`;
     document.title = `${state.world.worldName || 'Forever World'} — ${nat('myth').nation} & ${nat('scad').nation}`;
@@ -633,7 +639,7 @@
             ${over > 0 ? `<span class="text-redstone">Exceso ${money(over, c)}</span>` : `<span class="text-emerald">Margen +${money(room, c)}</span>`}
           </div>
           <div class="boss-bar-track"><div class="boss-bar-fill" style="width:${pctUsed}%;background:${over > 0 ? '#ff5555' : pctUsed > 85 ? '#ffaa00' : '#55ff55'};"></div></div>
-          ${over > 0 ? `<div class="text-xs text-redstone font-mono" style="margin-top:5px;">⚠ Inflación ${tip('inflacion')}: quema ${money(over, c)} o audita obras para restaurar paridad.</div>` : ''}
+          ${over > 0 ? `<div class="text-xs text-redstone font-mono" style="margin-top:5px;">⚠ Inflación ${tip('inflacion')}: quema ${money(over, c)} o audita obras para restaurar paridad.</div>` : room > 0 ? `<div class="text-xs text-emerald font-mono" style="margin-top:5px;">▲ Superávit de respaldo (+${fmt(room)} pts): valoriza el ${esc(nat(s).currency)} mientras no se imprima.</div>` : ''}
         </div>
         <div style="margin-top:auto;">
           <div class="flex-between text-xs text-muted font-mono" style="margin-bottom:5px;">
@@ -654,6 +660,8 @@
 
   function sparkline() {
     const h = state.economy.fxHistory.slice(-60);
+    const curR = E.rate(state);
+    if (h.length && Math.abs(h[h.length - 1].r - curR) > 1e-6) h.push({ t: Date.now(), r: curR });
     if (h.length < 2) return '<div class="text-xs text-dim" style="text-align:center;">El gráfico aparece con el primer movimiento cambiario.</div>';
     const rs = h.map(p => p.r);
     const min = Math.min(...rs, 1) * 0.98, max = Math.max(...rs, 1) * 1.02;
@@ -673,7 +681,12 @@
     const r = E.rate(state);
     const founded = b.M + b.S > 0;
     const drift = Math.abs(r - 1);
-    const statusLabel = !founded ? 'Sin fundar' : drift < 0.02 ? 'En paridad' : r > 1 ? `${nat('myth').currency} fuerte` : `${nat('scad').currency} fuerte`;
+    const baseStatus = drift < 0.005
+      ? 'En paridad'
+      : r > 1
+        ? `${nat('myth').currency} fuerte (+${((r - 1) * 100).toFixed(1)}%)`
+        : `${nat('scad').currency} fuerte (+${(((1 / r) - 1) * 100).toFixed(1)}%)`;
+    const statusLabel = founded ? baseStatus : `${baseStatus} · sin reservas`;
     return `
       <div class="mc-panel-dark p-md" style="border-color:#6b1f6b;display:flex;flex-direction:column;gap:10px;">
         <div class="flex-between">
@@ -940,9 +953,12 @@
         </details>
       </div>`;
 
+    const rid = reviewerId();
+    const isAuditor = Boolean(rid && me === rid);
+    const auditorName = rid ? pname(rid) : 'Archivista Auditor';
     const worksPanel = panel(`
       ${head('TRD 120-01 · CATASTRO', 'emerald', `OBRAS, RELIQUIAS Y AUDITORÍA ${tip('obra')} ${tip('reliquia')}`,
-        `Cada obra respalda emisión monetaria y valor de acciones tras auditoría del Archivista Auditor (o verificación supletoria del Estado socio, Manual 003). Repetir granjas del mismo producto aplica rendimiento decreciente (100%, 50%, 25%…).`)}
+        `Cada obra respalda emisión monetaria, valoriza la moneda (mientras no se imprima el margen) y las acciones tras auditoría exclusiva de <strong>${esc(auditorName)}</strong> (Archivista Auditor, Manual 003). Repetir granjas del mismo producto aplica rendimiento decreciente (100%, 50%, 25%…).`)}
       <div class="kpi-strip" style="margin-bottom:14px;">
         <div class="kpi-box"><div class="kpi-label">Por auditar</div><div class="kpi-val ${eco.works.some(w => w.status === 'pendiente') ? 'text-gold' : 'text-white'}">${eco.works.filter(w => w.status === 'pendiente').length}</div></div>
         <div class="kpi-box"><div class="kpi-label">Auditadas vigentes</div><div class="kpi-val text-emerald">${auditedWorks.length}</div></div>
@@ -962,13 +978,14 @@
             return `<tr>
               <td>${ptag(w.owner)}</td>
               <td><div class="text-white" style="font-weight:700;">${esc(w.name)}</div><div class="text-xs text-dim">${esc(cat.name)}${w.product ? ' · ' + esc(w.product) : ''}${w.coords ? ' · ' + esc(w.coords) : ''}</div></td>
-              <td class="font-mono text-xs">${w.status === 'perdida' ? `<span class="text-dim" style="text-decoration:line-through;">${fmt(w.final)}</span>` : w.status === 'auditada' ? `<strong class="text-emerald">${fmt(eff)}</strong>${eff !== Number(w.final) ? ` <span class="text-dim">(de ${fmt(w.final)}${cat.unique ? ', repetida' : ''})</span>` : ''}` : `<input id="wpts-${w.id}" type="number" min="0" value="${w.proposed}" class="mc-input font-mono" style="width:70px;padding:3px 5px;"/>`}</td>
+              <td class="font-mono text-xs">${w.status === 'perdida' ? `<span class="text-dim" style="text-decoration:line-through;">${fmt(w.final)}</span>` : w.status === 'auditada' ? `<strong class="text-emerald">${fmt(eff)}</strong>${eff !== Number(w.final) ? ` <span class="text-dim">(de ${fmt(w.final)}${cat.unique ? ', repetida' : ''})</span>` : ''}` : isAuditor ? `<input id="wpts-${w.id}" type="number" min="0" value="${w.proposed}" class="mc-input font-mono" style="width:70px;padding:3px 5px;"/>` : `<span class="text-gold">${fmt(w.proposed)}</span> <span class="text-dim">(prop.)</span>`}</td>
               <td class="text-xs">${w.status === 'perdida' ? '<span class="text-redstone">💀 Perdida</span>' : w.status === 'auditada' ? `<span class="text-emerald">✔ Auditada por ${esc(pname(w.auditedBy))}</span>` : w.status === 'rechazada' ? `<span class="text-redstone">✖ Rechazada</span>` : '<span class="text-gold">⏳ Pendiente</span>'}</td>
               <td><div class="flex-row-wrap" style="gap:4px;flex-wrap:nowrap;">
-                ${w.status === 'pendiente' ? `<button class="mc-btn mc-btn-emerald" style="padding:3px 6px;" data-action="work-approve" data-id="${w.id}">Aprobar</button><button class="mc-btn" style="padding:3px 6px;" data-action="work-reject" data-id="${w.id}">Rechazar</button>`
-                  : w.status === 'perdida' ? `<button class="mc-btn" style="padding:3px 6px;" data-action="work-reopen" data-id="${w.id}" title="La recuperaron: vuelve a auditoría">Recuperada</button>`
-                  : `${w.status === 'auditada' && cat.unique ? `<button class="mc-btn mc-btn-redstone" style="padding:3px 6px;" data-action="work-lost" data-id="${w.id}">Se perdió</button>` : ''}<button class="mc-btn" style="padding:3px 6px;" data-action="work-reopen" data-id="${w.id}">Reabrir</button>`}
-                <button class="mc-btn mc-btn-redstone" style="padding:3px 6px;" data-action="work-del" data-id="${w.id}">✕</button>
+                ${w.status === 'pendiente'
+                  ? `${isAuditor ? `<button class="mc-btn mc-btn-emerald" style="padding:3px 6px;" data-action="work-approve" data-id="${w.id}">Aprobar</button><button class="mc-btn" style="padding:3px 6px;" data-action="work-reject" data-id="${w.id}">Rechazar</button>` : `<span class="text-xs text-dim" title="Solo el Archivista Auditor puede avalar obras">Solo ${esc(auditorName)}</span>`}${(isAuditor || me === w.owner) ? `<button class="mc-btn mc-btn-redstone" style="padding:3px 6px;" data-action="work-del" data-id="${w.id}">✕</button>` : ''}`
+                  : w.status === 'perdida'
+                    ? `${isAuditor ? `<button class="mc-btn" style="padding:3px 6px;" data-action="work-reopen" data-id="${w.id}" title="La recuperaron: vuelve a auditoría">Recuperada</button><button class="mc-btn mc-btn-redstone" style="padding:3px 6px;" data-action="work-del" data-id="${w.id}">✕</button>` : `<span class="text-xs text-dim">Archivo histórico</span>`}`
+                    : `${w.status === 'auditada' && cat.unique && (isAuditor || me === w.owner) ? `<button class="mc-btn mc-btn-redstone" style="padding:3px 6px;" data-action="work-lost" data-id="${w.id}">Se perdió</button>` : ''}${isAuditor ? `<button class="mc-btn" style="padding:3px 6px;" data-action="work-reopen" data-id="${w.id}">Reabrir</button><button class="mc-btn mc-btn-redstone" style="padding:3px 6px;" data-action="work-del" data-id="${w.id}">✕</button>` : ''}`}
               </div></td></tr>`;
           }).join('')}</tbody></table>` : empty(`Ambos Estados empiezan con ${fmt(state.settings.baseIssue)} de capitalización fundacional. Registren obras para crecer.`)}
       </div>`);
@@ -1976,10 +1993,12 @@
   }
   function requireWorkAuditor(w, why) {
     const rid = reviewerId();
-    const other = E.otherState(w.owner);
-    if ((rid && me === rid) || me === other) return true;
-    const allowed = rid ? `${pname(rid)} (Archivista Auditor) o ${pname(other)}` : pname(other);
-    fail(`Para ${why} elige "Soy: ${allowed}" arriba.`);
+    if (!rid) {
+      fail('No hay un Archivista Auditor asignado. Agrega a NotOutContext como invitado o configúralo como Revisor en Estados y Leyes.');
+      return false;
+    }
+    if (me === rid) return true;
+    fail(`Solo ${pname(rid)} (Archivista Auditor) puede ${why}. Elige "Soy: ${pname(rid)}" arriba.`);
     return false;
   }
   function ensureLawReview(l) {
@@ -2239,17 +2258,20 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       state.economy.works.unshift({ id: uid('obr'), owner, cat: val('w-cat'), name, product: val('w-product'), coords: val('w-coords'), proposed: num(val('w-pts'), 0), status: 'pendiente', createdAt: Date.now() });
       log('Obra', `${nat(owner).nation} registra "${name}" (pendiente de auditoría).`);
       const rid = reviewerId();
-      toast('Obra registrada', `Falta que ${rid ? `${pname(rid)} (Archivista) o ` : ''}${pname(E.otherState(owner))} la audite.`, 'gold');
+      toast('Obra registrada', `Falta que ${rid ? `${pname(rid)} (Archivista Auditor)` : 'el Archivista Auditor'} la audite.`, 'gold');
       state.ui.form = '';
       commit('economy');
     },
     'work-approve': el => {
       const w = state.economy.works.find(x => x.id === el.dataset.id);
       if (!w || !requireWorkAuditor(w, 'auditar esta obra')) return;
+      const before = E.rate(state);
       w.final = num(val(`wpts-${w.id}`), w.proposed);
       w.status = 'auditada'; w.auditedBy = me; w.auditedAt = Date.now();
-      log('Auditoría', `${pname(me)} aprueba "${w.name}" de ${nat(w.owner).nation}: ${fmt(w.final)} puntos.`);
-      toast('Obra auditada', `${w.name}: +${fmt(w.final)}`, 'beacon');
+      const after = E.rate(state);
+      const fxNote = Math.abs(after - before) > 1e-4 ? ` · Cambio: 1 ${sym('M')} = ${after.toFixed(3)} ${sym('S')}` : '';
+      log('Auditoría', `${pname(me)} aprueba "${w.name}" de ${nat(w.owner).nation}: ${fmt(w.final)} puntos${fxNote}.`);
+      toast('Obra auditada', `${w.name}: +${fmt(w.final)} pts${fxNote}`, 'beacon');
       commit('economy');
     },
     'work-reject': el => {
