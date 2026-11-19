@@ -431,7 +431,8 @@ export class SupabaseBridge {
     });
     const haveTitles = new Set((state.laws || []).map(l => String(l.title || '').toLowerCase()));
     const canonicalAuditTitle = 'Manual 003 · Manual Oficial del Archivista Auditor y Auditoría de Obras (TRD 120-01)';
-    const fallbackManual = (this.D.DEFAULT_RP_LAWS || []).find(
+    const allCanonical = [...(this.D.DEFAULT_RP_LAWS || []), ...(this.D.DEFAULT_PENAL_PACK || [])];
+    const fallbackManual = allCanonical.find(
       d => d.title === canonicalAuditTitle && !haveTitles.has(d.title.toLowerCase())
     );
     const pool = fallbackManual

@@ -1384,9 +1384,9 @@
       const tInfo = trdInfo(tCode);
       const rev = reviewOf(l);
       const sealed = Boolean(rp && !l.repealed && rev.status === 'approved');
-      return `<div class="mc-panel-dark p-md" style="opacity:${status === 'derogada' ? '.88' : '1'};${l.repealed ? 'border-left:4px solid var(--c-red);' : sealed ? 'border-left:4px solid var(--c-green);' : ''}">
-        <div class="flex-between">
-          <div class="flex-row-wrap" style="gap:6px;">
+      return `<div class="mc-panel-dark p-md law-card" style="opacity:${status === 'derogada' ? '.88' : '1'};${l.repealed ? 'border-left:4px solid var(--c-red);' : sealed ? 'border-left:4px solid var(--c-green);' : ''}">
+        <div class="law-card-head">
+          <div class="flex-row-wrap law-card-meta" style="gap:6px;">
             <span class="mc-tag tag-${meta.tag}">${esc(meta.prefix)} ${l.num}</span>
             <span class="mc-tag ${rp ? 'tag-emerald' : 'tag-slate'}" title="${rp ? 'Norma dentro del rol (In Character)' : 'Regla técnica fuera de rol (Out of Character)'}">${rp ? 'IC · En Rol' : 'OOC · Fuera de Rol'}</span>
             <strong class="text-white text-sm">${esc(l.title)}</strong>
@@ -1394,7 +1394,7 @@
             ${rp && !l.repealed ? revTag(rev) : ''}
             <span class="mc-tag ${trdDispTag(tInfo.disp)}" title="${esc(tInfo.series || '')}">TRD ${esc(tCode)} · ${esc(tInfo.disp)}</span>
           </div>
-          <div class="flex-row-wrap" style="gap:4px;">
+          <div class="flex-row-wrap law-card-actions" style="gap:6px;">
             ${isRev ? `
               ${STATES.map(s => `<span class="mc-tag ${l.signs[s] ? 'tag-emerald' : 'tag-slate'}">${l.signs[s] ? '✔' : '·'} ${esc(nat(s).player)}</span>`).join('')}
               ${rp && !l.repealed && !sealed ? `
@@ -1506,8 +1506,7 @@
               <div class="flex-row-wrap" style="gap:4px;">
                 ${!isRev && !l.repealed && rev.status === 'returned' ? `<button class="mc-btn" style="padding:2px 7px;" data-action="law-edit" data-id="${l.id}">✎ Editar</button><button class="mc-btn mc-btn-diamond" style="padding:2px 7px;" data-action="law-submit" data-id="${l.id}">📤 Reenviar</button>` : ''}
                 ${!isRev && l.repealed ? `<button class="mc-btn" style="padding:2px 7px;" data-action="law-edit" data-id="${l.id}">✎ Editar</button><button class="mc-btn" style="padding:2px 7px;" data-action="law-repeal" data-id="${l.id}">♻ Restaurar</button>` : ''}
-                ${isRev && !l.repealed && rev.status !== 'approved' ? `<button class="mc-btn mc-btn-emerald" style="padding:2px 7px;" data-action="law-approve-rev" data-id="${l.id}">✔ Avalar</button>` : ''}
-                ${isRev && !l.repealed ? `<button class="mc-btn mc-btn-gold" style="padding:2px 7px;" data-action="law-return" data-id="${l.id}">↩ Devolver</button>` : ''}
+                ${isRev && !l.repealed && rev.status !== 'approved' ? `<button class="mc-btn mc-btn-emerald" style="padding:2px 7px;" data-action="law-approve-rev" data-id="${l.id}">✔ Avalar</button><button class="mc-btn mc-btn-gold" style="padding:2px 7px;" data-action="law-return" data-id="${l.id}">↩ Devolver</button>` : ''}
               </div>
             </div>
             ${whoAt ? `<div class="text-xs text-muted" style="margin-top:4px;">${whoAt}</div>` : ''}
@@ -1524,7 +1523,7 @@
         </div>
         <label class="text-xs font-mono text-muted" style="display:flex;align-items:center;gap:6px;">
           Revisor designado:
-          <select class="mc-select font-mono" style="width:auto;padding:3px 6px;" data-bind="settings.reviewerId">${peopleOpts(rid)}</select>
+          <select class="mc-select font-mono" style="width:auto;padding:3px 6px;" data-bind="settings.reviewerId" ${E.isState(me) ? '' : 'disabled'}>${peopleOpts(rid)}</select>
         </label>
       </div>
       ${isRev ? `<div class="mc-panel-dark p-sm text-xs text-diamond" style="margin-bottom:10px;border-left:3px solid var(--c-aqua);">🔍 <strong>Modo Revisor (${esc(revName)}):</strong> revisa las normas, devuelve con anotaciones o dales aval para firma.</div>` : ''}
@@ -2000,6 +1999,19 @@
     fail(`Para ${why} elige "Soy: ${pname(target)}" arriba.`);
     return false;
   }
+  function requireIdentified(why) {
+    if (me && participants().includes(me)) return true;
+    fail(`Para ${why} elige quién eres en "Soy:" arriba.`);
+    return false;
+  }
+  function requireFounder(why) {
+    if (E.isState(me)) return true;
+    fail(`Solo un Estado fundador (${pname('myth')} o ${pname('scad')}) puede ${why}.`);
+    return false;
+  }
+  function isLawSealed(l) {
+    return Boolean(l && (l.kind || 'servidor') === 'rol' && !l.repealed && l.review && l.review.status === 'approved');
+  }
 
   const ACTIONS = {
     filter: el => { state.ui.filter = el.dataset.v; commit('roadmap'); },
@@ -2044,6 +2056,7 @@
     form: el => { state.ui.form = state.ui.form === el.dataset.f ? '' : el.dataset.f; commit('economy'); },
     'shop-edit': () => { state.ui.shopEdit = !state.ui.shopEdit; commit('economy'); },
     'deposit-quick': () => {
+      if (!requireFounder('hacer aportes conjuntos a la Cámara')) return;
       const r = E.jointDeposit(state, 40);
       if (!r.ok) return fail(r.msg);
       log('Banco', `Fundación de ${pname('bank')}: ${money(r.amountM, 'M')} + ${money(r.amountS, 'S')}.`);
@@ -2073,6 +2086,7 @@
 
     mint: async el => {
       const s = el.dataset.s;
+      if (!requireMe(s, `operar tesorería de ${nat(s).nation}`)) return;
       const amt = num(val(`mint-${s}`));
       let r = E.mint(state, s, amt, CATS);
       if (!r.ok && r.needConfirm) {
@@ -2099,6 +2113,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     },
     burn: el => {
       const s = el.dataset.s;
+      if (!requireMe(s, `operar tesorería de ${nat(s).nation}`)) return;
       const amt = num(val(`mint-${s}`));
       const r = E.burn(state, s, amt);
       if (!r.ok) return fail(r.msg);
@@ -2107,6 +2122,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       commit();
     },
     deposit: () => {
+      if (!requireFounder('hacer aportes conjuntos a la Cámara')) return;
       const r = E.jointDeposit(state, num(val('deposit-m')));
       if (!r.ok) return fail(r.msg);
       recordFx();
@@ -2116,6 +2132,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     },
     swap: () => {
       const who = val('swap-who'), from = val('swap-from'), amt = num(val('swap-amt'));
+      if (!requireMe(who, 'cambiar divisas de esta cuenta')) return;
       const r = E.swap(state, who, from, amt);
       if (!r.ok) return fail(r.msg);
       recordFx();
@@ -2124,6 +2141,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     },
     buy: () => {
       const b = readBuy();
+      if (!requireMe(b.buyer, 'registrar una compra con esta cuenta')) return;
       if (!(b.total > 0)) return fail('Indica un precio mayor a 0.');
       const r = E.pay(state, b.buyer, b.seller, b.cur, b.total);
       if (!r.ok) return fail(r.msg);
@@ -2136,6 +2154,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     },
     transfer: () => {
       const from = val('tr-from'), to = val('tr-to'), cur = val('tr-cur'), amt = num(val('tr-amt'));
+      if (!requireMe(from, 'transferir dinero desde esta cuenta')) return;
       const r = E.pay(state, from, to, cur, amt);
       if (!r.ok) return fail(r.msg);
       recordFx();
@@ -2147,6 +2166,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
 
     'price-add': el => {
       const s = el.dataset.s;
+      if (!requireMe(s, 'modificar la tienda de este Estado')) return;
       const name = val(`np-name-${s}`);
       const price = num(val(`np-price-${s}`), -1);
       if (!name || price < 0) return fail('Escribe producto y precio.');
@@ -2156,14 +2176,20 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     },
     'price-set': el => {
       const p = state.economy.prices.find(x => x.id === el.dataset.id);
+      if (!p || !requireMe(p.seller, 'modificar precios de este Estado')) return;
       const np = num(val(`price-${el.dataset.id}`), -1);
-      if (!p || np < 0 || np === p.price) return;
+      if (np < 0 || np === p.price) return;
       log('Tarifa', `${nat(p.seller).nation} cambia ${p.name}: ${money(p.price, curOf(p.seller))} → ${money(np, curOf(p.seller))}.`);
       p.history.push({ t: Date.now(), price: np, via: 'sesión' });
       p.price = np;
       commit('economy');
     },
-    'price-del': el => { state.economy.prices = state.economy.prices.filter(x => x.id !== el.dataset.id); commit('economy'); },
+    'price-del': el => {
+      const p = state.economy.prices.find(x => x.id === el.dataset.id);
+      if (!p || !requireMe(p.seller, 'modificar precios de este Estado')) return;
+      state.economy.prices = state.economy.prices.filter(x => x.id !== el.dataset.id);
+      commit('economy');
+    },
     'price-buy': el => {
       const p = state.economy.prices.find(x => x.id === el.dataset.id);
       if (!p) return;
@@ -2206,9 +2232,10 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
 
     'works-filter': el => { state.ui.worksFilter = el.dataset.v; commit('economy'); },
     'work-add': () => {
+      const owner = val('w-owner');
+      if (!requireMe(owner, 'registrar obras de este Estado')) return;
       const name = val('w-name');
       if (!name) return fail('Ponle nombre a la obra.');
-      const owner = val('w-owner');
       state.economy.works.unshift({ id: uid('obr'), owner, cat: val('w-cat'), name, product: val('w-product'), coords: val('w-coords'), proposed: num(val('w-pts'), 0), status: 'pendiente', createdAt: Date.now() });
       log('Obra', `${nat(owner).nation} registra "${name}" (pendiente de auditoría).`);
       const rid = reviewerId();
@@ -2234,7 +2261,13 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     },
     'work-lost': async el => {
       const w = state.economy.works.find(x => x.id === el.dataset.id);
-      if (!w || !await askConfirm(`¿${w.name} se perdió? Deja de contar para la capitalización de ${nat(w.owner).nation}.`)) return;
+      if (!w) return;
+      const rid = reviewerId();
+      if (me !== w.owner && !(rid && me === rid)) {
+        const who = rid ? `${pname(w.owner)} o ${pname(rid)} (Archivista)` : pname(w.owner);
+        return fail(`Para marcar pérdida de "${w.name}" elige "Soy: ${who}" arriba.`);
+      }
+      if (!await askConfirm(`¿${w.name} se perdió? Deja de contar para la capitalización de ${nat(w.owner).nation}.`)) return;
       w.status = 'perdida'; w.lostAt = Date.now();
       const s = w.owner, c = curOf(s);
       const over = E.issued(state, c) - E.capitalization(state, s, CATS);
@@ -2252,6 +2285,11 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     'work-del': async el => {
       const w = state.economy.works.find(x => x.id === el.dataset.id);
       if (!w) return;
+      if (w.status === 'pendiente') {
+        if (!requireMe(w.owner, 'eliminar esta obra pendiente')) return;
+      } else if (!requireWorkAuditor(w, 'eliminar una obra ya auditada')) {
+        return;
+      }
       if (w.status === 'auditada' && !await askConfirm('Esta obra está auditada; borrarla baja la capitalización. ¿Seguro?')) return;
       state.economy.works = state.economy.works.filter(x => x.id !== w.id);
       log('Obra', `Se elimina "${w.name}".`);
@@ -2260,8 +2298,14 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
 
     'loan-add': () => {
       const lender = val('ln-lender');
+      const borrower = val('ln-borrower');
+      if (lender === 'bank') {
+        if (!requireMe(borrower, 'solicitar un préstamo a la Cámara')) return;
+      } else if (!requireMe(lender, 'otorgar este préstamo')) {
+        return;
+      }
       const r = E.createLoan(state, {
-        lender, borrower: val('ln-borrower'), cur: val('ln-cur'), principal: num(val('ln-amt')),
+        lender, borrower, cur: val('ln-cur'), principal: num(val('ln-amt')),
         interest: lender === 'bank' ? state.settings.bankRate : num(val('ln-int')), due: val('ln-due'), terms: val('ln-terms')
       }, CATS);
       if (!r.ok) return fail(r.msg);
@@ -2272,6 +2316,8 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       commit('economy', 'state');
     },
     'loan-pay': el => {
+      const existing = state.economy.loans.find(x => x.id === el.dataset.id);
+      if (!existing || !requireMe(existing.borrower, 'pagar este préstamo')) return;
       const r = E.repayLoan(state, el.dataset.id);
       if (!r.ok) return fail(r.msg);
       recordFx();
@@ -2283,6 +2329,14 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     'loan-default': el => {
       const l = state.economy.loans.find(x => x.id === el.dataset.id);
       if (!l) return;
+      if (l.lender === 'bank') {
+        const rid = reviewerId();
+        if (!E.isState(me) && !(rid && me === rid)) {
+          return fail('Solo un Estado fundador o el Archivista puede cambiar el estado de mora con la Cámara.');
+        }
+      } else if (!requireMe(l.lender, 'cambiar el estado de mora de este préstamo')) {
+        return;
+      }
       l.status = l.status === 'mora' ? 'activo' : 'mora';
       log('Préstamo', `${pname(l.borrower)} ${l.status === 'mora' ? 'entra en mora' : 'sale de mora'} con ${pname(l.lender)}.`);
       commit('economy');
@@ -2290,6 +2344,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
 
     'sh-buy': el => {
       const s = el.dataset.s, who = val(`sh-who-${s}`), n = num(val(`sh-n-${s}`));
+      if (!requireMe(who, 'operar acciones con esta cuenta')) return;
       const r = E.buyShares(state, who, s, n, CATS);
       if (!r.ok) return fail(r.msg);
       recordFx();
@@ -2298,6 +2353,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     },
     'sh-sell': el => {
       const s = el.dataset.s, who = val(`sh-who-${s}`), n = num(val(`sh-n-${s}`));
+      if (!requireMe(who, 'operar acciones con esta cuenta')) return;
       const r = E.sellShares(state, who, s, n, CATS);
       if (!r.ok) return fail(r.msg);
       log('Acciones', `${pname(who)} vende ${n} acciones a ${nat(s).nation} por ${money(r.total, curOf(s))}.`);
@@ -2305,6 +2361,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     },
     'sh-div': el => {
       const s = el.dataset.s, per = num(val(`sh-div-${s}`));
+      if (!requireMe(s, 'repartir dividendos de este Estado')) return;
       const r = E.payDividend(state, s, per);
       if (!r.ok) return fail(r.msg);
       log('Dividendo', `${nat(s).nation} paga ${money(per, curOf(s))} por acción (${money(r.total, curOf(s))} a ${r.holders} accionistas).`);
@@ -2321,6 +2378,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       commit();
     },
     'guest-del': async el => {
+      if (!requireFounder('eliminar participantes invitados')) return;
       const g = state.guests.find(x => x.id === el.dataset.id);
       if (!g) return;
       const h = E.holdings(state, g.id);
@@ -2345,6 +2403,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       renderStatePage();
     },
     'law-add': () => {
+      if (!requireFounder('radicar normas nuevas')) return;
       const title = val('law-title');
       if (!title) return fail('La norma necesita título.');
       const docType = val('law-doc-type') || 'ley';
@@ -2354,6 +2413,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       commit('state');
     },
     'law-defaults': el => {
+      if (!requireFounder('cargar packs de normas base')) return;
       const k = el.dataset.kind;
       const added = addDefaultLaws(k);
       const label = k === 'penal' ? 'Código de Convivencia, Decretos, Resoluciones y Manuales' : k === 'rol' ? 'Leyes del mundo (IC)' : 'Reglas del servidor (OOC)';
@@ -2361,9 +2421,11 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       commit('state');
     },
     'law-submit': async el => {
+      if (!requireFounder('enviar normas a revisión')) return;
       const l = state.laws.find(x => x.id === el.dataset.id);
       if (!l) return;
       const rev = ensureLawReview(l);
+      if (rev.status === 'approved') return fail('Esta norma ya está avalada y sellada.');
       const isResubmit = rev.status === 'returned';
       const note = await askText(isResubmit ? `Nota de correcciones al reenviar "${l.title}" (opcional):` : `Comentario para el revisor sobre "${l.title}" (opcional):`, '');
       if (note === null) return;
@@ -2376,6 +2438,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     'law-return': async el => {
       const l = state.laws.find(x => x.id === el.dataset.id);
       if (!l || !requireReviewer('devolver normas con anotaciones')) return;
+      if (isLawSealed(l)) return fail('Esta norma ya está avalada y sellada; no puede devolverse.');
       const obs = await askText(`Anotaciones / correcciones para devolver "${l.title}":`, '');
       if (obs === null) return;
       if (!obs.trim()) return fail('Escribe al menos una anotación para devolver la norma.');
@@ -2389,9 +2452,10 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     'law-approve-rev': async el => {
       const l = state.laws.find(x => x.id === el.dataset.id);
       if (!l || !requireReviewer('avalar la revisión de esta norma')) return;
+      const rev = ensureLawReview(l);
+      if (rev.status === 'approved') return fail('Esta norma ya cuenta con el aval del Archivista.');
       const obs = await askText(`Concepto / aval favorable para "${l.title}" (opcional):`, '');
       if (obs === null) return;
-      const rev = ensureLawReview(l);
       rev.status = 'approved';
       pushReviewNote(l, 'approved', obs);
       commit('state');
@@ -2418,7 +2482,8 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       target.focus();
     },
     'law-upgrade-pack': async () => {
-      if (!await askConfirm('Se actualizarán todas las leyes, códigos, decretos, resoluciones, manuales y reglas OOC a lenguaje claro e inclusivo con Concordancias y TRD, reactivando lo derogado y dejándolas vigentes con firmas bilaterales (sin aval previo del Archivista). ¿Continuar?')) return;
+      if (!requireFounder('aplicar la actualización integral de normas')) return;
+      if (!await askConfirm('Se actualizarán todas las leyes, códigos, decretos, resoluciones, manuales y reglas OOC a lenguaje claro e inclusivo con Concordancias y TRD, reactivando lo derogado y conservando los avales ya emitidos. ¿Continuar?')) return;
       const icPacks = [
         ...(D.DEFAULT_RP_LAWS || []),
         ...(D.DEFAULT_PENAL_PACK || [])
@@ -2479,7 +2544,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
         delete existing.repealEdited;
         existing.signs = { myth: true, scad: true };
         existing.editedAt = Date.now();
-        if (isIc && (!existing.review || existing.review.status === 'approved')) {
+        if (isIc && !existing.review) {
           existing.review = { status: 'none', notes: [] };
         }
       };
@@ -2528,9 +2593,10 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       toast('Reforma Integral Aplicada', `${updated} actos actualizados y ${added} agregados — vigentes y pendientes de aval del Archivista.`, 'gavel');
     },
     'law-edit': el => {
+      if (!requireFounder('editar actos o leyes')) return;
       const l = state.laws.find(x => x.id === el.dataset.id);
       if (!l) return;
-      if ((l.kind || 'servidor') === 'rol' && !l.repealed && l.review && l.review.status === 'approved') {
+      if (isLawSealed(l)) {
         return fail('Esta norma ya fue avalada y sellada por el Archivista. Para modificarla debes radicar un nuevo acto de jerarquía igual o superior.');
       }
       editingLawId = l.id;
@@ -2546,9 +2612,10 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       setTimeout(() => $('edit-law-title').focus(), 30);
     },
     'law-edit-save': () => {
+      if (!requireFounder('guardar cambios en normas')) return;
       const l = state.laws.find(x => x.id === editingLawId);
       if (!l) return closeModals();
-      if ((l.kind || 'servidor') === 'rol' && !l.repealed && l.review && l.review.status === 'approved') {
+      if (isLawSealed(l)) {
         closeModals();
         return fail('Norma sellada por Aval del Archivista: radica un acto superior para modificarla.');
       }
@@ -2616,14 +2683,18 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
           return fail(`Norma en revisión. Espera el aval de ${rid ? pname(rid) : 'Revisor'} antes de firmar.`);
         }
       }
+      if (l.signs[s] && isLawSealed(l) && l.signs.myth && l.signs.scad) {
+        return fail('Norma vigente y sellada por Aval del Archivista: no puede retirarse la firma sin acto modificatorio.');
+      }
       l.signs[s] = !l.signs[s];
       if (l.signs.myth && l.signs.scad) toast('Norma vigente', `${l.title}`, 'gavel');
       commit('state');
     },
     'law-move': el => {
+      if (!requireFounder('mover normas entre categorías')) return;
       const l = state.laws.find(x => x.id === el.dataset.id);
       if (!l) return;
-      if ((l.kind || 'servidor') === 'rol' && !l.repealed && l.review && l.review.status === 'approved') {
+      if (isLawSealed(l)) {
         return fail('Norma sellada por Aval del Archivista: no puede reasignarse sin acto modificatorio.');
       }
       l.kind = (l.kind || 'servidor') === 'rol' ? 'servidor' : 'rol';
@@ -2632,6 +2703,10 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       commit('state');
     },
     'trd-add': () => {
+      const rid = reviewerId();
+      if (!E.isState(me) && !(rid && me === rid)) {
+        return fail('Solo un Estado fundador o el Archivista puede agregar series TRD.');
+      }
       const code = val('trd-code');
       const series = val('trd-series');
       if (!code || !series) return fail('La serie TRD necesita código y nombre.');
@@ -2651,6 +2726,10 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       commit('state');
     },
     'trd-del': async el => {
+      const rid = reviewerId();
+      if (!E.isState(me) && !(rid && me === rid)) {
+        return fail('Solo un Estado fundador o el Archivista puede eliminar series TRD.');
+      }
       const code = el.dataset.code;
       if (!Array.isArray(state.trd) || !state.trd.length) state.trd = clone(D.DEFAULT_TRD || []);
       if (!await askConfirm(`¿Eliminar la serie TRD ${code} de la tabla? (Puedes recuperarla con Deshacer.)`)) return;
@@ -2658,9 +2737,13 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       commit('state');
     },
     'law-repeal': async el => {
+      const rid = reviewerId();
+      if (!E.isState(me) && !(rid && me === rid)) {
+        return fail('Solo un Estado fundador o el Archivista puede derogar o restaurar normas.');
+      }
       const l = state.laws.find(x => x.id === el.dataset.id);
       if (!l) return;
-      if (!l.repealed && (l.kind || 'servidor') === 'rol' && l.review && l.review.status === 'approved') {
+      if (!l.repealed && isLawSealed(l)) {
         return fail('Esta norma ya fue avalada y sellada por el Archivista. Para derogarla o sustituirla debes radicar un nuevo acto de rango igual o superior.');
       }
       if (!l.repealed) {
@@ -2693,9 +2776,10 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       toast('Norma restaurada', `${l.title} volvió como borrador para aprobación.`, 'emerald');
     },
     'law-del': async el => {
+      if (!requireFounder('borrar normas')) return;
       const l = state.laws.find(x => x.id === el.dataset.id);
       if (!l) return;
-      if ((l.kind || 'servidor') === 'rol' && !l.repealed && l.review && l.review.status === 'approved') {
+      if (isLawSealed(l)) {
         return fail('Norma sellada por Aval del Archivista: no puede borrarse directamente; requiere acto superior.');
       }
       if (await askConfirm(`¿Seguro que quieres BORRAR "${l.title}"?\n\nSi solo quieres que deje de aplicar sin perderla, pulsa Cancelar y usa "Derogar".\n(También puedes recuperarla luego con el botón Deshacer de arriba.)`)) {
@@ -2706,12 +2790,19 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     },
 
     'chron-add': () => {
+      if (!requireIdentified('publicar una crónica')) return;
       const title = val('ch-title');
       if (!title) return fail('La crónica necesita título.');
       state.chronicles.unshift({ id: uid('cro'), era: val('ch-era'), type: val('ch-type'), author: val('ch-author'), title, body: val('ch-body'), t: Date.now() });
       commit('lore');
     },
-    'chron-del': async el => { if (await askConfirm('¿Borrar la crónica?')) { state.chronicles = state.chronicles.filter(x => x.id !== el.dataset.id); commit('lore'); } },
+    'chron-del': async el => {
+      const rid = reviewerId();
+      if (!E.isState(me) && !(rid && me === rid)) {
+        return fail('Solo un Estado fundador o el Archivista puede borrar crónicas.');
+      }
+      if (await askConfirm('¿Borrar la crónica?')) { state.chronicles = state.chronicles.filter(x => x.id !== el.dataset.id); commit('lore'); }
+    },
 
     rail: el => { state.railBlocks = Math.max(0, state.railBlocks + Number(el.dataset.d)); commit('territory'); },
     'rail-set': () => { const v = num(val('rail-set'), -1); if (v >= 0) { state.railBlocks = Math.round(v); commit('territory'); } },
@@ -2817,6 +2908,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       setTimeout(() => { if ($('reset-confirm-input')) $('reset-confirm-input').focus(); }, 30);
     },
     'confirm-reset': async () => {
+      if (!requireFounder('reiniciar todo el mundo')) return;
       if (val('reset-confirm-input').toUpperCase() !== 'BORRAR') {
         return fail('Escribe BORRAR en el cuadro para confirmar el reinicio.');
       }
@@ -2848,10 +2940,11 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       const res = await CLOUD.pullNow();
       if (!res.ok) return fail(res.error ? res.error.message : 'No se pudo sincronizar.');
       if (res.empty) toast('Nube vacía', 'Todavía no hay partida guardada en esta sala.', 'compass');
+      postNewLaws();
       renderCloudPanel(true);
     },
     'cloud-push-force': async () => {
-      if (!CLOUD) return;
+      if (!CLOUD || !requireFounder('forzar la subida a Supabase')) return;
       const info = CLOUD.getInfo();
       if (info.rev && !await askConfirm('¿Subir tu copia local actual a Supabase como la copia oficial de la nube?')) return;
       const res = await CLOUD.pushState(state, true);
@@ -2869,7 +2962,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       loadCloudSnapshots();
     },
     'cloud-restore-snap': async el => {
-      if (!CLOUD) return;
+      if (!CLOUD || !requireFounder('restaurar puntos de restauración en la nube')) return;
       const id = Number(el.dataset.id);
       if (!await askConfirm('¿Restaurar este punto de restauración en la nube para todos los jugadores? (Se guarda copia local antes.)')) return;
       const res = await CLOUD.fetchSnapshot(id);
@@ -2930,15 +3023,17 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
   ];
   function postNewLaws() {
     const have = new Set(state.laws.map(l => (l.title || '').toLowerCase()));
-    const fresh = (D.DEFAULT_RP_LAWS || []).filter(d => POSTED_LAWS.includes(d.title) && !have.has(d.title.toLowerCase()));
+    const allPack = [...(D.DEFAULT_RP_LAWS || []), ...(D.DEFAULT_PENAL_PACK || [])];
+    const fresh = allPack.filter(d => POSTED_LAWS.includes(d.title) && !have.has(d.title.toLowerCase()));
     if (!fresh.length) return;
     fresh.forEach(d => {
       const docType = d.docType || 'ley';
-      state.laws.push({ id: uid('ley'), kind: 'rol', docType, trdCode: d.trdCode || '100-01', num: nextLawNum('rol', docType), title: d.title, text: tx(d.text), sanction: tx(d.sanction), signs: { myth: false, scad: false }, review: { status: 'none', notes: [] }, repealed: false, t: Date.now() });
+      const trdCode = d.trdCode || ((D.DOC_TYPES || {})[docType] || {}).trd || '100-01';
+      state.laws.push({ id: uid('ley'), kind: 'rol', docType, trdCode, num: nextLawNum('rol', docType), title: d.title, text: tx(d.text), sanction: tx(d.sanction), signs: { myth: false, scad: false }, review: { status: 'none', notes: [] }, repealed: false, t: Date.now() });
     });
     save();
     renderAll();
-    toast('Leyes postuladas', `${fresh.length} proyecto(s) de ley nuevos en Estados y Leyes. Rigen cuando firmen ambos.`, 'gavel');
+    toast('Leyes postuladas', `${fresh.length} documento(s) nuevos en Estados y Leyes. Rigen cuando firmen ambos.`, 'gavel');
   }
 
   function addDefaultLaws(kind = 'servidor') {
@@ -3010,6 +3105,8 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
   const UNDO_KEY = 'forever_world_undo';
   const NO_UNDO = new Set(['form', 'shop-edit', 'mode-simple', 'mode-advanced', 'eco-tab', 'mint-fill', 'ledger-filter', 'eco-manual-copy', 'state-tab', 'jump-era', 'law-template', 'law-edit', 'tip', 'filter', 'works-filter', 'law-doc-filter', 'law-rev-filter', 'law-book', 'vg-filter', 'vg-kind-btn', 'vg-copy-tag', 'vg-card', 'price-buy', 'price-challenge', 'open-reset', 'confirm-reset', 'open-backup',
     'open-report', 'copy-report', 'close-modal', 'undo',
+    'law-approve-rev', 'law-return', 'law-submit', 'law-sign', 'law-repeal', 'law-upgrade-pack', 'law-defaults',
+    'work-approve', 'work-reject', 'work-reopen', 'work-lost', 'guest-del',
     'cloud-pull', 'cloud-push-force', 'cloud-snapshot', 'cloud-restore-snap', 'cloud-save-cfg', 'cloud-reset-cfg', 'cloud-copy-link', 'cloud-copy-snippet']);
   const UNDO_LABELS = {
     'law-add': 'Nueva norma', 'law-edit': 'Editar norma', 'law-edit-save': 'Editar acto', 'law-submit': 'Enviar a revisión', 'law-return': 'Devolver norma', 'law-approve-rev': 'Avalar norma', 'law-sign': 'Firma de norma', 'law-repeal': 'Derogar norma', 'law-del': 'Borrar norma', 'law-defaults': 'Normas sugeridas', 'law-upgrade-pack': 'Actualización archivística', 'law-move': 'Mover norma',
@@ -3027,14 +3124,21 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     const { ui, ...rest } = state;
     return JSON.stringify(rest);
   }
+  function clearUndoStack() {
+    if (!undoStack.length) return;
+    undoStack = [];
+    safeDel(UNDO_KEY);
+    renderUndoButtons();
+  }
   function pushUndo(label, snap) {
-    undoStack.push({ label: String(label).slice(0, 140), snap, t: Date.now() });
+    undoStack.push({ label: String(label).slice(0, 140), snap, actor: me || '', rev: CLOUD ? CLOUD.getInfo().rev : null, t: Date.now() });
     if (undoStack.length > 20) undoStack.shift();
     if (!safeSet(UNDO_KEY, JSON.stringify(undoStack))) undoStack.splice(0, undoStack.length - 5);
     renderUndoButtons();
   }
   function renderUndoButtons() {
-    const last = undoStack[undoStack.length - 1];
+    const raw = undoStack[undoStack.length - 1];
+    const last = raw && me && raw.actor === me ? raw : null;
     document.querySelectorAll('[data-undo-slot]').forEach(el => {
       el.innerHTML = last
         ? `<button class="mc-btn mc-btn-gold" data-action="undo" title="${esc(last.label)}">↶ Deshacer: ${esc(last.label.length > 60 ? last.label.slice(0, 60) + '…' : last.label)}</button>`
@@ -3042,8 +3146,12 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     });
   }
   ACTIONS.undo = () => {
-    const last = undoStack.pop();
+    const last = undoStack[undoStack.length - 1];
     if (!last) return;
+    if (!me || last.actor !== me) {
+      return fail('Solo quien realizó esa acción puede deshacerla.');
+    }
+    undoStack.pop();
     safeSet(UNDO_KEY, JSON.stringify(undoStack));
     const ui = state.ui;
     state = merge(defaultState(), JSON.parse(last.snap));
@@ -3146,6 +3254,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
 
   ACTIONS['guide-add-all'] = async el => {
     const s0 = el.dataset.s;
+    if (!requireMe(s0, 'agregar productos a la tienda de este Estado')) return;
     const missing = D.PRICE_GUIDE.filter(g => g.seller === s0 && !state.economy.prices.some(p => p.seller === s0 && p.name === g.name));
     if (!missing.length) return toast('Tienda', 'Ya tiene todos los productos de la guía.', 'emerald');
     if (!await askConfirm(`¿Agregar ${missing.length} productos a la tienda de ${nat(s0).nation} con los precios sugeridos? Después se pueden cambiar o borrar.`)) return;
@@ -3156,7 +3265,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
   // Guía de precios → lista oficial (precio = punto medio del rango)
   ACTIONS['guide-add'] = el => {
     const g = D.PRICE_GUIDE[Number(el.dataset.i)];
-    if (!g) return;
+    if (!g || !requireMe(g.seller, 'publicar precios en esta tienda')) return;
     const price = g.price;
     state.economy.prices.push({ id: uid('prc'), seller: g.seller, name: g.name, unit: g.unit, price, history: [{ t: Date.now(), price, via: 'guía' }] });
     log('Tarifa', `${nat(g.seller).nation} publica (desde la guía): ${g.name} a ${money(price, curOf(g.seller))}.`);
@@ -3211,6 +3320,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     safeSet(STORAGE_KEY, JSON.stringify(state));
     if (needCloudRename && CLOUD) CLOUD.schedulePush(() => state);
     if (CLOUD) CLOUD.setPresence({ id: me, name: me ? pname(me) : 'Visitante' });
+    if (meta.fromRealtime) clearUndoStack();
     renderAll();
     if ($('modal-backup') && $('modal-backup').classList.contains('open')) renderCloudPanel(false);
     if (meta.fromRealtime) {
@@ -3459,6 +3569,10 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
         return;
       }
       if (t.dataset.bind) {
+        if (t.dataset.bind.startsWith('settings.') && !E.isState(me)) {
+          renderAll();
+          return fail('Solo un Estado fundador puede cambiar la configuración general.');
+        }
         let v = t.type === 'checkbox' ? t.checked : t.value;
         if (t.dataset.type === 'number') v = num(v, 0);
         setPath(state, t.dataset.bind, v);
@@ -3482,6 +3596,10 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     document.addEventListener('input', e => {
       const t = e.target;
       if (t.dataset.bindLive) {
+        if (t.dataset.bindLive.startsWith('settings.') && !E.isState(me)) {
+          renderAll();
+          return fail('Solo un Estado fundador puede cambiar la configuración general.');
+        }
         setPath(state, t.dataset.bindLive, t.value);
         clearTimeout(liveTimer);
         if (t.dataset.rerender) {
@@ -3546,9 +3664,60 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     });
   }
 
+  /* ======================== Actualización en vivo (anti-caché) ======================== */
+
+  const CURRENT_APP_VER = (CLOUD && CLOUD.APP_VER) || '20261119091500';
+  let detectedNewVer = '';
+
+  function forceLiveReload(targetVer) {
+    const ver = targetVer || String(Date.now());
+    try { sessionStorage.setItem('fw_reloaded_ver', ver); } catch { /* noop */ }
+    const u = new URL(window.location.href);
+    u.searchParams.set('_v', ver);
+    window.location.replace(u.toString());
+  }
+
+  function showUpdateBanner(remoteVer) {
+    detectedNewVer = String(remoteVer || '');
+    const bar = $('update-banner');
+    if (bar) {
+      bar.style.display = 'flex';
+      bar.innerHTML = `<span>Nueva versión en vivo disponible (${esc(detectedNewVer)}).</span><button type="button" class="mc-btn mc-btn-emerald" id="btn-live-reload" style="padding:4px 10px;">🔄 Actualizar ahora</button>`;
+      const btn = $('btn-live-reload');
+      if (btn) btn.onclick = () => forceLiveReload(detectedNewVer);
+    }
+    try {
+      if (sessionStorage.getItem('fw_reloaded_ver') !== detectedNewVer && !isEditingField()) {
+        forceLiveReload(detectedNewVer);
+      }
+    } catch { /* noop */ }
+  }
+
+  async function checkAppVersion() {
+    try {
+      const res = await fetch(`./version.json?t=${Date.now()}`, { cache: 'no-store' });
+      if (!res.ok) return;
+      const data = await res.json();
+      const remoteVer = String((data && data.v) || '').trim();
+      if (remoteVer && remoteVer > CURRENT_APP_VER) {
+        showUpdateBanner(remoteVer);
+      }
+    } catch { /* noop */ }
+  }
+
   /* ======================== Arranque ======================== */
 
   window.addEventListener('DOMContentLoaded', () => {
+    try {
+      const u = new URL(window.location.href);
+      if (u.searchParams.has('_v')) {
+        u.searchParams.delete('_v');
+        window.history.replaceState({}, '', u.pathname + (u.searchParams.toString() ? '?' + u.searchParams.toString() : '') + u.hash);
+      }
+      if ('serviceWorker' in navigator && navigator.serviceWorker.getRegistrations) {
+        navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister())).catch(() => {});
+      }
+    } catch { /* noop */ }
     const crest = $('hud-crest');
     if (crest) crest.innerHTML = ICONS.beacon || '';
     document.querySelectorAll('.tab-icon[data-icon]').forEach(el => { el.innerHTML = ICONS[el.dataset.icon] || ''; });
@@ -3614,7 +3783,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
         },
         onRemoteState: (row, meta) => applyRemoteRow(row, meta),
         onMergedState: (mergedCloud, row) => applyMergedCloudState(mergedCloud, row),
-        onOutdatedApp: () => toast('Actualización disponible', 'Recarga la página (Ctrl+Shift+R) para ver la última versión.', 'beacon'),
+        onOutdatedApp: v => showUpdateBanner(v),
         onConflict: row => {
           renderCloudPill();
           toast('Conflicto en la nube', `${row.updated_by || 'Otro jugador'} guardó cambios. Toca Supabase arriba.`, 'redstone');
@@ -3629,12 +3798,15 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
             toast('Copia local conservada', 'Para subirla, toca Supabase arriba → Forzar subida.', 'gold');
           }
         }
-      }).then(() => {
-        // Ya con la partida de la nube cargada: postular leyes nuevas sin duplicarlas
-        postNewLaws();
+      }).then(info => {
+        // Ya con la partida de la nube cargada: postular leyes/manuales nuevos sin duplicarlos
+        if (!info || info.status !== 'conflict') postNewLaws();
       }).catch(() => {});
     } else {
       postNewLaws();
     }
+    setTimeout(checkAppVersion, 1200);
+    setInterval(() => { if (!document.hidden) checkAppVersion(); }, 45000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) checkAppVersion(); });
   });
 })();
