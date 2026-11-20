@@ -381,18 +381,25 @@ export class SupabaseBridge {
     };
   }
 
+  pname(state, pid) {
+    if (pid === 'bank') return state.settings?.bankName || 'La Gran Cámara del Ender';
+    if (pid === 'myth' || pid === 'scad') return this.nat(state, pid).player;
+    const g = (state.guests || []).find(x => x.id === pid);
+    return g ? g.nick : String(pid || '(desconocido)');
+  }
+
   searchPrices(state, query) {
     const q = normalizeText(query).trim();
     const prices = state.economy?.prices || [];
     const matches = q
-      ? prices.filter(p => normalizeText(`${p.name} ${p.unit || ''}`).includes(q))
+      ? prices.filter(p => normalizeText(`${p.name} ${p.unit || ''} ${this.pname(state, p.seller)}`).includes(q))
       : prices.slice(0, 8);
     return matches.slice(0, 8).map(p => {
-      const cur = this.E.curOfState(p.seller);
+      const cur = this.E.isState(p.seller) ? this.E.curOfState(p.seller) : (p.cur === 'S' ? 'S' : 'M');
       const oCur = this.E.otherCur(cur);
       const conv = this.E.convert(state, p.price, cur, oCur);
       return {
-        seller: this.nat(state, p.seller).nation,
+        seller: this.E.isState(p.seller) ? this.nat(state, p.seller).nation : this.pname(state, p.seller),
         name: p.name,
         unit: p.unit || 'u',
         priceMain: this.money(state, p.price, cur),
@@ -410,11 +417,13 @@ export class SupabaseBridge {
     return matches.slice(0, 6).map((v, i) => {
       const isAnim = v.kind === 'animal';
       const owner = isAnim ? (v.owner || 'myth') : (v.owner || state.professions?.[v.prof] || 'myth');
-      const natName = this.nat(state, owner).nation;
+      const natName = this.E.isState(owner) ? this.nat(state, owner).nation : this.pname(state, owner);
       const profObj = !isAnim ? (this.D.PROFESSIONS || []).find(p => p.id === v.prof) : null;
       const specObj = isAnim ? (this.D.ANIMAL_SPECIES || []).find(a => a.id === v.species) : null;
+      const ser = isAnim ? 'CA' : 'CC';
+      const org = owner === 'scad' ? 'LUT' : (owner === 'myth' ? 'NA' : 'MIS');
       return {
-        cedula: v.cedula || `${isAnim ? 'CA' : 'CC'}-${owner === 'scad' ? 'LUT' : 'NA'}-${String(i + 1).padStart(4, '0')}`,
+        cedula: v.cedula || `${ser}-${org}-${String(i + 1).padStart(4, '0')}`,
         name: v.name,
         kindLabel: isAnim ? (specObj?.name || v.species || 'Animal') : (profObj?.name || v.prof || 'Aldeano'),
         nation: natName,
