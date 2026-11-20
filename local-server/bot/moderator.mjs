@@ -1,6 +1,8 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import net from 'node:net';
+import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { RconClient } from './rcon.mjs';
 import { SupabaseBridge } from './supabase-bridge.mjs';
@@ -8,6 +10,7 @@ import { askModerator, askNpc, generateRoast, generateSocialMessage, compactSess
 import { RuleEnforcer } from './enforcer.mjs';
 import { SessionMemory, PERMIT_SCOPES } from './memory.mjs';
 import { WorldEvents } from './events.mjs';
+import { AdminGenie, extractAdminWish, planAdminWish, sanitizeRconCommand } from './admin-genie.mjs';
 import {
   COLOR_PALETTE_LIST,
   parseFormattedText,
@@ -25,12 +28,15 @@ const PERMIT_SCOPE_ALIASES = {
   agro: 'agro', agricultura: 'agro', semilla: 'agro', semillas: 'agro', cultivo: 'agro', cultivos: 'agro', cosecha: 'agro', huerta: 'agro',
   ganado: 'ganado', ganaderia: 'ganado', 'ganadería': 'ganado', animales: 'ganado', carne: 'ganado',
   aldeanos: 'aldeanos', aldeano: 'aldeanos', comercio: 'aldeanos', tradeo: 'aldeanos', tradear: 'aldeanos',
-  // Finos: un solo cultivo
+  // Finos: un solo cultivo, flor, cactus o tinte
   trigo: 'agro:trigo', zanahoria: 'agro:zanahoria', zanahorias: 'agro:zanahoria', papa: 'agro:papa', papas: 'agro:papa',
   remolacha: 'agro:remolacha', remolachas: 'agro:remolacha', 'caña': 'agro:cana', cana: 'agro:cana', azucar: 'agro:cana', 'azúcar': 'agro:cana',
   sandia: 'agro:sandia', 'sandía': 'agro:sandia', sandias: 'agro:sandia', 'sandías': 'agro:sandia', melon: 'agro:sandia', 'melón': 'agro:sandia',
   calabaza: 'agro:calabaza', calabazas: 'agro:calabaza', bayas: 'agro:bayas', baya: 'agro:bayas',
   verruga: 'agro:verrugas', verrugas: 'agro:verrugas', abejas: 'agro:abejas', abeja: 'agro:abejas', miel: 'agro:abejas', colmena: 'agro:abejas', panal: 'agro:abejas', panales: 'agro:abejas',
+  flor: 'agro:flores', flores: 'agro:flores', floricultura: 'agro:flores', rosa: 'agro:flores', rosas: 'agro:flores', amapola: 'agro:flores', amapolas: 'agro:flores', margarita: 'agro:flores', margaritas: 'agro:flores', girasol: 'agro:flores', girasoles: 'agro:flores', tulipan: 'agro:flores', tulipanes: 'agro:flores', 'tulipán': 'agro:flores', clavel: 'agro:flores', orquidea: 'agro:flores', peonia: 'agro:flores', lila: 'agro:flores', diente: 'agro:flores',
+  cactus: 'agro:cactus',
+  tinte: 'agro:tintes', tintes: 'agro:tintes', colorante: 'agro:tintes', colorantes: 'agro:tintes',
   // Finos: un solo tipo de animal
   vaca: 'ganado:vacas', vacas: 'ganado:vacas', cuero: 'ganado:vacas', leche: 'ganado:vacas', 'champiñaca': 'ganado:vacas',
   cerdo: 'ganado:cerdos', cerdos: 'ganado:cerdos', oveja: 'ganado:ovejas', ovejas: 'ganado:ovejas', lana: 'ganado:ovejas',
@@ -62,8 +68,8 @@ export function fmtMinutes(mins) {
   if (mins < 1440) return `${+(mins / 60).toFixed(1)} h`;
   return `${+(mins / 1440).toFixed(1)} días`;
 }
-// Palabras de relleno que no deben quedar como nota ("semillas DE trigo POR 30 segundos")
-const PERMIT_FILLER = new Set(['de', 'del', 'la', 'las', 'el', 'los', 'por', 'para', 'durante', 'un', 'una', 'unos', 'y', 'a', 'al', 'en', 'solo', 'sólo', 'nada', 'mas', 'más']);
+// Palabras de relleno que no deben quedar como nota ("flores y cactus y todos sus tintes derivados")
+const PERMIT_FILLER = new Set(['de', 'del', 'la', 'las', 'el', 'los', 'por', 'para', 'durante', 'un', 'una', 'unos', 'y', 'a', 'al', 'en', 'solo', 'sólo', 'nada', 'mas', 'más', 'todos', 'todas', 'todo', 'toda', 'sus', 'su', 'derivado', 'derivados', 'derivada', 'derivadas']);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SERVER_DIR = path.resolve(__dirname, '..');
@@ -276,7 +282,7 @@ const COMMAND_DOCS = {
   trato: 'Pausa monopolios y PvP un rato para pasarse comida o ítems sin que interfiera. Uso: !trato [min] (ej: !trato 5) y !trato fin al acabar.',
   duelo: 'Autoriza PvP consensuado temporalmente sin regaños OOC. Uso: !duelo [min] y !duelo fin al acabar.',
   pase: 'Da salvoconducto temporal a 1 jugador (o a todos con !pase todos). Uso: !pase <jugador> [min].',
-  permiso: 'Permiso expreso que se guarda y no se borra al reiniciar. MythStorm autoriza agricultura/semillas/abejas; Scadrial0523 autoriza ganadería/pesca; cualquiera de los dos, aldeanos. Productos con granja (hierro, oro, blaze, slime, madera…): solo el dueño de la granja. También uno solo: trigo, papa, zanahoria, calabaza, abejas…, vacas, gallinas, ovejas, pesca… Uso: !permiso <jugador> [semillas|trigo|ganado|gallinas|aldeanos|hierro…] [30m|2h|3d|permanente] [nota] · !permiso quitar <jugador> [alcance] · !permisos [jugador].',
+  permiso: 'Permiso o prohibición expresa que no se borra al reiniciar. MythStorm autoriza o prohíbe agricultura/semillas/flores/cactus/tintes/abejas; Scadrial0523 autoriza o prohíbe ganadería/pesca; cualquiera de los dos, aldeanos. Productos con granja (hierro, oro, blaze, slime, madera…): solo el dueño de la granja. Uso: !permiso <jugador> [semillas|flores|cactus|tintes|trigo|ganado|gallinas|aldeanos|hierro…] [30m|2h|3d|permanente] [nota] · !permiso prohibir <jugador> [recurso] [tiempo] [nota] · !permiso quitar <jugador> [recurso] · !permisos [jugador].',
   mod: 'Muestra si la vigilancia automática está activa o la pausa/reanuda. Uso: !mod [on|off].',
   chat: 'Activa o silencia los comentarios espontáneos de [Pregonero]. Uso: !chat [on|off].',
   tasa: 'Muestra la tasa cambiaria Dracma/Cuarto y reservas del Banco. Uso: !tasa.',
@@ -345,7 +351,7 @@ const BOT_COMMANDS_DOC = [
   '- Utilidades operativas que ejecutan permisos/control del servidor: !duelo [min|fin] (PvP consensuado), !trato [min|fin] (intercambio libre), !pase <jug|todos>, !mod [on|off], !chat [on|off], !memoria y !ayuda.',
   '- Certificados y sellos oficiales (EXCLUSIVO Archivista NotOutContext): !certificado <Título> (sella en colores el Libro y Pluma en mano consumiéndolo, o !certificado <Título> | <Texto> / aval / obra / residencia / paz con 1 writable_book en inventario; admite autor: <Autor1 y Autor2> para coautoría), !papel <Nombre> [| <Lore>] (consume 1 papel real) y !colores.',
   '- Acuerdos en chat: "vamos a hacer un trato" o "pvp consensuado / vamos a hacer un duelo" pausan automáticamente al aduanero.',
-  '- Permisos expresos que no se borran: !permiso <jugador> [semillas|ganado|aldeanos] [tiempo|permanente] [nota]. Cada Estado solo autoriza su monopolio (MythStorm: agricultura, semillas y abejas; Scadrial0523: ganadería y pesca); aldeanos, cualquiera de los dos; un producto con granja auditada (hierro, oro, blaze, slime, madera…), solo el dueño de esa granja. Se quitan con !permiso quitar <jugador> y se consultan con !permisos. Si alguien tiene un permiso vigente (aparece en la memoria), lo que hace dentro de ese permiso es legal: no lo regañes.'
+  '- Permisos y prohibiciones expresas que no se borran: !permiso <jugador> [semillas|flores|cactus|tintes|ganado|aldeanos] [tiempo|permanente] [nota] · !permiso prohibir <jugador> [recurso] [tiempo] [nota] · !permiso quitar <jugador> [recurso] · !permisos [jugador]. Cada Estado solo autoriza o prohíbe su monopolio (MythStorm: agricultura, semillas, flores, cactus, tintes y abejas; Scadrial0523: ganadería y pesca); aldeanos, cualquiera de los dos; un producto con granja (hierro, oro, blaze, slime, madera…), solo su dueño. Si tiene permiso vigente en memoria, es legal; si tiene prohibición expresa, prevalece incluso sobre permisos generales.'
 ].join('\n');
 
 const NPC_HELP_DOCS = {
@@ -555,6 +561,13 @@ async function handleChatCommand(player, message, ctx) {
   const space = body.indexOf(' ');
   const cmd = (space < 0 ? body : body.slice(0, space)).toLowerCase();
   const arg = space < 0 ? '' : body.slice(space + 1).trim();
+
+  if (cmd === 'admin' || cmd === 'capricho' || cmd === 'genio') {
+    await sendLine(rcon, player, 'Admin', 'red', [
+      { text: 'Este comando solo se puede usar desde la consola del servidor (say !admin ...) o consola-admin.bat.', color: 'yellow' }
+    ]);
+    return;
+  }
 
   if (cmd === 'ayuda' || cmd === 'fw' || cmd === 'help' || cmd === 'comandos') {
     if (arg) {
@@ -1073,35 +1086,46 @@ async function handleChatCommand(player, message, ctx) {
     const parts = arg.split(/\s+/).filter(Boolean);
     const first = (parts[0] || '').toLowerCase();
 
-    // Ver permisos: !permisos  |  !permiso ver [jugador]
+    // Ver permisos y prohibiciones: !permisos  |  !permiso ver [jugador]
     if (cmd === 'permisos' || !parts.length || ['ver', 'lista', 'listar'].includes(first)) {
       const who = ['ver', 'lista', 'listar'].includes(first) ? parts[1] : (cmd === 'permisos' ? parts[0] : null);
       const target = who ? (resolveKnownPlayer(who, cfg, enforcer) || who) : null;
-      const list = mem.getActivePermits(target);
+      const permits = mem.getActivePermits(target);
+      const bans = mem.getActiveProhibitions(target);
+      const lines = [
+        ...permits.map(p => mem.describePermit(p)),
+        ...bans.map(b => mem.describeProhibition(b))
+      ];
       await sendLine(rcon, player, 'Permisos', 'aqua', [
-        { text: list.length ? list.map(p => mem.describePermit(p)).join('\n') : `Sin permisos vigentes${target ? ` para ${target}` : ''}.`, color: 'white' }
+        { text: lines.length ? lines.join('\n') : `Sin permisos ni prohibiciones vigentes${target ? ` para ${target}` : ''}.`, color: 'white' }
       ]);
       return;
     }
 
     if (senderRole !== 'myth' && senderRole !== 'scad') {
-      await sendLine(rcon, player, 'Permisos', 'red', [{ text: 'Solo MythStorm o Scadrial0523 pueden dar o quitar permisos.', color: 'yellow' }]);
+      await sendLine(rcon, player, 'Permisos', 'red', [{ text: 'Solo MythStorm o Scadrial0523 pueden dar, quitar o prohibir permisos.', color: 'yellow' }]);
       return;
     }
 
-    const revoke = ['quitar', 'retirar', 'revocar', 'anular', 'no'].includes(first);
-    if (revoke) parts.shift();
+    const revoke = ['quitar', 'retirar', 'revocar', 'anular', 'no', 'levantar'].includes(first);
+    const prohibit = !revoke && ['prohibir', 'vetar', 'bloquear', 'denegar', 'ban'].includes(first);
+    if (revoke || prohibit) {
+      parts.shift();
+      if (revoke && ['prohibicion', 'prohibición', 'veto', 'bloqueo'].includes((parts[0] || '').toLowerCase())) {
+        parts.shift();
+      }
+    }
     const target = resolveKnownPlayer(parts[0], cfg, enforcer);
     if (!target) {
       await sendLine(rcon, player, 'Permisos', 'gold', [{ text: `No conozco al jugador "${parts[0] || ''}". ${COMMAND_DOCS.permiso}`, color: 'yellow' }]);
       return;
     }
     if (target.toLowerCase() === player.toLowerCase()) {
-      await sendLine(rcon, player, 'Permisos', 'gold', [{ text: 'No puedes darte permiso a ti mismo.', color: 'yellow' }]);
+      await sendLine(rcon, player, 'Permisos', 'gold', [{ text: 'No puedes darte permiso ni prohibirte algo a ti mismo.', color: 'yellow' }]);
       return;
     }
 
-    // Alcance: monopolio (semillas, ganado, aldeanos) o un producto con granja (hierro, slime, madera…)
+    // Alcance: monopolio (semillas, flores, cactus, tintes, ganado, aldeanos) o producto con granja
     const scopeInfo = sc => {
       if (sc && sc.startsWith('granja:')) {
         const lock = (bridge.D.FARM_LOCKS || []).find(l => l.id === sc.slice(7));
@@ -1109,7 +1133,11 @@ async function handleChatCommand(player, message, ctx) {
       }
       return PERMIT_SCOPES[sc] ? { owner: PERMIT_SCOPES[sc].owner, label: PERMIT_SCOPES[sc].label } : null;
     };
-    let scope = null;
+    const expandLegacy = list => {
+      const out = [...list];
+      if (out.includes('agro:cactus') && !out.includes('granja:cactus')) out.push('granja:cactus');
+      return out;
+    };
     let minutes = null;
     const noteParts = [];
     const rest = parts.slice(1);
@@ -1133,47 +1161,86 @@ async function handleChatCommand(player, message, ctx) {
       if (dur !== undefined && minutes === null) { minutes = dur; continue; }
       if (!PERMIT_FILLER.has(low)) noteParts.push(tok);
     }
-    // El alcance más específico gana: "semillas de trigo" = solo trigo, no toda la agricultura
-    scope = scopes.find(sc => sc.includes(':')) || scopes[0] || null;
+
+    const specific = [...new Set(scopes.filter(sc => sc.includes(':')))];
+    const requestedScopes = specific.length ? specific : [...new Set(scopes)];
+    const refused = [];
 
     if (revoke) {
-      // Sin alcance: quita todo lo que este Estado controla (su monopolio, aldeanos y sus granjas)
-      const scopes = scope ? [scope] : [...new Set([
-        senderRole === 'myth' ? 'agro' : 'ganado',
-        'aldeanos',
-        ...mem.getActivePermits(target).map(p => p.scope).filter(sc => sc.includes(':'))
-      ])];
+      const revokeScopes = requestedScopes.length
+        ? expandLegacy(requestedScopes)
+        : [...new Set([
+            senderRole === 'myth' ? 'agro' : 'ganado',
+            'aldeanos',
+            ...mem.getActivePermits(target).map(p => p.scope),
+            ...mem.getActiveProhibitions(target).map(p => p.scope)
+          ])];
       let removed = 0;
-      for (const sc of scopes) {
+      const removedLabels = [];
+      for (const sc of revokeScopes) {
         const info = scopeInfo(sc);
-        if (!info || (info.owner !== 'any' && info.owner !== senderRole)) continue;
-        removed += mem.revokePermit({ player: target, scope: sc, by: player });
+        if (!info) continue;
+        if (info.owner !== 'any' && info.owner !== senderRole) {
+          if (requestedScopes.length) refused.push(`${info.label} (solo ${PERMIT_OWNER_LABEL[info.owner]})`);
+          continue;
+        }
+        const n = mem.revokePermit({ player: target, scope: sc, by: player })
+          + mem.revokeProhibition({ player: target, scope: sc, by: player });
+        if (n > 0) {
+          removed += n;
+          if (sc !== 'granja:cactus' || !removedLabels.some(l => l.includes('Cactus'))) removedLabels.push(info.label);
+        }
       }
-      await sendLine(rcon, '@a', 'Permisos', 'aqua', [
-        { text: removed ? `${player} retiró el permiso de ${target}${scope ? ` (${scopeInfo(scope)?.label || scope})` : ''}. La Aduana vuelve a vigilarlo en eso.` : `${target} no tenía permisos tuyos que quitar.`, color: 'white' }
+      if (refused.length && !removed) {
+        await sendLine(rcon, player, 'Permisos', 'gold', [{ text: `No puedes quitar: ${refused.join('; ')}. Es monopolio del otro.`, color: 'yellow' }]);
+        return;
+      }
+      const detail = removedLabels.length ? ` (${removedLabels.join(' + ')})` : '';
+      await sendLine(rcon, removed ? '@a' : player, 'Permisos', 'aqua', [
+        {
+          text: removed
+            ? `${player} retiró el permiso/prohibición de ${target}${detail}. La Aduana vuelve a aplicar la regla normal.`
+            : `${target} no tenía permisos ni prohibiciones tuyas que quitar. Si quieres bloquear un recurso, usa: !permiso prohibir ${target} <recurso>.`,
+          color: removed ? 'white' : 'yellow'
+        }
       ]);
       return;
     }
 
-    // Varios a la vez: "!permiso X trigo y papas 1h". Si nombra alguno específico, los generales sobran.
-    const specific = [...new Set(scopes.filter(sc => sc.includes(':')))];
-    const toGrant = specific.length ? specific : [scope || (senderRole === 'myth' ? 'agro' : 'ganado')];
-    const granted = [];
-    const refused = [];
-    for (const sc of toGrant) {
+    // Grant o Prohibit comparten validación de monopolio y soporte multi-alcance
+    const toApply = requestedScopes.length ? requestedScopes : [senderRole === 'myth' ? 'agro' : 'ganado'];
+    const applied = [];
+    const note = noteParts.join(' ');
+    for (const sc of toApply) {
       const info = scopeInfo(sc);
       if (!info) continue;
-      if (info.owner !== 'any' && info.owner !== senderRole) { refused.push(`${info.label} (lo da ${PERMIT_OWNER_LABEL[info.owner]})`); continue; }
-      mem.grantPermit({ player: target, scope: sc, grantedBy: player, grantorRole: senderRole, minutes, note: noteParts.join(' '), label: info.label });
-      granted.push(info.label);
+      if (info.owner !== 'any' && info.owner !== senderRole) {
+        refused.push(`${info.label} (lo gestiona ${PERMIT_OWNER_LABEL[info.owner]})`);
+        continue;
+      }
+      if (sc === 'agro:cactus') {
+        mem.revokePermit({ player: target, scope: 'granja:cactus', by: player });
+        mem.revokeProhibition({ player: target, scope: 'granja:cactus', by: player });
+      }
+      if (prohibit) {
+        mem.grantProhibition({ player: target, scope: sc, prohibitedBy: player, grantorRole: senderRole, minutes, note, label: info.label });
+      } else {
+        mem.grantPermit({ player: target, scope: sc, grantedBy: player, grantorRole: senderRole, minutes, note, label: info.label });
+      }
+      applied.push(info.label);
     }
     if (refused.length) {
-      await sendLine(rcon, player, 'Permisos', 'gold', [{ text: `No puedes dar: ${refused.join('; ')}. Es monopolio del otro.`, color: 'yellow' }]);
+      await sendLine(rcon, player, 'Permisos', 'gold', [{ text: `No puedes ${prohibit ? 'prohibir' : 'dar'}: ${refused.join('; ')}. Es monopolio del otro.`, color: 'yellow' }]);
     }
-    if (granted.length) {
-      const note = noteParts.join(' ');
-      await sendLine(rcon, '@a', 'Permisos', 'aqua', [
-        { text: `${player} autoriza a ${target}: ${granted.join(' + ')} ${minutes ? `por ${fmtMinutes(minutes)}` : 'hasta nuevo aviso'}${note ? ` (${note})` : ''}. La Aduana no interfiere en eso.`, color: 'white' }
+    if (applied.length) {
+      const durText = minutes ? `por ${fmtMinutes(minutes)}` : 'hasta nuevo aviso';
+      await sendLine(rcon, '@a', prohibit ? 'Prohibición' : 'Permisos', prohibit ? 'red' : 'aqua', [
+        {
+          text: prohibit
+            ? `${player} PROHÍBE a ${target}: ${applied.join(' + ')} ${durText}${note ? ` (${note})` : ''}. La Aduana confiscará de inmediato.`
+            : `${player} autoriza a ${target}: ${applied.join(' + ')} ${durText}${note ? ` (${note})` : ''}. La Aduana no interfiere en eso.`,
+          color: 'white'
+        }
       ]);
     }
     return;
@@ -1717,6 +1784,31 @@ async function processLogLine(rawLine, ctx) {
     return;
   }
 
+  // Órdenes de consola del servidor: "say !admin <petición>" o "!admin <corto>" directo en consola
+  const serverSayMatch = line.match(/^(?:System chat:\s+)?(?:\[Not Secure\]\s+)?\[(Server|Rcon)\]\s+(.+)$/);
+  if (serverSayMatch) {
+    const wish = extractAdminWish(serverSayMatch[2], ctx.cfg.prefix || '!');
+    if (wish !== null && ctx.adminGenie) {
+      ctx.adminGenie.fulfill(wish).then(r => {
+        console.log(`[Admin (${serverSayMatch[1]})] ${r.respuesta_consola}`);
+      }).catch(e => console.error('[Admin error]', e.message));
+      return;
+    }
+  }
+  const directConsoleAdmin = line.match(/^(?:System chat:\s+)?([!A-Za-z0-9_].*?)<--\[HERE\]$/);
+  if (directConsoleAdmin && !directConsoleAdmin[1].startsWith('...')) {
+    const wish = extractAdminWish(directConsoleAdmin[1], ctx.cfg.prefix || '!');
+    if (wish !== null && ctx.adminGenie) {
+      ctx.adminGenie.fulfill(wish).then(r => {
+        console.log(`[Admin (Consola)] ${r.respuesta_consola}`);
+      }).catch(e => console.error('[Admin error]', e.message));
+      return;
+    }
+  } else if (/(?:System chat:\s+)?\.\.\..*<--\[HERE\]$/.test(line) && /admin|capricho|servidor|contador|segundos/i.test(line)) {
+    console.log('[Admin] Aviso: la consola de Minecraft recortó el comando largo porque no llevaba "say". Usa "say !admin <orden>" allí, o escribe directo en consola-admin.bat.');
+    return;
+  }
+
   // Formato Vanilla: ]: <Jugador> mensaje   ó   ]: [Not Secure] <Jugador> mensaje
   const chatMatch = line.match(/^(?:\[Not Secure\]\s+)?<([A-Za-z0-9_]{1,16})>\s+(.+)$/);
   if (chatMatch) {
@@ -2205,6 +2297,88 @@ async function runSmokeTest(cfg) {
     throw new Error('isArchivistaPlayer debe permitir solo a NotOutContext');
   }
   console.log(`10) Scribe Certificates, Multi-Author & Colored Paper test: PASS`);
+
+  // 11. Permits, Multi-Scope Parsing & Explicit Prohibitions (flores/cactus/tintes)
+  if (
+    PERMIT_SCOPE_ALIASES.flores !== 'agro:flores' ||
+    PERMIT_SCOPE_ALIASES.cactus !== 'agro:cactus' ||
+    PERMIT_SCOPE_ALIASES.tintes !== 'agro:tintes' ||
+    PERMIT_SCOPES['agro:flores']?.owner !== 'myth' ||
+    PERMIT_SCOPES['agro:cactus']?.owner !== 'myth' ||
+    PERMIT_SCOPES['agro:tintes']?.owner !== 'myth' ||
+    !PERMIT_FILLER.has('todos') ||
+    !PERMIT_FILLER.has('derivados')
+  ) {
+    throw new Error('Alias o alcances de flores/cactus/tintes incompletos');
+  }
+  const tmpMemPath = path.join(os.tmpdir(), `miscolandia-smoke-mem-${Date.now()}.json`);
+  try {
+    const tmpMem = new SessionMemory(tmpMemPath);
+    tmpMem.grantPermit({ player: 'NotOutContext', scope: 'agro:flores', grantedBy: 'MythStorm', grantorRole: 'myth', label: PERMIT_SCOPES['agro:flores'].label });
+    tmpMem.grantPermit({ player: 'NotOutContext', scope: 'agro:cactus', grantedBy: 'MythStorm', grantorRole: 'myth', label: PERMIT_SCOPES['agro:cactus'].label });
+    tmpMem.grantPermit({ player: 'NotOutContext', scope: 'agro:tintes', grantedBy: 'MythStorm', grantorRole: 'myth', label: PERMIT_SCOPES['agro:tintes'].label });
+    if (tmpMem.getActivePermits('NotOutContext').length !== 3 || !tmpMem.hasPermit('NotOutContext', 'agro:tintes')) {
+      throw new Error('Permiso multi-alcance flores+cactus+tintes no se guardó completo');
+    }
+    tmpMem.grantProhibition({ player: 'NotOutContext', scope: 'agro:flores', prohibitedBy: 'MythStorm', grantorRole: 'myth', label: PERMIT_SCOPES['agro:flores'].label, note: 'prueba' });
+    if (tmpMem.hasPermit('NotOutContext', 'agro:flores') || !tmpMem.hasProhibition('NotOutContext', 'agro:flores')) {
+      throw new Error('Prohibición expresa debe cancelar permiso previo y quedar activa');
+    }
+    if (tmpMem.getStats().prohibitionsCount !== 1 || !tmpMem.getPersistentMemoryText().includes('[PROHIBICIONES EXPRESAS VIGENTES')) {
+      throw new Error('Memoria persistente o stats no reflejan prohibición expresa');
+    }
+    const revokedBan = tmpMem.revokeProhibition({ player: 'NotOutContext', scope: 'agro:flores', by: 'MythStorm' });
+    if (revokedBan !== 1 || tmpMem.hasProhibition('NotOutContext', 'agro:flores')) {
+      throw new Error('revokeProhibition no retiró la prohibición');
+    }
+  } finally {
+    try { fs.unlinkSync(tmpMemPath); } catch {}
+  }
+  console.log(`11) Permits, Multi-Scope & Prohibitions test: PASS`);
+
+  // 12. Admin Genie: Parsing, SNBT Quirks, Countdown Execution & Shutdown Hook
+  if (
+    extractAdminWish('!admin que el servidor se cierre en 10 segundos y aparezca un contador') !== 'que el servidor se cierre en 10 segundos y aparezca un contador' ||
+    extractAdminWish('hola mundo') !== null
+  ) {
+    throw new Error('extractAdminWish falló');
+  }
+  const snbtFixed = sanitizeRconCommand('/give @a minecraft:cookie[minecraft:custom_name=\'{"text":"Galleta","color":"gold"}\'] 2}');
+  if (!snbtFixed.startsWith('give @a minecraft:cookie[minecraft:custom_name={text:"Galleta",color:"gold"}] 2') || snbtFixed.endsWith('}')) {
+    throw new Error(`sanitizeRconCommand SNBT falló: ${snbtFixed}`);
+  }
+  const sentCmds = [];
+  let stopCompacted = false;
+  const mockRcon = {
+    async send(c) { sentCmds.push(c); return 'OK'; },
+    async tellraw(t, comps) { sentCmds.push(`tellraw ${t} ${JSON.stringify(comps)}`); return 'OK'; }
+  };
+  const genie = new AdminGenie({
+    cfg,
+    rcon: mockRcon,
+    onLog: () => {},
+    onBeforeStop: async () => { stopCompacted = true; },
+    tickMs: 15
+  });
+  const planCheck = await genie.fulfill('que el servidor se cierre en 3 segundos y aparezca un contador', {
+    onlinePlayers: ['MythStorm', 'Scadrial0523']
+  });
+  await planCheck.completionPromise;
+  const saveIdx = sentCmds.findIndex(c => /^save-all\b/i.test(c));
+  const stopIdx = sentCmds.findIndex(c => /^stop\b/i.test(c));
+  if (
+    !sentCmds.some(c => c.startsWith('bossbar add minecraft:admin_timer')) ||
+    !sentCmds.some(c => c.startsWith('title @a title ')) ||
+    !sentCmds.some(c => c === 'bossbar remove minecraft:admin_timer') ||
+    saveIdx < 0 || stopIdx < 0 || saveIdx > stopIdx || !stopCompacted
+  ) {
+    throw new Error(`AdminGenie countdown/shutdown incompleto: ${JSON.stringify({ stopCompacted, saveIdx, stopIdx, sample: sentCmds.slice(-6) })}`);
+  }
+  const adminDryPlan = await planAdminWish({ config: cfg, wish: 'cancela el contador' });
+  if (adminDryPlan.pasos[0]?.tipo !== 'cancel_countdown') {
+    throw new Error(`planAdminWish cancelación falló: ${JSON.stringify(adminDryPlan)}`);
+  }
+  console.log(`12) Admin Genie (!admin Console & Countdown) test: PASS`);
   console.log('=== TODOS LOS TESTS PASARON ===');
 }
 
@@ -2224,8 +2398,16 @@ async function main() {
     password: cfg.rconPassword || ''
   });
   const enforcer = new RuleEnforcer({ cfg, bridge, rcon, memory });
+  const ctx = { cfg, bridge, rcon, enforcer, memory, events: null, adminGenie: null };
+  const adminGenie = new AdminGenie({
+    cfg,
+    rcon,
+    onBeforeStop: () => handleServerStopCompaction(ctx)
+  });
+  ctx.adminGenie = adminGenie;
 
   const shutdown = () => {
+    adminGenie.stopAll();
     enforcer.stop();
     rcon.close();
     releaseSingleInstanceLock();
@@ -2245,8 +2427,21 @@ async function main() {
 
   await enforcer.start().catch(err => console.warn('[Enforcer init]', err.message));
   const events = new WorldEvents({ cfg, bridge, rcon, enforcer, memory, statePath: path.join(SERVER_DIR, 'bot-events.json') });
+  ctx.events = events;
   events.start();
-  startLogWatcher(cfg, { cfg, bridge, rcon, enforcer, memory, events });
+  startLogWatcher(cfg, ctx);
+
+  if (process.stdin && process.stdin.isTTY) {
+    const rl = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
+    rl.on('line', line => {
+      const wish = extractAdminWish(line, cfg.prefix || '!');
+      if (wish !== null) {
+        adminGenie.fulfill(wish).then(r => {
+          console.log(`[Admin (Terminal)] ${r.respuesta_consola}`);
+        }).catch(e => console.error('[Admin error]', e.message));
+      }
+    });
+  }
 }
 
 main().catch(err => {

@@ -7,15 +7,29 @@ const MAX_SESSION_MEMORIES = 20;
 const MAX_PINNED_NOTES = 30;
 const MAX_PERMITS = 60;
 
-// Permisos expresos que un Estado da sobre SU monopolio (persisten entre reinicios).
+// Permisos y prohibiciones expresas sobre monopolios (persisten entre reinicios).
 export const PERMIT_SCOPES = {
-  agro: { label: 'agricultura, semillas y abejas', owner: 'myth' },
+  agro: { label: 'agricultura, flores, cactus, tintes y abejas', owner: 'myth' },
   ganado: { label: 'ganadería, pesca y subproductos animales', owner: 'scad' },
   aldeanos: { label: 'comercio con aldeanos estatales', owner: 'any' }
 };
-// Permisos finos: un solo cultivo o un solo tipo de animal (ej. "agro:trigo", "ganado:gallinas")
+// Permisos finos: un solo cultivo, planta/tinte o un solo tipo de animal (ej. "agro:trigo", "agro:flores", "ganado:gallinas")
 export const PERMIT_SUBSCOPES = {
-  agro: { trigo: 'trigo y sus semillas', zanahoria: 'zanahorias', papa: 'papas', remolacha: 'remolacha y sus semillas', cana: 'caña de azúcar', sandia: 'sandías y sus semillas', calabaza: 'calabazas y sus semillas', bayas: 'bayas dulces', verrugas: 'verrugas del Nether', abejas: 'abejas, miel y panales' },
+  agro: {
+    trigo: 'trigo y sus semillas',
+    zanahoria: 'zanahorias',
+    papa: 'papas',
+    remolacha: 'remolacha y sus semillas',
+    cana: 'caña de azúcar',
+    sandia: 'sandías y sus semillas',
+    calabaza: 'calabazas y sus semillas',
+    bayas: 'bayas dulces',
+    verrugas: 'verrugas del Nether',
+    abejas: 'abejas, miel y panales',
+    flores: 'flores (todas)',
+    cactus: 'cactus (planta y flor)',
+    tintes: 'tintes derivados (todos los colores)'
+  },
   ganado: { vacas: 'vacas, champiñacas y cuero', cerdos: 'cerdos', ovejas: 'ovejas', gallinas: 'gallinas, huevos y plumas', conejos: 'conejos', calamares: 'calamares y tinta', pesca: 'pesca (peces y caña)', cria: 'criar animales' }
 };
 for (const [parent, subs] of Object.entries(PERMIT_SUBSCOPES)) {
@@ -30,7 +44,8 @@ function defaultData() {
     pendingSessionLog: [],
     sessionMemories: [],
     pinnedNotes: [],
-    permits: []
+    permits: [],
+    prohibitions: []
   };
 }
 
@@ -50,7 +65,8 @@ export class SessionMemory {
           pendingSessionLog: Array.isArray(parsed?.pendingSessionLog) ? parsed.pendingSessionLog.slice(-MAX_PENDING_LOG) : [],
           sessionMemories: Array.isArray(parsed?.sessionMemories) ? parsed.sessionMemories.slice(-MAX_SESSION_MEMORIES) : [],
           pinnedNotes: Array.isArray(parsed?.pinnedNotes) ? parsed.pinnedNotes.slice(-MAX_PINNED_NOTES) : [],
-          permits: Array.isArray(parsed?.permits) ? parsed.permits.slice(-MAX_PERMITS) : []
+          permits: Array.isArray(parsed?.permits) ? parsed.permits.slice(-MAX_PERMITS) : [],
+          prohibitions: Array.isArray(parsed?.prohibitions) ? parsed.prohibitions.slice(-MAX_PERMITS) : []
         };
       }
     } catch (err) {
@@ -115,66 +131,110 @@ export class SessionMemory {
     return entry;
   }
 
-  /* ---------- Permisos expresos ---------- */
-  _prunePermits() {
+  /* ---------- Permisos y prohibiciones expresas ---------- */
+  _pruneList(listName) {
     const now = Date.now();
-    const before = this.data.permits.length;
-    this.data.permits = this.data.permits.filter(p => !p.until || p.until > now);
-    if (this.data.permits.length !== before) this.save();
+    const list = Array.isArray(this.data[listName]) ? this.data[listName] : [];
+    const filtered = list.filter(p => !p.until || p.until > now);
+    if (filtered.length !== list.length) {
+      this.data[listName] = filtered;
+      this.save();
+    }
+    return filtered;
   }
 
-  // Reemplaza un permiso igual (mismo jugador y alcance) en lugar de duplicarlo
-  grantPermit({ player, scope, grantedBy, grantorRole, minutes = null, note = '', label = '' }) {
-    this._prunePermits();
+  _upsertRule(listName, oppositeName, { player, scope, actor, grantorRole, minutes = null, note = '', label = '', verb }) {
+    this._pruneList(listName);
+    this._pruneList(oppositeName);
     const low = String(player || '').toLowerCase();
-    this.data.permits = this.data.permits.filter(p => !(p.player.toLowerCase() === low && p.scope === scope));
+    this.data[listName] = (this.data[listName] || []).filter(p => !(p.player.toLowerCase() === low && p.scope === scope));
+    // Al autorizar un alcance se levanta cualquier prohibición opuesta (y viceversa)
+    this.data[oppositeName] = (this.data[oppositeName] || []).filter(p => !(p.player.toLowerCase() === low && p.scope === scope));
     const entry = {
       ts: Date.now(),
       player: String(player),
       scope,
-      grantedBy: String(grantedBy || ''),
+      grantedBy: String(actor || ''),
       grantorRole: grantorRole || '',
       label: String(label || PERMIT_SCOPES[scope]?.label || scope),
       until: minutes ? Date.now() + minutes * 60_000 : null,
       note: String(note || '').trim().replace(/\s+/g, ' ').slice(0, 120)
     };
-    this.data.permits.push(entry);
-    while (this.data.permits.length > MAX_PERMITS) this.data.permits.shift();
-    this._pushPending('event', `${entry.grantedBy} dio permiso de ${entry.label} a ${entry.player}${entry.until ? ` por ${minutes < 1 ? Math.round(minutes * 60) + ' s' : Math.round(minutes) + ' min'}` : ' (permanente)'}${entry.note ? `: ${entry.note}` : ''}`);
+    this.data[listName].push(entry);
+    while (this.data[listName].length > MAX_PERMITS) this.data[listName].shift();
+    const timeLabel = entry.until ? ` por ${minutes < 1 ? Math.round(minutes * 60) + ' s' : Math.round(minutes) + ' min'}` : ' (permanente)';
+    this._pushPending('event', `${entry.grantedBy} ${verb} ${entry.label} a ${entry.player}${timeLabel}${entry.note ? `: ${entry.note}` : ''}`);
     this.save();
     return entry;
   }
 
-  // Devuelve cuántos permisos quitó
-  revokePermit({ player, scope = null, by = '' }) {
-    this._prunePermits();
+  _removeRule(listName, { player, scope = null, by = '', verb }) {
+    this._pruneList(listName);
     const low = String(player || '').toLowerCase();
-    const before = this.data.permits.length;
-    this.data.permits = this.data.permits.filter(p => !(p.player.toLowerCase() === low && (!scope || p.scope === scope)));
-    const removed = before - this.data.permits.length;
+    const before = (this.data[listName] || []).length;
+    this.data[listName] = (this.data[listName] || []).filter(p => !(p.player.toLowerCase() === low && (!scope || p.scope === scope)));
+    const removed = before - this.data[listName].length;
     if (removed) {
-      this._pushPending('event', `${by} retiró ${removed} permiso(s) de ${player}${scope ? ` (${PERMIT_SCOPES[scope]?.label || scope})` : ''}`);
+      this._pushPending('event', `${by} ${verb} ${removed} registro(s) de ${player}${scope ? ` (${PERMIT_SCOPES[scope]?.label || scope})` : ''}`);
       this.save();
     }
     return removed;
   }
 
+  _hasActiveRule(listName, player, scope) {
+    const now = Date.now();
+    const low = String(player || '').toLowerCase();
+    return (this.data[listName] || []).some(p => p.player.toLowerCase() === low && p.scope === scope && (!p.until || p.until > now));
+  }
+
+  _describeRule(p, verbLabel) {
+    const ms = p.until ? Math.max(0, p.until - Date.now()) : 0;
+    const left = !p.until ? '' : ms < 60_000 ? `${Math.max(1, Math.ceil(ms / 1000))} s` : ms < 3_600_000 ? `${Math.ceil(ms / 60_000)} min` : `${+(ms / 3_600_000).toFixed(1)} h`;
+    return `${p.player}: ${p.label || PERMIT_SCOPES[p.scope]?.label || p.scope} (${verbLabel} ${p.grantedBy}${left ? `, quedan ${left}` : ', permanente'})${p.note ? ` — ${p.note}` : ''}`;
+  }
+
+  grantPermit({ player, scope, grantedBy, grantorRole, minutes = null, note = '', label = '' }) {
+    return this._upsertRule('permits', 'prohibitions', { player, scope, actor: grantedBy, grantorRole, minutes, note, label, verb: 'dio permiso de' });
+  }
+
+  revokePermit({ player, scope = null, by = '' }) {
+    return this._removeRule('permits', { player, scope, by, verb: 'retiró' });
+  }
+
   getActivePermits(player = null) {
-    this._prunePermits();
+    const list = this._pruneList('permits');
     const low = player ? String(player).toLowerCase() : null;
-    return this.data.permits.filter(p => !low || p.player.toLowerCase() === low);
+    return list.filter(p => !low || p.player.toLowerCase() === low);
   }
 
   hasPermit(player, scope) {
-    const now = Date.now();
-    const low = String(player || '').toLowerCase();
-    return this.data.permits.some(p => p.player.toLowerCase() === low && p.scope === scope && (!p.until || p.until > now));
+    return this._hasActiveRule('permits', player, scope);
   }
 
   describePermit(p) {
-    const ms = p.until ? Math.max(0, p.until - Date.now()) : 0;
-    const left = !p.until ? '' : ms < 60_000 ? `${Math.max(1, Math.ceil(ms / 1000))} s` : ms < 3_600_000 ? `${Math.ceil(ms / 60_000)} min` : `${+(ms / 3_600_000).toFixed(1)} h`;
-    return `${p.player}: ${p.label || PERMIT_SCOPES[p.scope]?.label || p.scope} (lo dio ${p.grantedBy}${left ? `, quedan ${left}` : ', permanente'})${p.note ? ` — ${p.note}` : ''}`;
+    return this._describeRule(p, 'lo dio');
+  }
+
+  grantProhibition({ player, scope, prohibitedBy, grantorRole, minutes = null, note = '', label = '' }) {
+    return this._upsertRule('prohibitions', 'permits', { player, scope, actor: prohibitedBy, grantorRole, minutes, note, label, verb: 'prohibió' });
+  }
+
+  revokeProhibition({ player, scope = null, by = '' }) {
+    return this._removeRule('prohibitions', { player, scope, by, verb: 'levantó prohibición a' });
+  }
+
+  getActiveProhibitions(player = null) {
+    const list = this._pruneList('prohibitions');
+    const low = player ? String(player).toLowerCase() : null;
+    return list.filter(p => !low || p.player.toLowerCase() === low);
+  }
+
+  hasProhibition(player, scope) {
+    return this._hasActiveRule('prohibitions', player, scope);
+  }
+
+  describeProhibition(p) {
+    return this._describeRule(p, 'lo prohibió');
   }
 
   getRecentChatForSocial(limit = 10) {
@@ -197,6 +257,13 @@ export class SessionMemory {
       sections.push([
         '[PERMISOS EXPRESOS VIGENTES — quien tiene uno NO comete infracción al hacer eso; no lo regañes por ello]',
         ...permits.map(p => `- ${this.describePermit(p)}`)
+      ].join('\n'));
+    }
+    const prohibs = this.getActiveProhibitions();
+    if (prohibs.length) {
+      sections.push([
+        '[PROHIBICIONES EXPRESAS VIGENTES — quien tiene una NO puede tocar eso ni por autoconsumo]',
+        ...prohibs.map(p => `- ${this.describeProhibition(p)}`)
       ].join('\n'));
     }
     const notes = this.data.pinnedNotes.slice(-maxNotes);
@@ -239,6 +306,7 @@ export class SessionMemory {
       sessionsCount: this.data.sessionMemories.length,
       notesCount: this.data.pinnedNotes.length,
       permitsCount: this.getActivePermits().length,
+      prohibitionsCount: this.getActiveProhibitions().length,
       latestSessions: this.data.sessionMemories.slice(-2)
     };
   }

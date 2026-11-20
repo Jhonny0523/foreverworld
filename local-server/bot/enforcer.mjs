@@ -2,8 +2,21 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { generateRoast } from './ollama.mjs';
 
+const FLOWER_ITEMS = [
+  'dandelion', 'golden_dandelion', 'poppy', 'blue_orchid', 'allium', 'azure_bluet',
+  'red_tulip', 'orange_tulip', 'white_tulip', 'pink_tulip', 'oxeye_daisy',
+  'cornflower', 'lily_of_the_valley', 'wither_rose', 'torchflower', 'spore_blossom',
+  'sunflower', 'lilac', 'rose_bush', 'peony', 'pitcher_plant', 'pink_petals',
+  'wildflowers', 'cactus_flower', 'open_eyeblossom', 'closed_eyeblossom'
+];
+const DYE_ITEMS = [
+  'white_dye', 'orange_dye', 'magenta_dye', 'light_blue_dye', 'yellow_dye',
+  'lime_dye', 'pink_dye', 'gray_dye', 'light_gray_dye', 'cyan_dye', 'purple_dye',
+  'blue_dye', 'brown_dye', 'green_dye', 'red_dye', 'black_dye'
+];
+
 const OBJECTIVES = [
-  // Agricultura y abejas (monopolio de MythStorm / Nueva Alejandría)
+  // Agricultura, flores, cactus, tintes y abejas (monopolio de MythStorm / Nueva Alejandría)
   ['fw_m_wheat', 'minecraft.mined:minecraft.wheat'],
   ['fw_m_carrot', 'minecraft.mined:minecraft.carrots'],
   ['fw_m_potato', 'minecraft.mined:minecraft.potatoes'],
@@ -34,6 +47,15 @@ const OBJECTIVES = [
   ['fw_m_bnest', 'minecraft.mined:minecraft.bee_nest'],
   ['fw_m_bhive', 'minecraft.mined:minecraft.beehive'],
   ['fw_k_bee', 'minecraft.killed:minecraft.bee'],
+  ['fw_m_cact', 'minecraft.mined:minecraft.cactus'],
+  ['fw_p_cact', 'minecraft.picked_up:minecraft.cactus'],
+  ['fw_d_cact', 'minecraft.dropped:minecraft.cactus'],
+  ...FLOWER_ITEMS.flatMap((f, i) => [
+    [`fw_mf_${i}`, `minecraft.mined:minecraft.${f}`],
+    [`fw_pf_${i}`, `minecraft.picked_up:minecraft.${f}`],
+    [`fw_df_${i}`, `minecraft.dropped:minecraft.${f}`]
+  ]),
+  ...DYE_ITEMS.map((d, i) => [`fw_cd_${i}`, `minecraft.crafted:minecraft.${d}`]),
 
   // Ganadería, pesca y animales (monopolio de Scadrial0523 / Luthadel)
   ['fw_k_cow', 'minecraft.killed:minecraft.cow'],
@@ -76,7 +98,10 @@ const OBJECTIVES = [
   ['fw_c_trade', 'minecraft.custom:minecraft.traded_with_villager']
 ];
 
-const SEED_DROPS = new Set(['fw_d_wseed', 'fw_d_bseed', 'fw_d_pseed', 'fw_d_mseed', 'fw_d_berry', 'fw_d_honey']);
+const SEED_DROPS = new Set([
+  'fw_d_wseed', 'fw_d_bseed', 'fw_d_pseed', 'fw_d_mseed', 'fw_d_berry', 'fw_d_honey', 'fw_d_cact',
+  ...FLOWER_ITEMS.map((_, i) => `fw_df_${i}`)
+]);
 const SCAD_DROPS = new Set(['fw_d_egg', 'fw_d_begg', 'fw_d_blegg', 'fw_d_feath', 'fw_d_leath', 'fw_d_ink', 'fw_d_gink']);
 
 const AGRO_CLEAR_MAP = {
@@ -104,14 +129,21 @@ const AGRO_CLEAR_MAP = {
   fw_m_bnest: ['minecraft:bee_nest', 'minecraft:honeycomb', 'minecraft:honey_bottle'],
   fw_m_beehive: ['minecraft:beehive', 'minecraft:honeycomb', 'minecraft:honey_bottle'],
   fw_m_bhive: ['minecraft:beehive', 'minecraft:honeycomb', 'minecraft:honey_bottle'],
-  fw_k_bee: ['minecraft:honeycomb', 'minecraft:honey_bottle']
+  fw_k_bee: ['minecraft:honeycomb', 'minecraft:honey_bottle'],
+  fw_m_cact: ['minecraft:cactus'],
+  fw_p_cact: ['minecraft:cactus'],
+  ...Object.fromEntries(FLOWER_ITEMS.flatMap((f, i) => [
+    [`fw_mf_${i}`, [`minecraft:${f}`]],
+    [`fw_pf_${i}`, [`minecraft:${f}`]]
+  ])),
+  ...Object.fromEntries(DYE_ITEMS.map((d, i) => [`fw_cd_${i}`, [`minecraft:${d}`]]))
 };
 
 // Cuántos ítems como máximo puede producir cada evento contado por el marcador.
 // Sirve para confiscar SOLO lo que se obtuvo con la infracción y nunca lo que el jugador
 // ya tenía (por ejemplo, 64 cueros comprados legalmente al otro Estado).
 function perEventMax(key) {
-  if (key.startsWith('fw_p_') || key.startsWith('fw_u_') || key === 'fw_c_fish') return 1;
+  if (key.startsWith('fw_p_') || key.startsWith('fw_pf_') || key.startsWith('fw_cd_') || key.startsWith('fw_u_') || key === 'fw_c_fish') return 1;
   if (key === 'fw_m_melon') return 7;
   if (key === 'fw_m_bnest' || key === 'fw_m_bhive') return 4;
   if (key.startsWith('fw_m_')) return 5;
@@ -128,8 +160,16 @@ const AGRO_SUB = {
   fw_m_melon: 'sandia', fw_u_mseed: 'sandia', fw_p_mseed: 'sandia',
   fw_m_pump: 'calabaza', fw_u_pseed: 'calabaza', fw_p_pseed: 'calabaza',
   fw_m_berry: 'bayas', fw_p_berry: 'bayas', fw_m_nwart: 'verrugas',
-  fw_p_honey: 'abejas', fw_m_bnest: 'abejas', fw_m_bhive: 'abejas', fw_k_bee: 'abejas'
+  fw_p_honey: 'abejas', fw_m_bnest: 'abejas', fw_m_bhive: 'abejas', fw_k_bee: 'abejas',
+  fw_m_cact: 'cactus', fw_p_cact: 'cactus',
+  ...Object.fromEntries(FLOWER_ITEMS.flatMap((_, i) => [
+    [`fw_mf_${i}`, 'flores'],
+    [`fw_pf_${i}`, 'flores']
+  ])),
+  ...Object.fromEntries(DYE_ITEMS.map((_, i) => [`fw_cd_${i}`, 'tintes']))
 };
+const CACTUS_FLOWER_IDX = FLOWER_ITEMS.indexOf('cactus_flower');
+const CACTUS_FLOWER_KEYS = new Set(CACTUS_FLOWER_IDX >= 0 ? [`fw_mf_${CACTUS_FLOWER_IDX}`, `fw_pf_${CACTUS_FLOWER_IDX}`] : []);
 const LIVE_SUB = {
   fw_k_cow: 'vacas', fw_k_moosh: 'vacas', fw_p_leath: 'vacas',
   fw_k_pig: 'cerdos', fw_k_sheep: 'ovejas',
@@ -164,7 +204,14 @@ const AGRO_LABELS = {
   fw_p_honey: 'recoger panales de abeja sin autorización',
   fw_m_bnest: 'tocar nidos de abejas',
   fw_m_bhive: 'tocar colmenas de abejas',
-  fw_k_bee: 'matar abejas'
+  fw_k_bee: 'matar abejas',
+  fw_m_cact: 'picar cactus sin autorización',
+  fw_p_cact: 'recoger cactus sin autorización',
+  ...Object.fromEntries(FLOWER_ITEMS.flatMap((_, i) => [
+    [`fw_mf_${i}`, 'coger flores sin autorización'],
+    [`fw_pf_${i}`, 'recoger flores sin autorización']
+  ])),
+  ...Object.fromEntries(DYE_ITEMS.map((_, i) => [`fw_cd_${i}`, 'fabricar tintes sin autorización']))
 };
 
 const LIVESTOCK_CLEAR_MAP = {
@@ -677,12 +724,15 @@ export class RuleEnforcer {
       return;
     }
 
-    if (role === 'guest' && !this.hasTradePass(player) && !this.memory?.hasPermit(player, 'aldeanos')) {
+    const villagerProhibited = Boolean(this.memory?.hasProhibition(player, 'aldeanos'));
+    if (role === 'guest' && (villagerProhibited || (!this.hasTradePass(player) && !this.memory?.hasPermit(player, 'aldeanos')))) {
       await this.punish({
         player,
         role,
         cooldownKey: 'villager_guest',
-        violationSummary: 'comerciar con aldeanos estatales sin permiso escrito de un Estado',
+        violationSummary: villagerProhibited
+          ? 'comerciar con aldeanos estatales teniendo prohibición expresa vigente'
+          : 'comerciar con aldeanos estatales sin permiso escrito de un Estado',
         normQuery: 'visitante invitado comerciar aldeanos Ley 003',
         normFallback: 'Ley 003 Art. 3 Par. 1'
       });
@@ -776,9 +826,10 @@ export class RuleEnforcer {
     // Permisos expresos guardados con !permiso (persisten entre reinicios)
     const permAgro = Boolean(this.memory?.hasPermit(player, 'agro'));
     const permGanado = Boolean(this.memory?.hasPermit(player, 'ganado'));
+    let caughtCactusInAgro = false;
 
-    // 1. Reglas de Agricultura y Abejas (solo MythStorm, o quien tenga su permiso)
-    if (role !== 'myth' && !hasPass && !tradeTruce && !permAgro) {
+    // 1. Reglas de Agricultura, Flores, Cactus, Tintes y Abejas (solo MythStorm, o quien tenga su permiso)
+    if (role !== 'myth' && !hasPass && !tradeTruce) {
       const agroHits = [];
       const agroClear = new Set();
       const agroCaps = new Map();
@@ -787,12 +838,25 @@ export class RuleEnforcer {
         || (scores.fw_m_wheat || 0) > 0
         || (scores.fw_m_berry || 0) > 0
         || (scores.fw_m_bnest || 0) > 0
-        || (scores.fw_m_bhive || 0) > 0;
+        || (scores.fw_m_bhive || 0) > 0
+        || (scores.fw_m_cact || 0) > 0
+        || keys.some(k => k.startsWith('fw_mf_'));
 
       for (const k of keys) {
         if (!AGRO_LABELS[k]) continue;
-        if (AGRO_SUB[k] && this.memory?.hasPermit(player, `agro:${AGRO_SUB[k]}`)) continue; // permiso de ese cultivo
-        if (k.startsWith('fw_p_')) {
+        const sub = AGRO_SUB[k];
+        const explicitlyProhibited = Boolean(
+          this.memory?.hasProhibition(player, 'agro')
+          || (sub && this.memory?.hasProhibition(player, `agro:${sub}`))
+          || (sub === 'cactus' && this.memory?.hasProhibition(player, 'granja:cactus'))
+        );
+        if (!explicitlyProhibited) {
+          if (permAgro) continue;
+          if (sub && this.memory?.hasPermit(player, `agro:${sub}`)) continue;
+          if (sub === 'cactus' && this.memory?.hasPermit(player, 'granja:cactus')) continue;
+          if (CACTUS_FLOWER_KEYS.has(k) && (this.memory?.hasPermit(player, 'agro:cactus') || this.memory?.hasPermit(player, 'granja:cactus'))) continue;
+        }
+        if (k.startsWith('fw_p_') || k.startsWith('fw_pf_')) {
           const withinDropWindow = (Date.now() - this.recentMythSeedDropAt) < this.tradeWindowMs;
           const nearMyth = !brokePlant && await this.isNearRolePlayer(player, 'myth', state);
           if (!brokePlant && (withinDropWindow || nearMyth)) continue;
@@ -801,6 +865,7 @@ export class RuleEnforcer {
         if ((k === 'fw_m_grass' || k === 'fw_m_tgrass') && !(scores.fw_p_wseed || scores.fw_p_bseed)) {
           continue;
         }
+        if (sub === 'cactus') caughtCactusInAgro = true;
         agroHits.push(AGRO_LABELS[k]);
         for (const item of (AGRO_CLEAR_MAP[k] || [])) {
           agroClear.add(item);
@@ -817,14 +882,14 @@ export class RuleEnforcer {
           violationSummary: agroHits.slice(0, 2).join(' y '),
           clearItemsList: [...agroClear],
           clearCaps: agroCaps,
-          normQuery: 'agricultura semillas cultivos abejas monopolio Acuerdo 002 Ley 003 REG 4',
-          normFallback: role === 'guest' ? 'Ley 003 & Regla OOC 4 (Invitados)' : 'Acuerdo 002 & Regla OOC 4 (Agricultura)'
+          normQuery: 'agricultura semillas cultivos flores cactus tintes abejas monopolio Acuerdo 002 Ley 003 REG 4',
+          normFallback: role === 'guest' ? 'Ley 003 & Regla OOC 4 (Invitados)' : 'Acuerdo 002 & Regla OOC 4 (Agricultura, Flores y Tintes)'
         });
       }
     }
 
     // 2. Reglas de Ganadería y Pesca (solo Scadrial0523)
-    if (role !== 'scad' && !hasPass && !tradeTruce && !permGanado) {
+    if (role !== 'scad' && !hasPass && !tradeTruce) {
       const liveHits = [];
       const liveClear = new Set();
       const liveCaps = new Map();
@@ -832,7 +897,15 @@ export class RuleEnforcer {
 
       for (const k of keys) {
         if (!LIVESTOCK_LABELS[k]) continue;
-        if (LIVE_SUB[k] && this.memory?.hasPermit(player, `ganado:${LIVE_SUB[k]}`)) continue; // permiso de ese animal
+        const sub = LIVE_SUB[k];
+        const explicitlyProhibited = Boolean(
+          this.memory?.hasProhibition(player, 'ganado')
+          || (sub && this.memory?.hasProhibition(player, `ganado:${sub}`))
+        );
+        if (!explicitlyProhibited) {
+          if (permGanado) continue;
+          if (sub && this.memory?.hasPermit(player, `ganado:${sub}`)) continue;
+        }
         // Solo usar caña (sin pescar ni recoger pez) puede ser enganchar botes/entidades; solo sancionar pesca real o si mató peces
         if (k === 'fw_u_rod' && !(scores.fw_c_fish > 0 || scores.fw_k_cod > 0 || scores.fw_k_salm > 0)) continue;
         if (k.startsWith('fw_p_')) {
@@ -862,14 +935,27 @@ export class RuleEnforcer {
       }
     }
 
-    // 3. Bloqueo automático por granjas: si ya existe la granja auditada de un producto,
-    //    conseguirlo a mano queda bloqueado para todos menos su dueño (salvo !permiso).
+    // 3. Bloqueo automático por granjas o prohibición expresa (!permiso prohibir)
     if (!hasPass && !tradeTruce) {
       const D = this.bridge.D || {};
-      const locks = typeof D.activeFarmLocks === 'function' ? D.activeFarmLocks(state) : [];
-      for (const { lock, owner } of locks) {
+      const activeLocks = typeof D.activeFarmLocks === 'function' ? D.activeFarmLocks(state) : [];
+      const activeById = new Map(activeLocks.map(x => [x.lock.id, x]));
+      for (const lock of (D.FARM_LOCKS || [])) {
+        if (lock.id === 'cactus' && caughtCactusInAgro) continue;
+        const activeEntry = activeById.get(lock.id);
+        const owner = activeEntry ? activeEntry.owner : lock.owner;
+        const scopeKey = `granja:${lock.id}`;
+        const isProhibited = Boolean(
+          this.memory?.hasProhibition(player, scopeKey)
+          || (lock.id === 'cactus' && this.memory?.hasProhibition(player, 'agro:cactus'))
+        );
+        if (!activeEntry && !isProhibited) continue;
         if (role === owner) continue;
-        if (this.memory?.hasPermit(player, `granja:${lock.id}`)) continue;
+        const isAllowed = !isProhibited && Boolean(
+          this.memory?.hasPermit(player, scopeKey)
+          || (lock.id === 'cactus' && (permAgro || this.memory?.hasPermit(player, 'agro:cactus')))
+        );
+        if (isAllowed) continue;
         const caps = new Map();
         let events = 0;
         for (const [obj, , perEvent] of lock.watch) {
@@ -885,7 +971,9 @@ export class RuleEnforcer {
           role,
           ownerRole: owner,
           cooldownKey: `farm_${lock.id}`,
-          violationSummary: `conseguir ${lock.label.toLowerCase()} a mano cuando ${ownerNation} ya tiene su granja auditada (se compra en su tienda)`,
+          violationSummary: isProhibited && !activeEntry
+            ? `obtener ${lock.label.toLowerCase()} teniendo prohibición expresa de ${ownerNation}`
+            : `conseguir ${lock.label.toLowerCase()} a mano cuando ${ownerNation} ya tiene su granja auditada (se compra en su tienda)`,
           clearItemsList: [...lock.items],
           clearCaps: caps,
           normQuery: `bloqueo automatico granjas ${lock.label} monopolio`,
