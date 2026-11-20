@@ -200,8 +200,14 @@
     if (!box) return;
     const el = document.createElement('div');
     el.className = 'mc-toast';
-    el.innerHTML = `<div>${ICONS[icon] || ICONS.emerald || ''}</div><div><div class="font-pixel text-gold" style="font-size:11px;">${esc(title)}</div><div class="text-xs text-white" style="margin-top:2px;">${esc(sub)}</div></div>`;
+    el.innerHTML = `<div class="mc-toast-icon">${ICONS[icon] || ICONS.emerald || ''}</div><div><div class="font-pixel text-gold" style="font-size:11px;">${esc(title)}</div><div class="text-xs text-white" style="margin-top:2px;">${esc(sub)}</div></div>`;
     box.appendChild(el);
+    if (window.FW_FX) {
+      window.FW_FX.playSound(icon === 'redstone' ? 'fail' : icon === 'beacon' ? 'levelup' : 'coin');
+      if (['emerald', 'gold', 'diamond', 'amethyst'].includes(icon)) {
+        window.FW_FX.burstAtLastClick(icon);
+      }
+    }
     setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .25s'; setTimeout(() => el.remove(), 260); }, 3800);
   }
   const fail = msg => toast('No se pudo', msg, 'redstone');
@@ -1117,7 +1123,7 @@
         </div>
         <input class="mc-input" style="max-width:260px;" data-bind-live="ui.ledgerQ" data-rerender="economy" value="${esc(state.ui.ledgerQ || '')}" placeholder="🔍 Buscar asiento…"/>
       </div>
-      <div style="max-height:430px;overflow-y:auto;">
+      <div class="mc-table-wrap" style="max-height:430px;overflow-y:auto;">
         ${ledger.length ? `<table class="mc-table"><thead><tr><th>Fecha</th><th>Tipo</th><th>Detalle contable</th><th></th></tr></thead><tbody>
           ${ledger.map(l => `<tr style="${l.void ? 'opacity:.5;' : ''}"><td class="font-mono text-xs text-dim" style="white-space:nowrap;">${when(l.t)}</td>
             <td><span class="mc-tag ${l.void ? 'tag-redstone' : 'tag-slate'}">${l.void ? 'ANULADO' : esc(l.type)}</span></td>
@@ -1363,7 +1369,7 @@
         </div>
         <div class="mc-panel-dark p-md">
           <div class="text-xs font-mono text-white" style="margin-bottom:8px;font-weight:700;">Reparto de profesiones de aldeano</div>
-          <table class="mc-table"><tbody>${D.PROFESSIONS.map(p => `<tr><td class="text-xs text-white">${esc(p.name)}</td><td><select class="mc-select font-mono" style="padding:3px 6px;" data-bind="professions.${p.id}">${stateOpts(state.professions[p.id])}</select></td></tr>`).join('')}</tbody></table>
+          <div class="mc-table-wrap"><table class="mc-table"><tbody>${D.PROFESSIONS.map(p => `<tr><td class="text-xs text-white">${esc(p.name)}</td><td><select class="mc-select font-mono" style="padding:3px 6px;" data-bind="professions.${p.id}">${stateOpts(state.professions[p.id])}</select></td></tr>`).join('')}</tbody></table></div>
           <div class="text-xs font-mono text-dim" style="margin-top:8px;">${STATES.map(s => `${nat(s).nation}: ${D.PROFESSIONS.filter(p => state.professions[p.id] === s).length}`).join(' · ')}</div>
         </div>
       </div>`);
@@ -2031,7 +2037,10 @@
     state.ui.tab = tab;
     document.querySelectorAll('.hotbar-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
     document.querySelectorAll('.tab-view').forEach(v => v.classList.toggle('active', v.id === `view-${tab}`));
-    if (persist) save(true);
+    if (persist) {
+      window.FW_FX?.playSound?.('tab');
+      save(true);
+    }
   }
 
   function commit(...views) {
@@ -3673,9 +3682,25 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
           else delete state.tasks[taskObj.id];
         }
         const before = $('hud-era').textContent;
+        const checkWrap = t.closest('.mc-check-wrap') || t;
         commit('roadmap');
-        if (t.checked) toast('Hito marcado', `${pname(actor)}: ${isTaskDone(taskObj) ? 'hito completado.' : 'tu parte quedó lista.'}`, 'emerald');
-        if ($('hud-era').textContent !== before) toast('¡Nueva era!', $('hud-era').textContent, 'beacon');
+        if (t.checked) {
+          window.FW_FX?.burst?.(checkWrap, 'xp');
+          window.FW_FX?.playSound?.('xp');
+          toast('Hito marcado', `${pname(actor)}: ${isTaskDone(taskObj) ? 'hito completado.' : 'tu parte quedó lista.'}`, 'emerald');
+        }
+        if ($('hud-era').textContent !== before) {
+          const eraEl = $('hud-era');
+          window.FW_FX?.burst?.(eraEl, 'celebrate');
+          window.FW_FX?.playSound?.('levelup');
+          if (eraEl) {
+            eraEl.classList.remove('era-levelup');
+            void eraEl.offsetWidth;
+            eraEl.classList.add('era-levelup');
+            setTimeout(() => eraEl.classList.remove('era-levelup'), 1200);
+          }
+          toast('¡Nueva era!', $('hud-era').textContent, 'beacon');
+        }
         return;
       }
       if (t.classList.contains('guest-check')) {
@@ -3696,8 +3721,13 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
           if (t.checked) book[q.id] = true;
           else delete book[q.id];
         }
+        const guestCheckWrap = t.closest('.mc-check-wrap') || t;
         commit('roadmap', 'state');
-        if (t.checked) toast('Misión marcada', `${pname(pid)}: ${isGuestQuestDone(q, gid) ? q.title : 'tu parte quedó lista.'}`, 'compass');
+        if (t.checked) {
+          window.FW_FX?.burst?.(guestCheckWrap, 'xp');
+          window.FW_FX?.playSound?.('xp');
+          toast('Misión marcada', `${pname(pid)}: ${isGuestQuestDone(q, gid) ? q.title : 'tu parte quedó lista.'}`, 'compass');
+        }
         return;
       }
       if (t.dataset.bind) {
@@ -3805,7 +3835,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
 
   /* ======================== Actualización en vivo (anti-caché) ======================== */
 
-  const CURRENT_APP_VER = (CLOUD && CLOUD.APP_VER) || '20261119092000';
+  const CURRENT_APP_VER = (CLOUD && CLOUD.APP_VER) || '20261120180000';
   let detectedNewVer = '';
 
   function forceLiveReload(targetVer) {
@@ -3859,7 +3889,8 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     } catch { /* noop */ }
     const crest = $('hud-crest');
     if (crest) crest.innerHTML = ICONS.beacon || '';
-    document.querySelectorAll('.tab-icon[data-icon]').forEach(el => { el.innerHTML = ICONS[el.dataset.icon] || ''; });
+    document.querySelectorAll('[data-icon]').forEach(el => { el.innerHTML = ICONS[el.dataset.icon] || ''; });
+    window.FW_FX?.init?.();
     if (me && !participants().includes(me)) me = '';
     // Las leyes viejas (sin tipo) eran reglas del servidor
     const lawsBefore = JSON.stringify(state.laws) + state.ui.rpLawsSeeded;

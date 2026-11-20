@@ -21,8 +21,11 @@
       <div class="hud-top-row">
         <div class="hud-brand">
           <div id="hud-crest" class="mc-slot hud-crest-slot"></div>
-          <div>
-            <h1 id="hud-title" class="font-pixel text-white" style="margin: 0; font-size: 1rem; line-height: 1.2;">FOREVER WORLD</h1>
+          <div class="hud-brand-text">
+            <div class="hud-title-row">
+              <h1 id="hud-title" class="font-pixel text-white" style="margin: 0; font-size: 1rem; line-height: 1.2;">FOREVER WORLD</h1>
+              <button type="button" id="hud-splash" class="mc-splash" title="Clic para cambiar frase">¡100% Vanilla!</button>
+            </div>
             <p id="hud-sub" class="text-xs text-muted" style="margin: 3px 0 0 0;"></p>
           </div>
         </div>
@@ -55,6 +58,7 @@
           </label>
 
           <div class="hud-actions">
+            <button id="hud-sfx-btn" type="button" class="mc-btn mc-btn-icon" title="Sonidos estilo Minecraft desactivados (clic para activar)" aria-pressed="false"><span class="sfx-icon" data-icon="note_block"></span><span class="sfx-label">SFX</span></button>
             <button class="mc-btn mc-btn-diamond" data-action="open-report" title="Resumen para Discord">Resumen</button>
             <button class="mc-btn mc-btn-redstone" data-action="open-reset" title="Borrar todo">Reiniciar</button>
           </div>
@@ -171,7 +175,7 @@
   <script>
     (function () {
       var v = Date.now();
-      ['supabase-config.js', 'cloud.js', 'icons.js', 'eras.js', 'data.js', 'engine.js', 'app.js'].forEach(function (f) {
+      ['supabase-config.js', 'cloud.js', 'icons.js', 'mc-fx.js', 'eras.js', 'data.js', 'engine.js', 'app.js'].forEach(function (f) {
         document.write('<script src="' + f + '?v=' + v + '"><\/script>');
       });
     })();

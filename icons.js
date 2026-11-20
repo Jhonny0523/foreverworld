@@ -32,5 +32,19 @@ window.FW_ICONS = {
 
     compass: `<svg class="pixel-svg" width="18" height="18" viewBox="0 0 16 16"><rect x="4" y="2" width="8" height="12" fill="#475569"/><rect x="2" y="4" width="12" height="8" fill="#64748b"/><rect x="4" y="4" width="8" height="8" fill="#0f172a"/><rect x="7" y="4" width="2" height="4" fill="#ef4444"/><rect x="7" y="8" width="2" height="4" fill="#e2e8f0"/></svg>`,
 
-    pickaxe: `<svg class="pixel-svg" width="18" height="18" viewBox="0 0 16 16"><rect x="4" y="2" width="8" height="2" fill="#06b6d4"/><rect x="3" y="3" width="2" height="3" fill="#22d3ee"/><rect x="11" y="3" width="2" height="3" fill="#0891b2"/><rect x="7" y="4" width="2" height="10" fill="#78350f"/></svg>`
+    pickaxe: `<svg class="pixel-svg" width="18" height="18" viewBox="0 0 16 16"><rect x="4" y="2" width="8" height="2" fill="#06b6d4"/><rect x="3" y="3" width="2" height="3" fill="#22d3ee"/><rect x="11" y="3" width="2" height="3" fill="#0891b2"/><rect x="7" y="4" width="2" height="10" fill="#78350f"/></svg>`,
+
+    grass_block: `<svg class="pixel-svg" width="18" height="18" viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" fill="#593a21"/><rect x="2" y="2" width="12" height="3" fill="#59a633"/><rect x="3" y="2" width="5" height="2" fill="#72c444"/><rect x="10" y="2" width="3" height="2" fill="#478a28"/><rect x="2" y="5" width="2" height="2" fill="#478a28"/><rect x="6" y="5" width="3" height="1" fill="#59a633"/><rect x="11" y="5" width="2" height="2" fill="#59a633"/><rect x="4" y="8" width="2" height="2" fill="#784f2c"/><rect x="10" y="10" width="2" height="2" fill="#422a17"/></svg>`,
+
+    torch: `<svg class="pixel-svg" width="18" height="18" viewBox="0 0 16 16"><rect x="7" y="2" width="2" height="2" fill="#ffffaa"/><rect x="6" y="3" width="4" height="3" fill="#ffaa00"/><rect x="7" y="4" width="2" height="2" fill="#ffff55"/><rect x="6" y="6" width="4" height="2" fill="#e07b42"/><rect x="7" y="8" width="2" height="6" fill="#78350f"/><rect x="7" y="9" width="1" height="4" fill="#9a4b1a"/></svg>`,
+
+    xp_orb: `<svg class="pixel-svg" width="18" height="18" viewBox="0 0 16 16"><rect x="5" y="2" width="6" height="12" fill="#2e7d14"/><rect x="3" y="4" width="10" height="8" fill="#49c91e"/><rect x="4" y="3" width="8" height="10" fill="#80ff20"/><rect x="5" y="4" width="4" height="4" fill="#d4ff8a"/><rect x="6" y="5" width="2" height="2" fill="#ffffff"/></svg>`,
+
+    chest: `<svg class="pixel-svg" width="18" height="18" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" fill="#784319"/><rect x="3" y="4" width="10" height="8" fill="#9c5a25"/><rect x="2" y="6" width="12" height="1" fill="#2d190a"/><rect x="7" y="5" width="2" height="4" fill="#cbd5e1"/><rect x="7" y="6" width="2" height="1" fill="#ffffff"/><rect x="3" y="3" width="10" height="1" fill="#b87135"/></svg>`,
+
+    note_block: `<svg class="pixel-svg" width="18" height="18" viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" fill="#4e2715"/><rect x="3" y="3" width="10" height="10" fill="#733c22"/><rect x="7" y="4" width="4" height="2" fill="#55ff55"/><rect x="9" y="6" width="2" height="4" fill="#55ff55"/><rect x="6" y="9" width="4" height="3" fill="#80ff20"/><rect x="7" y="9" width="2" height="2" fill="#ffff55"/></svg>`,
+
+    shield: `<svg class="pixel-svg" width="18" height="18" viewBox="0 0 16 16"><rect x="3" y="2" width="10" height="8" fill="#94a3b8"/><rect x="4" y="3" width="8" height="7" fill="#784319"/><rect x="4" y="10" width="8" height="2" fill="#94a3b8"/><rect x="5" y="10" width="6" height="2" fill="#633614"/><rect x="6" y="12" width="4" height="2" fill="#94a3b8"/><rect x="7" y="4" width="2" height="6" fill="#cbd5e1"/></svg>`,
+
+    clock: `<svg class="pixel-svg" width="18" height="18" viewBox="0 0 16 16"><rect x="5" y="2" width="6" height="12" fill="#ca8a04"/><rect x="3" y="4" width="10" height="8" fill="#eab308"/><rect x="4" y="3" width="8" height="10" fill="#facc15"/><rect x="5" y="4" width="6" height="4" fill="#38bdf8"/><rect x="7" y="4" width="2" height="2" fill="#fef08a"/><rect x="5" y="8" width="6" height="4" fill="#1e293b"/><rect x="7" y="7" width="2" height="2" fill="#ef4444"/></svg>`
 };
