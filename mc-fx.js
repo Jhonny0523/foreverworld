@@ -6,6 +6,14 @@ window.FW_FX = (() => {
   'use strict';
 
   const SFX_KEY = 'forever_world_sfx';
+  const BIOME_KEY = 'forever_world_biome';
+  const BIOMES = {
+    overworld: { label: 'Overworld', icon: 'grass_block', burst: 'emerald' },
+    forest: { label: 'Bosque', icon: 'torch', burst: 'gold' },
+    nether: { label: 'Nether', icon: 'redstone', burst: 'redstone' },
+    end: { label: 'El End', icon: 'ender_eye', burst: 'amethyst' }
+  };
+  const BIOME_ORDER = ['overworld', 'forest', 'nether', 'end'];
   const SPLASHES = [
     '¡100% Vanilla!',
     '¡Larga vida a Miscolandia!',
@@ -205,6 +213,44 @@ window.FW_FX = (() => {
     });
   }
 
+  function getBiome() {
+    try {
+      const saved = localStorage.getItem(BIOME_KEY);
+      return BIOMES[saved] ? saved : 'overworld';
+    } catch {
+      return 'overworld';
+    }
+  }
+
+  function syncBiomeButton(id) {
+    const meta = BIOMES[id] || BIOMES.overworld;
+    const btn = document.getElementById('hud-biome-btn');
+    if (!btn) return;
+    const iconEl = btn.querySelector('.biome-icon');
+    const lbl = btn.querySelector('.biome-label');
+    if (iconEl && window.FW_ICONS && window.FW_ICONS[meta.icon]) {
+      iconEl.innerHTML = window.FW_ICONS[meta.icon];
+    }
+    if (lbl) lbl.textContent = meta.label;
+    btn.title = `Bioma actual: ${meta.label} (clic para cambiar dimensión)`;
+  }
+
+  function setBiome(id) {
+    const clean = BIOMES[id] ? id : 'overworld';
+    if (document.body) {
+      document.body.dataset.biome = clean;
+    }
+    try { localStorage.setItem(BIOME_KEY, clean); } catch {}
+    syncBiomeButton(clean);
+    return clean;
+  }
+
+  function cycleBiome() {
+    const cur = getBiome();
+    const next = BIOME_ORDER[(BIOME_ORDER.indexOf(cur) + 1) % BIOME_ORDER.length];
+    return setBiome(next);
+  }
+
   function bindGlobalInteractions() {
     document.addEventListener('click', e => {
       const target = e.target && e.target.closest ? e.target : null;
@@ -223,6 +269,14 @@ window.FW_FX = (() => {
         return;
       }
 
+      if (target.closest('#hud-biome-btn')) {
+        const next = cycleBiome();
+        const meta = BIOMES[next] || BIOMES.overworld;
+        playSound('tab');
+        burst(target.closest('#hud-biome-btn'), meta.burst);
+        return;
+      }
+
       if (target.closest('#hud-splash') || target.closest('.hotbar-tab')) return;
 
       if (target.closest('.mc-btn:not(:disabled)')) {
@@ -238,6 +292,7 @@ window.FW_FX = (() => {
     initialized = true;
     createAmbient();
     initSplash();
+    setBiome(getBiome());
     syncSfxButton();
     bindGlobalInteractions();
   }
@@ -248,6 +303,9 @@ window.FW_FX = (() => {
     burstAtLastClick,
     playSound,
     isSoundEnabled,
-    toggleSound
+    toggleSound,
+    getBiome,
+    setBiome,
+    cycleBiome
   };
 })();

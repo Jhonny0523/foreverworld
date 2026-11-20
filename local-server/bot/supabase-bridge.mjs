@@ -752,4 +752,76 @@ export class SupabaseBridge {
     const list = picks.length ? picks : scored.slice(0, 3);
     return list.map(({ ch }) => `${ch.num} (${ch.trd}): ${tx(ch.title)}\n${(ch.articles || []).map(tx).join('\n')}`);
   }
+
+  getPendingEraMilestones(state) {
+    const ERAS = this.D.ERAS || [];
+    const tx = this.makeTx(state);
+    const cur = this.getCurrentEra(state);
+    const era = ERAS[cur.index] || ERAS[0];
+    const allTasks = ERAS.flatMap(e => e.tasks || []);
+    const totalDone = allTasks.filter(t => this.isTaskDone(state, t)).length;
+    const totalAll = allTasks.length;
+    const pendingReq = [];
+    for (const t of (era?.tasks || [])) {
+      if (!t.req || this.isTaskDone(state, t)) continue;
+      let missing = [t.who];
+      if (t.who === 'ambos') {
+        const v = state?.tasks?.[t.id];
+        const mythDone = v && typeof v === 'object' ? Boolean(v.myth) : Boolean(v);
+        const scadDone = v && typeof v === 'object' ? Boolean(v.scad) : Boolean(v);
+        missing = [];
+        if (!mythDone) missing.push('myth');
+        if (!scadDone) missing.push('scad');
+      }
+      pendingReq.push({ id: t.id, title: tx(t.title), who: t.who, missing });
+    }
+    return {
+      eraIndex: cur.index,
+      eraCode: cur.code,
+      eraName: cur.name,
+      reqDone: cur.reqDone,
+      reqTotal: cur.reqTotal,
+      totalDone,
+      totalAll,
+      totalPct: totalAll ? Math.round((totalDone / totalAll) * 100) : 0,
+      pendingReq,
+      nextEraCode: ERAS[cur.index + 1] ? ERAS[cur.index + 1].code : 'ERA ∞'
+    };
+  }
+
+  getWorksSummary(state) {
+    const works = state?.economy?.works || [];
+    const cats = this.D.WORK_CATEGORIES || [];
+    const effPts = this.E.effectiveWorkPoints(state, cats);
+    const auditedByOwner = { myth: { count: 0, pts: 0 }, scad: { count: 0, pts: 0 } };
+    const audited = [];
+    const pending = [];
+    for (const w of works) {
+      const ownerLabel = w.owner === 'myth' || w.owner === 'scad'
+        ? this.nat(state, w.owner).nation
+        : String(w.owner || 'Invitado');
+      if (w.status === 'auditada') {
+        const eff = Number(effPts[w.id] ?? w.final ?? 0);
+        if (auditedByOwner[w.owner]) {
+          auditedByOwner[w.owner].count += 1;
+          auditedByOwner[w.owner].pts += eff;
+        }
+        audited.push({ id: w.id, name: w.name, owner: w.owner, ownerLabel, final: Number(w.final) || 0, eff });
+      } else if (w.status === 'pendiente') {
+        pending.push({
+          id: w.id,
+          name: w.name,
+          owner: w.owner,
+          ownerLabel,
+          coords: String(w.coords || '').trim(),
+          proposed: Number(w.proposed) || 0
+        });
+      }
+    }
+    return {
+      auditedByOwner,
+      pending,
+      recentAudited: audited.slice(-5).reverse()
+    };
+  }
 }

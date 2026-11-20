@@ -10,6 +10,7 @@ import { askModerator, askNpc, generateRoast, generateSocialMessage, compactSess
 import { RuleEnforcer } from './enforcer.mjs';
 import { SessionMemory, PERMIT_SCOPES } from './memory.mjs';
 import { WorldEvents } from './events.mjs';
+import { WebSyncAnnouncer, snapshotWorld, diffWorldSnapshots } from './web-sync.mjs';
 import { AdminGenie, extractAdminWish, planAdminWish, sanitizeRconCommand } from './admin-genie.mjs';
 import {
   COLOR_PALETTE_LIST,
@@ -278,6 +279,8 @@ async function handleDeathAlert(line, bridge, rcon) {
 const COMMAND_DOCS = {
   duda: 'Pregunta libre a la IA sobre leyes, Eras, monopolios, economía o comandos. Uso: !duda <tu pregunta> (ej: !duda puedo hacer un metro?).',
   era: 'Muestra la Era actual (permitido/prohibido), o responde una pregunta sobre ella. Uso: !era  ó  !era <pregunta>.',
+  hitos: 'Muestra qué hitos obligatorios faltan para pasar a la siguiente Era y el progreso global. Uso: !hitos.',
+  obras: 'Muestra puntos de respaldo en obras auditadas y las obras pendientes para NotOutContext. Uso: !obras.',
   pacto: 'Muestra el Pacto de Monopolios y gremios, o responde dudas sobre sectores. Uso: !pacto [sector o pregunta].',
   trato: 'Pausa monopolios y PvP un rato para pasarse comida o ítems sin que interfiera. Uso: !trato [min] (ej: !trato 5) y !trato fin al acabar.',
   duelo: 'Autoriza PvP consensuado temporalmente sin regaños OOC. Uso: !duelo [min] y !duelo fin al acabar.',
@@ -308,6 +311,10 @@ const COMMAND_ALIASES = {
   bot: 'duda',
   alguacil: 'duda',
   eras: 'era',
+  faltan: 'hitos',
+  progreso: 'hitos',
+  auditoria: 'obras',
+  auditorias: 'obras',
   monopolio: 'pacto',
   monopolios: 'pacto',
   comercio: 'trato',
@@ -348,7 +355,7 @@ const BOT_COMMANDS_DOC = [
   '  * Banquero / Don Tesoro / Contador: tasa cambiaria DR/CU, reservas de la Cámara, saldos y precios de catálogo.',
   '  * Archivista / Auditor / Cronista / Bibliotecario: auditoría oficial de obras (Manual 003, TRD 120-01), lore del mundo, crónicas (TRD 140-01), cédulas (TRD 150-01) y recuerdos pasados.',
   '  * Pregonero: chismes de la plaza, opinión económica y libreta permanente ("pregonero recuerda que...").',
-  '- Utilidades operativas que ejecutan permisos/control del servidor: !duelo [min|fin] (PvP consensuado), !trato [min|fin] (intercambio libre), !pase <jug|todos>, !mod [on|off], !chat [on|off], !memoria y !ayuda.',
+  '- Utilidades operativas que ejecutan permisos/control del servidor: !hitos (pendientes de Era), !obras (auditorías), !duelo [min|fin] (PvP consensuado), !trato [min|fin] (intercambio libre), !pase <jug|todos>, !mod [on|off], !chat [on|off], !memoria y !ayuda.',
   '- Certificados y sellos oficiales (EXCLUSIVO Archivista NotOutContext): !certificado <Título> (sella en colores el Libro y Pluma en mano consumiéndolo, o !certificado <Título> | <Texto> / aval / obra / residencia / paz con 1 writable_book en inventario; admite autor: <Autor1 y Autor2> para coautoría), !papel <Nombre> [| <Lore>] (consume 1 papel real) y !colores.',
   '- Acuerdos en chat: "vamos a hacer un trato" o "pvp consensuado / vamos a hacer un duelo" pausan automáticamente al aduanero.',
   '- Permisos y prohibiciones expresas que no se borran: !permiso <jugador> [semillas|flores|cactus|tintes|ganado|aldeanos] [tiempo|permanente] [nota] · !permiso prohibir <jugador> [recurso] [tiempo] [nota] · !permiso quitar <jugador> [recurso] · !permisos [jugador]. Cada Estado solo autoriza o prohíbe su monopolio (MythStorm: agricultura, semillas, flores, cactus, tintes y abejas; Scadrial0523: ganadería y pesca); aldeanos, cualquiera de los dos; un producto con granja (hierro, oro, blaze, slime, madera…), solo su dueño. Si tiene permiso vigente en memoria, es legal; si tiene prohibición expresa, prevalece incluso sobre permisos generales.'
@@ -612,6 +619,10 @@ async function handleChatCommand(player, message, ctx) {
       { text: 'Pregonero', color: 'light_purple', bold: true },
       { text: ': chismes y "recuerda <dato>"\n', color: 'white' },
       { text: 'Comandos: ', color: 'gray' },
+      { text: '!hitos', color: 'green', bold: true },
+      { text: ' · ', color: 'gray' },
+      { text: '!obras', color: 'aqua', bold: true },
+      { text: ' · ', color: 'gray' },
       { text: '!duelo', color: 'aqua', bold: true },
       { text: ' (PvP) · ', color: 'gray' },
       { text: '!trato', color: 'aqua', bold: true },
@@ -954,6 +965,47 @@ async function handleChatCommand(player, message, ctx) {
     ]);
     await sendLine(rcon, player, 'Permitido', 'green', [{ text: era.allowed.join(' | ').slice(0, 320), color: 'white' }]);
     await sendLine(rcon, player, 'Prohibido', 'red', [{ text: era.banned.join(' | ').slice(0, 320), color: 'yellow' }]);
+    return;
+  }
+
+  if (cmd === 'hitos' || cmd === 'faltan' || cmd === 'progreso') {
+    if (await sendCommandHelpIfAsked('hitos', arg, rcon, player)) return;
+    const { state } = await bridge.fetchWorld(true);
+    const info = bridge.getPendingEraMilestones(state);
+    const mythName = bridge.nat(state, 'myth').player || 'MythStorm';
+    const scadName = bridge.nat(state, 'scad').player || 'Scadrial0523';
+    const whoTxt = missing => {
+      if (missing.length === 2) return `Ambos (${mythName} y ${scadName})`;
+      return missing[0] === 'myth' ? mythName : scadName;
+    };
+    const lines = info.pendingReq.slice(0, 8).map(t => `• ${t.title} — falta: ${whoTxt(t.missing)}`);
+    if (info.pendingReq.length > 8) {
+      lines.push(`… y ${info.pendingReq.length - 8} hito(s) obligatorio(s) más.`);
+    }
+    await sendLine(rcon, player, `Roadmap ${info.eraCode}`, 'green', [
+      { text: `${info.eraName} · Obligatorios: ${info.reqDone}/${info.reqTotal} (${info.totalDone}/${info.totalAll} globales, ${info.totalPct}%)\n`, color: 'white', bold: true },
+      { text: lines.length ? lines.join('\n') : `¡Todos los obligatorios listos! Ya avanza a ${info.nextEraCode}.`, color: lines.length ? 'yellow' : 'green' }
+    ]);
+    return;
+  }
+
+  if (cmd === 'obras' || cmd === 'auditoria' || cmd === 'auditorias') {
+    if (await sendCommandHelpIfAsked('obras', arg, rcon, player)) return;
+    const { state } = await bridge.fetchWorld(true);
+    const sum = bridge.getWorksSummary(state);
+    const m = sum.auditedByOwner.myth;
+    const s = sum.auditedByOwner.scad;
+    const pendTxt = sum.pending.length
+      ? sum.pending.slice(0, 6).map(w => `• ${w.name} (${w.ownerLabel}${w.coords ? ` · ${w.coords}` : ''}, prop. ${w.proposed} pts)`).join('\n')
+      : 'Sin obras pendientes por auditar.';
+    await sendLine(rcon, player, 'Catastro', 'gold', [
+      {
+        text: `Auditadas → ${bridge.nat(state, 'myth').nation}: ${m.count} (+${m.pts} pts) | ${bridge.nat(state, 'scad').nation}: ${s.count} (+${s.pts} pts)\n`,
+        color: 'white',
+        bold: true
+      },
+      { text: `Pendientes (${sum.pending.length}):\n${pendTxt}`, color: sum.pending.length ? 'aqua' : 'gray' }
+    ]);
     return;
   }
 
@@ -2379,6 +2431,38 @@ async function runSmokeTest(cfg) {
     throw new Error(`planAdminWish cancelación falló: ${JSON.stringify(adminDryPlan)}`);
   }
   console.log(`12) Admin Genie (!admin Console & Countdown) test: PASS`);
+
+  // 13. WebSync Diff & Bot Helpers (!hitos / !obras)
+  const hitosSummary = bridge.getPendingEraMilestones(state);
+  const worksSummary = bridge.getWorksSummary(state);
+  if (!hitosSummary.eraCode || !Array.isArray(hitosSummary.pendingReq) || !worksSummary.auditedByOwner) {
+    throw new Error('getPendingEraMilestones o getWorksSummary inválidos');
+  }
+  const cloned = JSON.parse(JSON.stringify(state));
+  const snapBefore = snapshotWorld(cloned, bridge);
+  const sameDiff = diffWorldSnapshots(snapBefore, snapshotWorld(cloned, bridge), cloned, bridge);
+  if (sameDiff.eraUnlocked || sameDiff.auditedWorks.length || sameDiff.approvedLaws.length || sameDiff.completedTasks.length) {
+    throw new Error('diffWorldSnapshots sin cambios debería ser vacío');
+  }
+  const eraCur = bridge.D.ERAS[hitosSummary.eraIndex];
+  for (const t of (eraCur?.tasks || [])) {
+    if (t.req && !bridge.isTaskDone(cloned, t)) {
+      cloned.tasks[t.id] = t.who === 'ambos' ? { myth: true, scad: true } : true;
+    }
+  }
+  cloned.economy.works.push({ id: 'smoke-wrk-1', name: 'Faro Real', owner: 'myth', cat: 'monumento', status: 'auditada', final: 15 });
+  cloned.laws.push({ id: 'smoke-law-1', kind: 'rol', docType: 'ley', num: 99, title: 'Ley de Prueba', review: { status: 'approved', notes: [] } });
+  const snapAfter = snapshotWorld(cloned, bridge);
+  const changedDiff = diffWorldSnapshots(snapBefore, snapAfter, cloned, bridge);
+  if (
+    !changedDiff.eraUnlocked ||
+    !changedDiff.auditedWorks.some(w => w.id === 'smoke-wrk-1') ||
+    !changedDiff.approvedLaws.some(l => l.id === 'smoke-law-1') ||
+    !changedDiff.completedTasks.length
+  ) {
+    throw new Error(`diffWorldSnapshots no detectó todos los eventos: ${JSON.stringify(changedDiff)}`);
+  }
+  console.log(`13) WebSync Diff & !hitos/!obras test: PASS`);
   console.log('=== TODOS LOS TESTS PASARON ===');
 }
 
@@ -2398,15 +2482,18 @@ async function main() {
     password: cfg.rconPassword || ''
   });
   const enforcer = new RuleEnforcer({ cfg, bridge, rcon, memory });
-  const ctx = { cfg, bridge, rcon, enforcer, memory, events: null, adminGenie: null };
+  const ctx = { cfg, bridge, rcon, enforcer, memory, events: null, webSync: null, adminGenie: null };
   const adminGenie = new AdminGenie({
     cfg,
     rcon,
     onBeforeStop: () => handleServerStopCompaction(ctx)
   });
   ctx.adminGenie = adminGenie;
+  const webSync = new WebSyncAnnouncer({ bridge, rcon, enforcer, memory });
+  ctx.webSync = webSync;
 
   const shutdown = () => {
+    webSync.stop();
     adminGenie.stopAll();
     enforcer.stop();
     rcon.close();
@@ -2429,6 +2516,7 @@ async function main() {
   const events = new WorldEvents({ cfg, bridge, rcon, enforcer, memory, statePath: path.join(SERVER_DIR, 'bot-events.json') });
   ctx.events = events;
   events.start();
+  await webSync.start().catch(err => console.warn('[WebSync init]', err.message));
   startLogWatcher(cfg, ctx);
 
   if (process.stdin && process.stdin.isTTY) {

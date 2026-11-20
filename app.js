@@ -515,7 +515,7 @@
       </label>`;
     }).join('');
     return `
-      <div class="task-card p-md ${checked ? 'completed enchanted-glint' : ''} ${locked ? 'locked' : ''}" style="display:flex;gap:12px;border-left:4px solid ${t.who === 'ambos' ? '#8b8b8b' : stateBorder(t.who)};" ${locked ? 'title="Era bloqueada"' : ''}>
+      <div data-task-card="${t.id}" class="task-card p-md ${checked ? 'completed enchanted-glint' : ''} ${locked ? 'locked' : ''}" style="display:flex;gap:12px;border-left:4px solid ${t.who === 'ambos' ? '#8b8b8b' : stateBorder(t.who)};" ${locked ? 'title="Era bloqueada"' : ''}>
         ${actors.length === 1 ? checksHtml : ''}
         <div style="flex:1;min-width:0;">
           <div class="flex-row-wrap" style="gap:5px;margin-bottom:5px;">
@@ -1470,7 +1470,7 @@
       const tInfo = trdInfo(tCode);
       const rev = reviewOf(l);
       const sealed = Boolean(rp && !l.repealed && rev.status === 'approved');
-      return `<div class="mc-panel-dark p-md law-card" style="opacity:${status === 'derogada' ? '.88' : '1'};${l.repealed ? 'border-left:4px solid var(--c-red);' : sealed ? 'border-left:4px solid var(--c-green);' : ''}">
+      return `<div data-law-card="${l.id}" class="mc-panel-dark p-md law-card" style="opacity:${status === 'derogada' ? '.88' : '1'};${l.repealed ? 'border-left:4px solid var(--c-red);' : sealed ? 'border-left:4px solid var(--c-green);' : ''}">
         <div class="law-card-head">
           <div class="flex-row-wrap law-card-meta" style="gap:6px;">
             <span class="mc-tag tag-${meta.tag}">${esc(meta.prefix)} ${l.num}</span>
@@ -1944,11 +1944,239 @@
     $('view-territory').innerHTML = rail + census + fold('portals', '🔥 Calculadora de portales del Nether (÷8)', portals);
   }
 
+  /* ======================== Bot Guía, Probador &colores y Buscador Ctrl+K ======================== */
+
+  const BOT_CHEATSHEET = [
+    { cat: 'Progreso & Economía', cmd: '!hitos', desc: 'Ver qué hitos obligatorios faltan en la Era actual y avance global.' },
+    { cat: 'Progreso & Economía', cmd: '!obras', desc: 'Resumen de respaldo en obras auditadas y pendientes para NotOutContext.' },
+    { cat: 'Progreso & Economía', cmd: '!tasa', desc: 'Tasa cambiaria Dracma/Cuarto actual y reservas de la Cámara.' },
+    { cat: 'Progreso & Economía', cmd: '!saldo', desc: 'Saldos de Nueva Alejandría, Luthadel, invitados y Cámara.' },
+    { cat: 'Progreso & Economía', cmd: '!precio trigo', desc: 'Buscar precios oficiales del catálogo de tiendas.' },
+    { cat: 'Aduana & Permisos', cmd: '!permiso NotOutContext flores y cactus y tintes', desc: 'Autoriza subalcances o productos sin borrar permisos al reiniciar.' },
+    { cat: 'Aduana & Permisos', cmd: '!permiso prohibir Scadrial0523 flores y cactus y tintes', desc: 'Prohíbe expresamente un recurso tuyo (prevalece incluso sobre permisos generales).' },
+    { cat: 'Aduana & Permisos', cmd: '!permiso quitar Scadrial0523 flores', desc: 'Retira un permiso o prohibición previa.' },
+    { cat: 'Aduana & Permisos', cmd: '!permisos', desc: 'Lista todos los permisos y prohibiciones vigentes.' },
+    { cat: 'Aduana & Permisos', cmd: '!trato 5', desc: 'Pausa la Aduana y PvP durante 5 min para intercambiar ítems (!trato fin al terminar).' },
+    { cat: 'Aduana & Permisos', cmd: '!duelo 5', desc: 'Habilita PvP consensuado temporal sin alertas OOC (!duelo fin al acabar).' },
+    { cat: 'Archivista (NotOutContext)', cmd: '!certificado &6&lACTA | &aTexto...', desc: 'Convierte Libro y Pluma en libro firmado a colores (soporta autor: A y B).' },
+    { cat: 'Archivista (NotOutContext)', cmd: '!papel &6&lSELLO REAL | &7Folio 001', desc: 'Sella 1 papel en mano con colores & y lore.' },
+    { cat: 'Consola Admin', cmd: 'say !admin que el servidor se cierre en 10 segundos y aparezca un contador', desc: 'Orden libre desde consola del servidor o consola-admin.bat.' },
+    { cat: 'NPCs en Chat', cmd: 'Su Excelencia <consulta>', desc: 'Juez (requiere respeto), Fiscal, Arquitecto, Banquero, Archivista o Pregonero.' }
+  ];
+
+  const MC_SWATCHES = [
+    ['&0', '#000000', 'Negro'], ['&1', '#0000aa', 'Azul osc'], ['&2', '#00aa00', 'Verde osc'], ['&3', '#00aaaa', 'Cian'],
+    ['&4', '#aa0000', 'Rojo osc'], ['&5', '#aa00aa', 'Morado'], ['&6', '#ffaa00', 'Dorado'], ['&7', '#aaaaaa', 'Gris'],
+    ['&8', '#555555', 'Gris osc'], ['&9', '#5555ff', 'Azul'], ['&a', '#55ff55', 'Verde'], ['&b', '#55ffff', 'Aqua'],
+    ['&c', '#ff5555', 'Rojo'], ['&d', '#ff55ff', 'Rosa'], ['&e', '#ffff55', 'Amarillo'], ['&f', '#ffffff', 'Blanco'],
+    ['&l', '#f4f3ee', 'Negrita'], ['&o', '#f4f3ee', 'Cursiva'], ['&n', '#f4f3ee', 'Subr.'], ['&m', '#f4f3ee', 'Tach.'], ['&r', '#b5b1a8', 'Reset']
+  ];
+  const MC_PREVIEW_COLORS = Object.fromEntries(MC_SWATCHES.filter(([c]) => /^&[0-9a-f]$/.test(c)).map(([c, hex]) => [c[1], hex]));
+
+  const colorDraft = {
+    title: '&6&lCERTIFICADO OFICIAL',
+    body: '&fSe deja constancia en &bMiscolandia &fde la &aentrega conforme&f. || &7Firmado en Archivo Nacional.',
+    authors: 'NotOutContext y MythStorm'
+  };
+
+  function renderMcFormattedPreview(raw) {
+    const src = String(raw ?? '').replace(/\\n/g, '\n');
+    const re = /(&#[0-9a-fA-F]{6}|&[0-9a-fA-Fk-oK-OrR]|\|\||\n)/g;
+    let color = '#f4f3ee';
+    let bold = false, italic = false, under = false, strike = false;
+    let out = '';
+    let last = 0;
+    const emitChunk = chunk => {
+      if (!chunk) return;
+      const deco = [under ? 'underline' : '', strike ? 'line-through' : ''].filter(Boolean).join(' ') || 'none';
+      const st = `color:${color};font-weight:${bold ? '700' : '400'};font-style:${italic ? 'italic' : 'normal'};text-decoration:${deco};`;
+      out += `<span style="${st}">${esc(chunk)}</span>`;
+    };
+    let m;
+    while ((m = re.exec(src)) !== null) {
+      if (m.index > last) emitChunk(src.slice(last, m.index));
+      const tok = m[1];
+      if (tok === '\n') out += '<br>';
+      else if (tok === '||') out += '<div style="border-top:1px dashed #4b4858;margin:6px 0;padding-top:3px;font-size:11px;color:#858078;">— Nueva página —</div>';
+      else if (tok.startsWith('&#')) color = tok.slice(1);
+      else {
+        const code = tok[1].toLowerCase();
+        if (MC_PREVIEW_COLORS[code]) { color = MC_PREVIEW_COLORS[code]; bold = italic = under = strike = false; }
+        else if (code === 'l') bold = true;
+        else if (code === 'o') italic = true;
+        else if (code === 'n') under = true;
+        else if (code === 'm') strike = true;
+        else if (code === 'r') { color = '#f4f3ee'; bold = italic = under = strike = false; }
+      }
+      last = re.lastIndex;
+    }
+    if (last < src.length) emitChunk(src.slice(last));
+    return out || '<span class="text-dim">Escribe arriba con códigos &6, &a, &l…</span>';
+  }
+
+  function updateColorPreviewDom() {
+    const out = $('mc-color-preview-out');
+    if (!out) return;
+    const authLine = colorDraft.authors.trim() ? `\n&8Autores: &7${colorDraft.authors.trim()}` : '';
+    out.innerHTML = `<div style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px dashed #353344;">${renderMcFormattedPreview(colorDraft.title)}</div>`
+      + `<div>${renderMcFormattedPreview(colorDraft.body + authLine)}</div>`;
+  }
+
+  function buildSearchIndex() {
+    const items = [];
+    D.ERAS.forEach(era => {
+      items.push({ kind: 'ERA', tag: 'gold', title: `${era.code} · ${tx(era.name)}`, sub: tx(era.focus), q: `${era.code} ${tx(era.name)} ${tx(era.focus)}`, go: { tab: 'roadmap', eraId: era.id } });
+      era.tasks.forEach(t => {
+        items.push({ kind: 'HITO', tag: 'emerald', title: tx(t.title), sub: `${era.code} · ${tx(t.desc)}`, q: `${era.code} ${tx(t.title)} ${tx(t.desc)} ${t.id}`, go: { tab: 'roadmap', eraId: era.id, selector: `[data-task-card="${t.id}"]` } });
+      });
+    });
+    state.laws.forEach(l => {
+      const rp = (l.kind || 'servidor') === 'rol';
+      const meta = (D.DOC_TYPES || {})[l.docType || (rp ? 'ley' : 'servidor')] || { prefix: 'LEY', tag: 'amethyst' };
+      items.push({
+        kind: `${meta.prefix} ${l.num}`,
+        tag: rp ? 'amethyst' : 'slate',
+        title: l.title,
+        sub: `${rp ? 'Norma IC' : 'Regla OOC'} · TRD ${l.trdCode || '100-01'}`,
+        q: `${meta.prefix} ${l.num} ${l.title} ${tx(l.text || '')} ${l.trdCode || ''}`,
+        go: { tab: 'state', stateTab: rp ? 'laws' : 'config', selector: `[data-law-card="${l.id}"]` }
+      });
+    });
+    (state.economy.prices || []).forEach(p => {
+      const c = curFor(p.seller, p);
+      items.push({ kind: 'TIENDA', tag: 'cyan', title: `${p.name} — ${fmt(p.price)} ${sym(c)}`, sub: `Vendedor: ${pname(p.seller)}${p.unit ? ` · ${p.unit}` : ''}`, q: `${p.name} ${p.unit || ''} ${pname(p.seller)}`, go: { tab: 'economy', ecoTab: 'shops' } });
+    });
+    (state.economy.works || []).forEach(w => {
+      items.push({ kind: 'OBRA', tag: w.status === 'auditada' ? 'emerald' : 'gold', title: w.name, sub: `${pname(w.owner)} · ${w.status}${w.coords ? ` · ${w.coords}` : ''}`, q: `${w.name} ${w.product || ''} ${w.coords || ''} ${pname(w.owner)}`, go: { tab: 'economy', ecoTab: 'works' } });
+    });
+    (state.villagers || []).forEach(v => {
+      items.push({ kind: v.kind === 'animal' ? 'ANIMAL' : 'CÉDULA', tag: 'copper', title: `${v.name}${v.code ? ` (${v.code})` : ''}`, sub: `${v.home || 'Sin morada'}${v.offer ? ` · ${v.offer}` : ''}`, q: `${v.name} ${v.code || ''} ${v.home || ''} ${v.offer || ''}`, go: { tab: 'territory' } });
+    });
+    BOT_CHEATSHEET.forEach(c => {
+      items.push({ kind: 'BOT', tag: 'gold', title: c.cmd, sub: `${c.cat} · ${c.desc}`, q: `${c.cmd} ${c.cat} ${c.desc}`, copy: c.cmd });
+    });
+    return items;
+  }
+
+  let searchCurrentList = [];
+  let searchSelIdx = 0;
+
+  function renderGlobalSearchResults(rawQ = '') {
+    const box = $('global-search-results');
+    if (!box) return;
+    const q = String(rawQ || '').trim().toLowerCase();
+    const all = buildSearchIndex();
+    const rank = it => {
+      const t = it.title.toLowerCase();
+      if (t.startsWith(q)) return 3;
+      if (t.includes(q)) return 2;
+      if (it.kind.toLowerCase().includes(q)) return 1;
+      return 0;
+    };
+    const matches = q
+      ? all.filter(it => it.q.toLowerCase().includes(q) || it.title.toLowerCase().includes(q))
+          .sort((a, b) => rank(b) - rank(a))
+          .slice(0, 22)
+      : [
+          ...all.filter(it => it.kind === 'BOT').slice(0, 6),
+          ...all.filter(it => it.kind === 'ERA').slice(0, 4),
+          ...all.filter(it => it.kind.startsWith('LEY') || it.kind === 'HITO').slice(0, 6)
+        ];
+    searchCurrentList = matches;
+    searchSelIdx = Math.min(searchSelIdx, Math.max(0, matches.length - 1));
+    if (!matches.length) {
+      box.innerHTML = empty('Sin coincidencias. Prueba con otro término (ej. trigo, Ley 002, Era I, !permiso…).');
+      return;
+    }
+    box.innerHTML = matches.map((it, idx) => `
+      <button type="button" class="mc-search-item ${idx === searchSelIdx ? 'selected' : ''}" data-action="search-pick" data-i="${idx}">
+        <div style="min-width:0;flex:1;">
+          <div class="flex-row-wrap" style="gap:6px;margin-bottom:2px;">
+            <span class="mc-tag tag-${it.tag}">${esc(it.kind)}</span>
+            <strong class="text-white text-xs">${esc(it.title)}</strong>
+          </div>
+          <div class="text-xs text-muted" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(it.sub)}</div>
+        </div>
+        <span class="mc-tag tag-slate">${it.copy ? 'Copiar' : 'Ir →'}</span>
+      </button>`).join('');
+  }
+
+  function openGlobalSearch() {
+    const modal = $('modal-search');
+    const input = $('global-search-input');
+    if (!modal || !input) return;
+    closeModals();
+    searchSelIdx = 0;
+    modal.classList.add('open');
+    input.value = '';
+    renderGlobalSearchResults('');
+    setTimeout(() => input.focus(), 20);
+  }
+
+  function pickSearchResult(idx) {
+    const item = searchCurrentList[Number(idx)];
+    if (!item) return;
+    closeModals();
+    if (item.copy) {
+      copyText(item.copy);
+      window.FW_FX?.burstAtLastClick?.('gold');
+      toast('Comando copiado', item.copy, 'emerald');
+      return;
+    }
+    const go = item.go || {};
+    if (go.ecoTab) { state.ui.ecoTab = go.ecoTab; renderEconomy(); }
+    if (go.stateTab) { state.ui.stateTab = go.stateTab; renderStatePage(); }
+    if (go.eraId) { state.ui.open[go.eraId] = true; renderRoadmap(); }
+    showTab(go.tab || 'roadmap', false);
+    const el = (go.selector && document.querySelector(go.selector)) || (go.eraId && $(go.eraId));
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.remove('mc-flash-highlight');
+      void el.offsetWidth;
+      el.classList.add('mc-flash-highlight');
+      setTimeout(() => el.classList.remove('mc-flash-highlight'), 1900);
+    }
+  }
+
   /* ======================== Vista: Manual ======================== */
 
   function renderManual() {
     const M = nat('myth'), S = nat('scad'), b = state.settings.bankName, u = state.settings.basket;
     const card = (title, color, body) => `<div class="mc-panel-dark p-md"><strong class="font-mono text-${color} text-xs">${title}</strong><div class="text-xs text-muted" style="margin-top:6px;line-height:1.6;">${body}</div></div>`;
+
+    const botGuideHtml = panel(`
+      ${head('SERVIDOR EN VIVO', 'emerald', 'COMANDOS DEL BOT Y NPCS DE MISCOLANDIA',
+        'Escribe estos comandos en el chat de Minecraft o llama a cualquier NPC por su nombre (Juez, Fiscal, Arquitecto, Banquero, Archivista, Pregonero). Clic en copiar para pegar rápido.')}
+      <div class="grid-2" style="gap:8px;">
+        ${BOT_CHEATSHEET.map(c => `
+          <div class="mc-cmd-row">
+            <div style="min-width:0;flex:1;">
+              <div class="text-xs text-gold font-mono" style="margin-bottom:2px;">${esc(c.cat)}</div>
+              <code style="display:inline-block;max-width:100%;overflow-wrap:anywhere;">${esc(c.cmd)}</code>
+              <div class="text-xs text-muted" style="margin-top:4px;">${esc(c.desc)}</div>
+            </div>
+            <button type="button" class="mc-btn" style="padding:4px 8px;flex-shrink:0;" data-action="copy-text" data-copy="${esc(c.cmd)}">📋</button>
+          </div>`).join('')}
+      </div>`);
+
+    const colorTesterHtml = panel(`
+      ${head('ARCHIVISTA · JAVA 26.4', 'amethyst', 'PROBADOR EN VIVO DE &COLORES (!certificado / !papel)',
+        'Diseña aquí tu texto con códigos <code>&amp;0</code>–<code>&amp;f</code>, <code>&amp;l</code> negrita, <code>&amp;o</code> cursiva y <code>||</code> nueva página; luego copia el comando listo para Minecraft.')}
+      <div class="grid-2" style="gap:10px;margin-bottom:10px;">
+        ${field('Título / Nombre del ítem', `<input id="color-title" class="mc-input font-mono" value="${esc(colorDraft.title)}" />`)}
+        ${field('Autores (opcional, solo para !certificado)', `<input id="color-authors" class="mc-input font-mono" value="${esc(colorDraft.authors)}" placeholder="NotOutContext y MythStorm" />`)}
+      </div>
+      ${field('Contenido de páginas (usa || para saltar de página)', `<textarea id="color-body" rows="3" class="mc-textarea font-mono">${esc(colorDraft.body)}</textarea>`)}
+      <div class="mc-swatch-grid" style="margin:10px 0;">
+        ${MC_SWATCHES.map(([code, hex, name]) => `<button type="button" class="mc-swatch" data-action="color-insert" data-code="${esc(code)}" title="${esc(name)}"><span class="mc-swatch-box" style="background:${hex};"></span>${esc(code)}</button>`).join('')}
+      </div>
+      <div class="text-xs font-mono text-muted" style="margin-bottom:4px;">Vista previa estilo Minecraft:</div>
+      <div id="mc-color-preview-out" class="mc-color-preview"></div>
+      <div class="flex-row-wrap" style="margin-top:12px;gap:8px;">
+        <button type="button" class="mc-btn mc-btn-gold" data-action="color-copy-cert">📋 Copiar !certificado listo</button>
+        <button type="button" class="mc-btn mc-btn-diamond" data-action="color-copy-papel">📋 Copiar !papel listo</button>
+      </div>`);
+
     const money1 = panel(`
       ${head('MANUAL', 'gold', 'CÓMO FUNCIONA EL DINERO', 'Tres preguntas, tres mecanismos separados.')}
       <div class="grid-3">
@@ -2014,11 +2242,14 @@
           ${g.ex ? `<div class="text-xs text-muted" style="margin-top:4px;"><strong class="text-emerald">Ejemplo:</strong> ${esc(tx(g.ex))}</div>` : ''}</div>`).join('')}
       </div>`);
 
-    $('view-manual').innerHTML = glossary
+    $('view-manual').innerHTML = fold('m-bot', '🤖 Comandos del Bot y NPCs en Minecraft', botGuideHtml, true)
+      + fold('m-colors', '✒️ Probador de &colores para !certificado y !papel (Archivista)', colorTesterHtml, false)
+      + glossary
       + fold('m-money', '💰 Cómo funciona el dinero (explicado)', money1 + money2)
       + fold('m-bills', '📖 Billetes en Minecraft vanilla', bills)
       + fold('m-shop', '⚙️ Tienda automática que acepta billetes', shop)
       + fold('m-sync', '🔄 Usar la app en dos PCs', sync);
+    updateColorPreviewDom();
   }
 
   /* ======================== Render global ======================== */
@@ -3110,6 +3341,45 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     },
     'open-report': () => { if ($('report-modal-title')) $('report-modal-title').textContent = 'RESUMEN PARA DISCORD'; $('report-area').value = buildReport(); $('modal-report').classList.add('open'); },
     'copy-report': () => { copyText($('report-area').value); toast('Copiado al portapapeles', 'Texto listo para pegar.', 'emerald'); },
+    'open-search': () => openGlobalSearch(),
+    'search-pick': el => pickSearchResult(el.dataset.i),
+    'copy-text': el => {
+      const txt = el.dataset.copy || '';
+      if (!txt) return;
+      copyText(txt);
+      window.FW_FX?.burst?.(el, 'emerald');
+      toast('Copiado', txt.length > 72 ? `${txt.slice(0, 72)}…` : txt, 'emerald');
+    },
+    'color-insert': el => {
+      const code = el.dataset.code || '';
+      const targetEl = $('color-body') || $('color-title');
+      if (!targetEl || !code) return;
+      const start = targetEl.selectionStart ?? targetEl.value.length;
+      const end = targetEl.selectionEnd ?? targetEl.value.length;
+      targetEl.value = targetEl.value.slice(0, start) + code + targetEl.value.slice(end);
+      colorDraft.body = $('color-body') ? $('color-body').value : colorDraft.body;
+      colorDraft.title = $('color-title') ? $('color-title').value : colorDraft.title;
+      targetEl.focus();
+      targetEl.setSelectionRange(start + code.length, start + code.length);
+      updateColorPreviewDom();
+    },
+    'color-copy-cert': () => {
+      const title = (colorDraft.title || '&6Certificado').trim();
+      const body = (colorDraft.body || '').trim();
+      const auth = (colorDraft.authors || '').trim();
+      const cmd = `!certificado ${title}${body ? ` | ${body}` : ''}${auth ? ` | autor: ${auth}` : ''}`;
+      copyText(cmd);
+      window.FW_FX?.burstAtLastClick?.('gold');
+      toast('!certificado copiado', 'Pégalo en el chat de Minecraft con 1 Libro y Pluma en tu inventario.', 'gold');
+    },
+    'color-copy-papel': () => {
+      const title = (colorDraft.title || '&6Sello').trim();
+      const body = (colorDraft.body || '').trim().split('||')[0].trim();
+      const cmd = `!papel ${title}${body ? ` | ${body}` : ''}`;
+      copyText(cmd);
+      window.FW_FX?.burstAtLastClick?.('diamond');
+      toast('!papel copiado', 'Pégalo en el chat sosteniendo 1 papel real en la mano.', 'diamond');
+    },
     'close-modal': () => closeModals()
   };
 
@@ -3244,7 +3514,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
   let editingLawId = null;
   const UNDO_KEY = 'forever_world_undo';
   const NO_UNDO = new Set(['form', 'shop-edit', 'mode-simple', 'mode-advanced', 'eco-tab', 'mint-fill', 'ledger-filter', 'eco-manual-copy', 'state-tab', 'jump-era', 'law-template', 'law-edit', 'tip', 'filter', 'works-filter', 'law-doc-filter', 'law-rev-filter', 'law-book', 'vg-filter', 'vg-kind-btn', 'vg-copy-tag', 'vg-card', 'price-buy', 'price-challenge', 'open-reset', 'confirm-reset', 'open-backup',
-    'open-report', 'copy-report', 'close-modal', 'undo',
+    'open-report', 'copy-report', 'close-modal', 'undo', 'open-search', 'search-pick', 'copy-text', 'color-insert', 'color-copy-cert', 'color-copy-papel',
     'law-approve-rev', 'law-return', 'law-submit', 'law-sign', 'law-repeal', 'law-upgrade-pack', 'law-defaults',
     'work-approve', 'work-reject', 'work-reopen', 'work-lost', 'guest-del',
     'cloud-pull', 'cloud-push-force', 'cloud-snapshot', 'cloud-restore-snap', 'cloud-save-cfg', 'cloud-reset-cfg', 'cloud-copy-link', 'cloud-copy-snippet']);
@@ -3604,7 +3874,34 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     $('hud-fx-pill').addEventListener('click', () => showTab('economy'));
 
     document.addEventListener('keydown', e => {
+      if ((e.ctrlKey || e.metaKey) && String(e.key || '').toLowerCase() === 'k') {
+        e.preventDefault();
+        openGlobalSearch();
+        return;
+      }
+      const searchModal = $('modal-search');
+      if (searchModal && searchModal.classList.contains('open')) {
+        if (e.key === 'Escape') { e.preventDefault(); return closeModals(); }
+        if (e.key === 'ArrowDown' && searchCurrentList.length) {
+          e.preventDefault();
+          searchSelIdx = (searchSelIdx + 1) % searchCurrentList.length;
+          renderGlobalSearchResults($('global-search-input')?.value || '');
+          return;
+        }
+        if (e.key === 'ArrowUp' && searchCurrentList.length) {
+          e.preventDefault();
+          searchSelIdx = (searchSelIdx - 1 + searchCurrentList.length) % searchCurrentList.length;
+          renderGlobalSearchResults($('global-search-input')?.value || '');
+          return;
+        }
+        if (e.key === 'Enter' && searchCurrentList.length) {
+          e.preventDefault();
+          pickSearchResult(searchSelIdx);
+          return;
+        }
+      }
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target && e.target.tagName) || '')) return;
+      if (e.key === '/') { e.preventDefault(); return openGlobalSearch(); }
       if (e.key === 'Escape') { closeTip(); return closeModals(); }
       const map = { 1: 'roadmap', 2: 'economy', 3: 'state', 4: 'lore', 5: 'territory', 6: 'manual' };
       if (map[e.key]) showTab(map[e.key]);
@@ -3784,6 +4081,18 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       }
       if (['swap-amt', 'swap-from', 'swap-who'].includes(t.id)) updateSwapPreview();
       if (['ln-borrower', 'ln-cur'].includes(t.id)) updateLoanLimit();
+      if (t.id === 'global-search-input') {
+        searchSelIdx = 0;
+        renderGlobalSearchResults(t.value);
+        return;
+      }
+      if (t.id === 'color-title' || t.id === 'color-body' || t.id === 'color-authors') {
+        if (t.id === 'color-title') colorDraft.title = t.value;
+        else if (t.id === 'color-body') colorDraft.body = t.value;
+        else colorDraft.authors = t.value;
+        updateColorPreviewDom();
+        return;
+      }
       if (t.id === 'ow-x' || t.id === 'ow-z') {
         $('nh-x').value = Math.floor(num($('ow-x').value) / 8);
         $('nh-z').value = Math.floor(num($('ow-z').value) / 8);
@@ -3835,7 +4144,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
 
   /* ======================== Actualización en vivo (anti-caché) ======================== */
 
-  const CURRENT_APP_VER = (CLOUD && CLOUD.APP_VER) || '20261120180000';
+  const CURRENT_APP_VER = (CLOUD && CLOUD.APP_VER) || '20261120183000';
   let detectedNewVer = '';
 
   function forceLiveReload(targetVer) {
