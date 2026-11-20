@@ -395,15 +395,24 @@ export class SupabaseBridge {
       ? prices.filter(p => normalizeText(`${p.name} ${p.unit || ''} ${this.pname(state, p.seller)}`).includes(q))
       : prices.slice(0, 8);
     return matches.slice(0, 8).map(p => {
-      const cur = this.E.isState(p.seller) ? this.E.curOfState(p.seller) : (p.cur === 'S' ? 'S' : 'M');
-      const oCur = this.E.otherCur(cur);
-      const conv = this.E.convert(state, p.price, cur, oCur);
+      const hasExplicitCur = p.cur === 'M' || p.cur === 'S' || p.cur === 'U';
+      const cur = hasExplicitCur ? p.cur : (this.E.isState(p.seller) ? this.E.curOfState(p.seller) : 'M');
+      let priceOther = '';
+      if (cur === 'U') {
+        const cM = this.E.convert(state, p.price, 'U', 'M');
+        const cS = this.E.convert(state, p.price, 'U', 'S');
+        priceOther = `${this.money(state, cM, 'M')} / ${this.money(state, cS, 'S')}`;
+      } else {
+        const oCur = this.E.otherCur(cur);
+        const conv = this.E.convert(state, p.price, cur, oCur);
+        priceOther = this.money(state, conv, oCur);
+      }
       return {
         seller: this.E.isState(p.seller) ? this.nat(state, p.seller).nation : this.pname(state, p.seller),
         name: p.name,
         unit: p.unit || 'u',
         priceMain: this.money(state, p.price, cur),
-        priceOther: this.money(state, conv, oCur)
+        priceOther
       };
     });
   }

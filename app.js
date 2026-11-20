@@ -149,9 +149,8 @@
     return pname(pid);
   }
   function curFor(pid, item) {
-    if (E.isState(pid)) return curOf(pid);
-    if (item && (item.cur === 'M' || item.cur === 'S')) return item.cur;
-    return 'M';
+    if (item && (item.cur === 'M' || item.cur === 'S' || item.cur === 'U')) return item.cur;
+    return E.isState(pid) ? curOf(pid) : 'M';
   }
   function ptag(pid) {
     if (pid === 'bank') return `<span class="mc-tag tag-amethyst">${esc(pname(pid))}</span>`;
@@ -750,16 +749,18 @@
         : `Sin productos publicados por ${esc(pname(s))}. Agrega bienes, trofeos o servicios abajo.`);
     }
     if (!items.length) return empty('Sin coincidencias para esa búsqueda.');
-    const fixedCur = E.isState(s) ? curOf(s) : null;
+    const fixedCur = E.isState(s) && allItems.every(p => curFor(p.seller, p) === curOf(s)) ? curOf(s) : null;
     const eqHead = fixedCur ? `En ${esc(sym(E.otherCur(fixedCur)))}` : 'Equivalencia';
     return `<table class="mc-table"><thead><tr><th>Producto</th><th>Precio</th><th>${eqHead}</th><th></th></tr></thead><tbody>
       ${items.map(p => {
         const c = curFor(p.seller, p);
-        const oc = E.otherCur(c);
+        const equiv = c === 'U'
+          ? `${fmt(E.convert(state, p.price, 'U', 'M'))} ${esc(sym('M'))} · ${fmt(E.convert(state, p.price, 'U', 'S'))} ${esc(sym('S'))}`
+          : `${fmt(E.convert(state, p.price, c, E.otherCur(c)))}${fixedCur ? '' : ` ${esc(sym(E.otherCur(c)))}`}`;
         return `<tr>
         <td><div class="text-white" style="font-weight:700;">${esc(p.name)}</div><div class="text-xs text-dim">${esc(p.unit || '')}</div></td>
         <td><div class="flex-row-wrap" style="gap:4px;flex-wrap:nowrap;"><input type="number" min="0" step="0.01" value="${p.price}" class="mc-input font-mono" style="width:70px;padding:3px 5px;" id="price-${p.id}"/><span class="text-xs">${esc(sym(c))}</span></div></td>
-        <td class="font-mono text-xs text-emerald">${fmt(E.convert(state, p.price, c, oc))}${fixedCur ? '' : ` ${esc(sym(oc))}`}</td>
+        <td class="font-mono text-xs text-emerald">${equiv}</td>
         <td><div class="flex-row-wrap" style="gap:4px;flex-wrap:nowrap;">
           <button class="mc-btn" style="padding:3px 6px;" data-action="price-set" data-id="${p.id}" title="Guardar nuevo precio">✔</button>
           <button class="mc-btn mc-btn-emerald" style="padding:3px 6px;" data-action="price-buy" data-id="${p.id}" title="Comprar">🛒</button>
@@ -848,7 +849,9 @@
     const buyIsState = E.isState(buySeller);
     const sellerItems = eco.prices.filter(p => p.seller === buySeller);
     const buyItemObj = sellerItems.find(p => p.id === state.ui.buyItem);
-    const buyCurNow = buyIsState ? curOf(buySeller) : (buyItemObj ? curFor(buySeller, buyItemObj) : (state.ui.buyCur || 'M'));
+    const buyCurNow = buyItemObj
+      ? curFor(buySeller, buyItemObj)
+      : (['M', 'S', 'U'].includes(state.ui.buyCur) ? state.ui.buyCur : (buyIsState ? curOf(buySeller) : 'M'));
     const defaultBuyer = (state.ui.buyBuyer && state.ui.buyBuyer !== buySeller && participants().includes(state.ui.buyBuyer))
       ? state.ui.buyBuyer
       : (me && me !== buySeller && participants().includes(me) ? me : (buyIsState ? E.otherState(buySeller) : 'myth'));
@@ -858,9 +861,7 @@
           ${field('Comprador', `<select id="buy-buyer" class="mc-select font-mono">${peopleOpts(defaultBuyer, participants().filter(p => p !== buySeller))}</select>`)}
           ${field('Producto', `<select id="buy-item" class="mc-select" data-action-change="buy-item">${opts([...sellerItems.map(p => [p.id, `${p.name} — ${fmt(p.price)} ${sym(curFor(buySeller, p))}`]), ['__otro', 'Otro (precio acordado)']], state.ui.buyItem)}</select>`)}
           ${field('Cantidad', `<input id="buy-qty" type="number" min="1" value="1" class="mc-input font-mono"/>`)}
-          ${buyIsState
-            ? field(`Precio unitario (${esc(sym(buyCurNow))})`, `<input id="buy-price" type="number" min="0" step="0.01" class="mc-input font-mono"/>`)
-            : field('Moneda y precio unitario', `<div class="grid-2" style="gap:6px;"><select id="buy-cur" class="mc-select font-mono">${curOpts(buyCurNow)}</select><input id="buy-price" type="number" min="0" step="0.01" class="mc-input font-mono"/></div>`)}
+          ${field('Moneda y precio unitario', `<div class="grid-2" style="gap:6px;"><select id="buy-cur" class="mc-select font-mono">${curOpts(buyCurNow, true)}</select><input id="buy-price" type="number" min="0" step="0.01" class="mc-input font-mono"/></div>`)}
           ${field('Concepto', `<input id="buy-note" class="mc-input" placeholder="Ej. 2 stacks de hierro"/>`)}
         </div>
         <div id="buy-preview" class="mc-slot p-sm text-xs font-mono" style="margin:10px 0;"></div>
@@ -869,14 +870,14 @@
         <div class="grid-2" style="gap:8px;">
           ${field('De', `<select id="tr-from" class="mc-select font-mono">${peopleOpts(me || 'myth')}</select>`)}
           ${field('Para', `<select id="tr-to" class="mc-select font-mono">${peopleOpts('scad')}</select>`)}
-          ${field('Moneda', `<select id="tr-cur" class="mc-select font-mono">${curOpts('M')}</select>`)}
+          ${field('Moneda', `<select id="tr-cur" class="mc-select font-mono">${curOpts('M', true)}</select>`)}
           ${field('Monto', `<input id="tr-amt" type="number" step="0.01" min="0" value="10" class="mc-input font-mono"/>`)}
         </div>
         <div style="margin:8px 0;">${field('Concepto', `<input id="tr-note" class="mc-input" placeholder="Ej. Contrato obra norte / Reparación Ley 001"/>`)}</div>
         <button class="mc-btn mc-btn-diamond" data-action="transfer" style="width:100%;">Transferir y asentar</button>
-        <p class="text-xs text-dim" style="margin:8px 0 0 0;">Si quien paga no tiene esa moneda, la Cámara convierte automáticamente el faltante.</p>`;
+        <p class="text-xs text-dim" style="margin:8px 0 0 0;">Si quien paga no tiene esa moneda, la Cámara convierte el faltante. En ${esc(sym('U'))} se liquida al cambio del día.</p>`;
     const trade = `<div class="grid-2">
-      ${panel(`${head('COMPRAR', 'emerald', 'REGISTRAR UNA COMPRA', 'Se liquida en la moneda elegida del vendedor (Estados o invitados) y deja asiento contable automático en TRD 130-01.')}${buyInner}`)}
+      ${panel(`${head('COMPRAR', 'emerald', 'REGISTRAR UNA COMPRA', `Se liquida en ${esc(sym('M'))}, ${esc(sym('S'))} o canasta neutra ${esc(sym('U'))} al cambio del día, dejando asiento en TRD 130-01.`)}${buyInner}`)}
       ${panel(`${head('TRANSFERIR', 'cyan', 'PAGOS, CONTRATOS Y SANCIONES', 'Contratos de obra, nómina de invitados, recompensas o reparaciones económicas.')}${payInner}`)}
     </div>`;
 
@@ -885,15 +886,16 @@
     const shopCard = sid => {
       const isSt = E.isState(sid);
       const itemCnt = eco.prices.filter(p => p.seller === sid).length;
-      const badgeTxt = isSt ? `${esc(sym(curOf(sid)))} · ${itemCnt} ítems` : `Invitado · DR/CU · ${itemCnt} ítems`;
+      const defaultCur = isSt ? curOf(sid) : 'M';
+      const badgeTxt = isSt ? `${esc(sym(curOf(sid)))} / ${esc(sym('U'))} · ${itemCnt} ítems` : `Invitado · DR/CU/OE · ${itemCnt} ítems`;
       return `<div class="mc-panel-dark p-md">
         <div class="flex-between" style="margin-bottom:${isSt ? '8px' : '4px'};"><strong class="font-mono text-${isSt ? stateColor(sid) : 'diamond'} text-sm">${esc(actorLabel(sid))} vende</strong><span class="mc-tag tag-${isSt ? stateColor(sid) : 'cyan'}">${badgeTxt}</span></div>
-        ${isSt ? '' : `<div class="text-xs text-dim" style="margin-bottom:8px;">Ley 003: bienes propios, botín de exploración, libros, servicios archivísticos y contratos (cobra en ${esc(sym('M'))} o ${esc(sym('S'))}).</div>`}
+        ${isSt ? '' : `<div class="text-xs text-dim" style="margin-bottom:8px;">Ley 003: bienes propios, botín de exploración, libros, servicios archivísticos y contratos (cobra en ${esc(sym('M'))}, ${esc(sym('S'))} o ${esc(sym('U'))}).</div>`}
         <div style="overflow-x:auto;">${priceRows(sid, shopQ)}</div>
-        <div class="${isSt ? 'grid-3' : 'grid-4'}" style="gap:6px;margin-top:10px;">
+        <div class="grid-4" style="gap:6px;margin-top:10px;">
           <input id="np-name-${sid}" class="mc-input" placeholder="Producto / servicio"/>
           <input id="np-unit-${sid}" class="mc-input" placeholder="Unidad (ej. u / stack)"/>
-          ${isSt ? '' : `<select id="np-cur-${sid}" class="mc-select font-mono"><option value="M">${esc(sym('M'))}</option><option value="S">${esc(sym('S'))}</option></select>`}
+          <select id="np-cur-${sid}" class="mc-select font-mono">${curOpts(defaultCur, true)}</select>
           <div class="flex-row-wrap" style="gap:4px;flex-wrap:nowrap;"><input id="np-price-${sid}" type="number" min="0" step="0.01" class="mc-input font-mono" placeholder="Precio"/><button class="mc-btn mc-btn-emerald" data-action="price-add" data-s="${sid}">+</button></div>
         </div>
       </div>`;
@@ -901,7 +903,7 @@
     const guestIds = state.guests.map(g => g.id);
     const prices = panel(`
       ${head('PRECIOS', 'gold', `LISTAS OFICIALES DE PRECIOS ${tip('tarifa')}`,
-        `Precio público único por vendedor (Estados e invitados como ${esc(state.guests.map(g => g.nick).join(', ') || 'invitados')}). <strong>Regla del minuto</strong>: 1 moneda ≈ 1 minuto de ahorro. Pulsa 🛒 para comprar o ⚖ para impugnar con Oferta Sellada.`)}
+        `Precio público único por vendedor (Estados e invitados como ${esc(state.guests.map(g => g.nick).join(', ') || 'invitados')}) en <strong>${esc(sym('M'))}</strong>, <strong>${esc(sym('S'))}</strong> o canasta <strong>${esc(sym('U'))}</strong>. <strong>Regla del minuto</strong>: 1 moneda ≈ 1 minuto de ahorro. Pulsa 🛒 para comprar o ⚖ para impugnar con Oferta Sellada.`)}
       <div style="margin-bottom:10px;"><input class="mc-input" data-bind-live="ui.shopQ" data-rerender="economy" value="${esc(shopQ)}" placeholder="🔍 Filtrar producto en todas las tiendas…"/></div>
       <div class="grid-2">
         ${STATES.map(shopCard).join('')}
@@ -938,7 +940,8 @@
 
     const sbSeller = participants().includes(sealed.seller) ? sealed.seller : 'myth';
     const sbPriceItem = sealed.priceId ? eco.prices.find(x => x.id === sealed.priceId) : null;
-    const sbGuestNeedsCur = !E.isState(sbSeller) && !sbPriceItem;
+    const sbNeedsCur = !sbPriceItem;
+    const sbDefaultCur = ['M', 'S', 'U'].includes(sealed.cur) ? sealed.cur : (E.isState(sbSeller) ? curOf(sbSeller) : 'M');
     const sealedRes = sealed.last;
     const sealedResCur = sealedRes ? (sealedRes.cur || curFor(sealedRes.seller, eco.prices.find(x => x.id === sealedRes.priceId))) : 'M';
     const sealedPanel = panel(`
@@ -950,7 +953,7 @@
         ${field('Pedido del vendedor', `<input id="sb-ask" type="password" inputmode="decimal" class="mc-input font-mono" placeholder="•••"/>`)}
         ${field('Oferta del comprador', `<input id="sb-bid" type="password" inputmode="decimal" class="mc-input font-mono" placeholder="•••"/>`)}
       </div>
-      ${sbGuestNeedsCur ? `<div class="grid-4" style="gap:8px;margin-top:8px;">${field('Moneda de negociación', `<select id="sb-cur" class="mc-select font-mono">${curOpts(sealed.cur || 'M')}</select>`)}</div>` : ''}
+      ${sbNeedsCur ? `<div class="grid-4" style="gap:8px;margin-top:8px;">${field('Moneda de negociación', `<select id="sb-cur" class="mc-select font-mono">${curOpts(sbDefaultCur, true)}</select>`)}</div>` : ''}
       <div class="flex-between" style="margin-top:10px;">
         <span class="text-xs font-mono text-muted">Intento ${sealed.attempt} de 2</span>
         <div class="flex-row-wrap" style="gap:6px;"><button class="mc-btn" data-action="sb-reset">Reiniciar</button><button class="mc-btn mc-btn-amethyst" data-action="sb-reveal">Revelar</button></div>
@@ -1257,7 +1260,8 @@
     const p = state.economy.prices.find(x => x.id === itemId && x.seller === seller);
     const qty = Math.max(1, num(val('buy-qty'), 1));
     const unit = num($('buy-price').value, 0);
-    const cur = E.isState(seller) ? curOf(seller) : (p ? curFor(seller, p) : (val('buy-cur') === 'S' ? 'S' : 'M'));
+    const rawCur = val('buy-cur');
+    const cur = p ? curFor(seller, p) : (['M', 'S', 'U'].includes(rawCur) ? rawCur : (E.isState(seller) ? curOf(seller) : 'M'));
     return { seller, buyer, qty, unit, total: E.r4(qty * unit), cur };
   }
 
@@ -1268,9 +1272,11 @@
     if (!(b.total > 0)) { box.innerHTML = '<span class="text-dim">Indica un precio.</span>'; return; }
     const res = E.pay(clone(state), b.buyer, b.seller, b.cur, b.total, true);
     if (!res.ok) { box.innerHTML = `Total: <strong class="text-white">${money(b.total, b.cur)}</strong><br><span class="text-redstone">${esc(res.msg)}</span>`; return; }
-    box.innerHTML = `Total: <strong class="text-white">${money(b.total, b.cur)}</strong><br>
-      ${res.direct > 0 ? `Pago directo: ${money(res.direct, b.cur)}<br>` : ''}
-      ${res.short > 0 ? `Conversión en el banco: ${money(res.cost, res.costCur)} → ${money(res.short, b.cur)}` : ''}`;
+    const payCur = res.settledCur || b.cur;
+    const oeLine = res.oeAmount ? ` → liquida <strong class="text-diamond">${money(res.settledAmount, payCur)}</strong>` : '';
+    box.innerHTML = `Total: <strong class="text-white">${money(b.total, b.cur)}</strong>${oeLine}<br>
+      ${res.direct > 0 ? `Pago directo: ${money(res.direct, payCur)}<br>` : ''}
+      ${res.short > 0 ? `Conversión en el banco: ${money(res.cost, res.costCur)} → ${money(res.short, payCur)}` : ''}`;
   }
 
   function updateSwapPreview() {
@@ -2224,7 +2230,8 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       if (!r.ok) return fail(r.msg);
       recordFx();
       const note = val('buy-note') || 'Compra';
-      log('Compra', `${pname(b.buyer)} compró a ${actorLabel(b.seller)}: ${note} ×${b.qty} = ${money(b.total, b.cur)}${r.short > 0 ? ` (convirtió ${money(r.cost, r.costCur)})` : ''}.`);
+      const settleInfo = r.oeAmount ? ` (liquidado ${money(r.settledAmount, r.settledCur)}${r.short > 0 ? `, convirtió ${money(r.cost, r.costCur)}` : ''})` : (r.short > 0 ? ` (convirtió ${money(r.cost, r.costCur)})` : '');
+      log('Compra', `${pname(b.buyer)} compró a ${actorLabel(b.seller)}: ${note} ×${b.qty} = ${money(b.total, b.cur)}${settleInfo}.`);
       toast('Compra registrada', `${note}: ${money(b.total, b.cur)}`, 'emerald');
       state.ui.form = '';
       commit('economy');
@@ -2235,7 +2242,8 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       const r = E.pay(state, from, to, cur, amt);
       if (!r.ok) return fail(r.msg);
       recordFx();
-      log('Transferencia', `${pname(from)} → ${pname(to)}: ${money(amt, cur)}. ${val('tr-note')}`);
+      const settleInfo = r.oeAmount ? ` (liquidado ${money(r.settledAmount, r.settledCur)})` : '';
+      log('Transferencia', `${pname(from)} → ${pname(to)}: ${money(amt, cur)}${settleInfo}. ${val('tr-note')}`);
       toast('Transferencia', `${money(amt, cur)} a ${pname(to)}`, 'emerald');
       state.ui.form = '';
       commit('economy', 'state');
@@ -2247,8 +2255,9 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       const name = val(`np-name-${s}`);
       const price = num(val(`np-price-${s}`), -1);
       if (!name || price < 0) return fail('Escribe producto y precio.');
-      const cur = E.isState(s) ? curOf(s) : (val(`np-cur-${s}`) === 'S' ? 'S' : 'M');
-      state.economy.prices.push({ id: uid('prc'), seller: s, ...(E.isState(s) ? {} : { cur }), name, unit: val(`np-unit-${s}`), price, history: [{ t: Date.now(), price, via: 'alta' }] });
+      const rawCur = val(`np-cur-${s}`);
+      const cur = ['M', 'S', 'U'].includes(rawCur) ? rawCur : (E.isState(s) ? curOf(s) : 'M');
+      state.economy.prices.push({ id: uid('prc'), seller: s, ...(cur !== (E.isState(s) ? curOf(s) : null) ? { cur } : {}), name, unit: val(`np-unit-${s}`), price, history: [{ t: Date.now(), price, via: 'alta' }] });
       log('Tarifa', `${actorLabel(s)} publica: ${name} a ${money(price, cur)}.`);
       commit('economy');
     },
@@ -2293,7 +2302,8 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       sealed.item = val('sb-item');
       sealed.seller = val('sb-seller');
       const p = sealed.priceId ? state.economy.prices.find(x => x.id === sealed.priceId) : null;
-      const c = E.isState(sealed.seller) ? curOf(sealed.seller) : (p ? curFor(sealed.seller, p) : (val('sb-cur') === 'S' ? 'S' : 'M'));
+      const rawSbCur = val('sb-cur');
+      const c = p ? curFor(p.seller, p) : (['M', 'S', 'U'].includes(rawSbCur) ? rawSbCur : (E.isState(sealed.seller) ? curOf(sealed.seller) : 'M'));
       sealed.cur = c;
       sealed.last = { ask, bid, seller: sealed.seller, cur: c, ...r, priceId: sealed.priceId };
       log('Oferta sellada', `${sealed.item || 'Negociación'} (vende ${actorLabel(sealed.seller)}): pedido ${fmt(ask)}, oferta ${fmt(bid)} → ${r.deal ? `precio ${money(r.price, c)}${r.forced ? ' (impuesto)' : ''}` : 'sin acuerdo'}.`);

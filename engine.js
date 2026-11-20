@@ -188,13 +188,31 @@
     else holdings(st, pid)[c] = r4(holdings(st, pid)[c] + amount);
   }
 
-  /* Pago universal: "payer" entrega "amount" de la moneda "cur" a "payee".
+  /* Pago universal: "payer" entrega "amount" de la moneda "cur" ('M', 'S' o canasta 'U') a "payee".
      Usa primero lo que tenga en esa moneda; el faltante lo convierte desde
-     su otra moneda a través del Banco Internacional (y eso mueve el cambio). */
-  function pay(st, payer, payee, cur, amount, dry) {
+     su otra moneda a través del Banco Internacional (y eso mueve el cambio).
+     Si "cur" es 'U' (OE), liquida al cambio del día en la divisa del vendedor
+     (o en la del pagador/disponible si el vendedor es invitado). */
+  function pay(st, payer, payee, cur, amount, dry, settleTo) {
     amount = r4(Number(amount));
     if (!(amount > 0)) return { ok: false, msg: 'Cantidad inválida.' };
     if (payer === payee) return { ok: false, msg: 'Quien paga y quien cobra son el mismo.' };
+    if (cur === 'U') {
+      const candidates = [];
+      if (settleTo === 'M' || settleTo === 'S') candidates.push(settleTo);
+      else if (isState(payee)) candidates.push(curOfState(payee));
+      else if (isState(payer)) candidates.push(curOfState(payer), otherCur(curOfState(payer)));
+      else candidates.push('M', 'S');
+
+      let firstFail = null;
+      for (const tc of candidates) {
+        const converted = r4(convert(st, amount, 'U', tc));
+        const attempt = pay(st, payer, payee, tc, converted, dry);
+        if (attempt.ok) return { ...attempt, settledCur: tc, settledAmount: converted, oeAmount: amount };
+        if (!firstFail) firstFail = attempt;
+      }
+      return firstFail || { ok: false, msg: 'No se pudo liquidar el pago en OE.' };
+    }
     const h = holdings(st, payer);
     const oc = otherCur(cur);
     const direct = r4(Math.min(h[cur], amount));
