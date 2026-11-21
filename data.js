@@ -833,6 +833,40 @@ window.FW_DATA = (() => {
     { id: 'values', label: 'Qué valora este Estado', ph: '' }
   ];
 
+  // Ficha de fe por participante (Estados e invitados). Solo preguntas: la religión la inventan ellos.
+  // "names" es lo que el bot escucha en el chat: si nadie le pone nombre a su dios, en el servidor no existe.
+  const RELIGION_PROMPTS = [
+    { id: 'faith', label: 'Nombre de la fe', ph: '¿Cómo se llama su religión, culto o filosofía? (puede no tener nombre)' },
+    { id: 'names', label: 'Cómo llaman a su dios o dioses', ph: 'Nombres y títulos con los que lo invocan, separados por comas', rows: 1 },
+    { id: 'nature', label: 'Cómo es', ph: '¿De qué es dios? ¿Qué carácter tiene? ¿Habla, calla, castiga, juega?' },
+    { id: 'pleases', label: 'Qué le agrada', ph: 'Ofrendas, actos, virtudes…' },
+    { id: 'angers', label: 'Qué lo ofende', ph: 'Pecados, tabúes, faltas de respeto…' },
+    { id: 'prayer', label: 'Cómo se le reza', ph: 'Fórmulas, gestos, lugares, horas…' },
+    { id: 'rites', label: 'Ritos, templos y fiestas', ph: '¿Dónde se le venera y cuándo?' }
+  ];
+
+  // Hitos de convicción: estructura, no contenido (qué rito, qué altar o qué tratado lo deciden ellos).
+  // Cada jugador elige su camino (una fe con nombre o la Razón) y marca sus propios hitos.
+  // Más hitos = más probable la ayuda espontánea en el servidor (misma escala para ambos caminos).
+  const FAITH_MILESTONES = [
+    { id: 'f1', title: 'Declarar la fe', desc: 'Escribir la ficha de la fe en Religiones y fe (o adoptar la de otro).' },
+    { id: 'f2', title: 'Primer lugar sagrado', desc: 'Levantar un altar, santuario o lugar de oración en el mundo.' },
+    { id: 'f3', title: 'Texto sagrado', desc: 'Escribir un mito o texto religioso en Crónicas (tipo Mito o Religión).' },
+    { id: 'f4', title: 'Rito compartido', desc: 'Celebrar un rito con al menos otro jugador presente.' },
+    { id: 'f5', title: 'Peregrinación', desc: 'Viajar a un lugar significativo para la fe a más de 1000 bloques.' },
+    { id: 'f6', title: 'Templo', desc: 'Construir un templo y registrarlo como obra auditada.' },
+    { id: 'f7', title: 'Fiesta de la fe', desc: 'Celebrar una fiesta religiosa durante una temporada.' }
+  ];
+  const REASON_MILESTONES = [
+    { id: 'r1', title: 'Declarar la Razón', desc: 'Escribir en Creencias del Estado (o en una crónica) por qué no siguen a ningún dios.' },
+    { id: 'r2', title: 'Gabinete de estudio', desc: 'Levantar una biblioteca, archivo o sala de estudio en el mundo.' },
+    { id: 'r3', title: 'Tratado', desc: 'Escribir un tratado, ensayo o manifiesto en Crónicas.' },
+    { id: 'r4', title: 'Debate público', desc: 'Sostener un debate o asamblea con al menos otro jugador presente.' },
+    { id: 'r5', title: 'Expedición', desc: 'Explorar y documentar un lugar a más de 1000 bloques.' },
+    { id: 'r6', title: 'Academia u observatorio', desc: 'Construirlo y registrarlo como obra auditada.' },
+    { id: 'r7', title: 'Feria del saber', desc: 'Celebrar una feria o exposición durante una temporada.' }
+  ];
+
   const ANIMAL_SPECIES = [
     { id: 'lobo', name: 'Lobo / Perro guardián' },
     { id: 'gato', name: 'Gato doméstico' },
@@ -938,7 +972,7 @@ window.FW_DATA = (() => {
   return {
     DEFAULT_BANK_NAME, DEFAULT_BASKET, DEFAULT_NATIONS, MONOPOLIES, PACT_RULES, PROFESSIONS, ANIMAL_SPECIES, WORK_CATEGORIES,
     TRACKS, ERAS, SEASON_CHECKLIST, SEASON_POOLS, MEGAPROJECTS,
-    WORLD_PROMPTS, NATION_PROMPTS, GUEST_QUESTS, DEFAULT_LAWS, DEFAULT_RP_LAWS,
+    WORLD_PROMPTS, NATION_PROMPTS, RELIGION_PROMPTS, FAITH_MILESTONES, REASON_MILESTONES, GUEST_QUESTS, DEFAULT_LAWS, DEFAULT_RP_LAWS,
     DOC_TYPES, DEFAULT_TRD, DEFAULT_PENAL_PACK, PRICE_GUIDE, RELICS, GLOSSARY, ECONOMY_MANUAL,
     FARM_LOCKS, farmLockForWork, activeFarmLocks, findFarmLock
   };

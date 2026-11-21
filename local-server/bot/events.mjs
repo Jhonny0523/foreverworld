@@ -494,6 +494,10 @@ export class WorldEvents {
   }
 
   async loop() {
+    // Una luna de sangre manda cientos de comandos: si una vuelta tarda más de 15 s,
+    // la siguiente no debe arrancar encima (duplicaría oleadas o eventos)
+    if (this.looping) return;
+    this.looping = true;
     try {
       if (this.saved.pendingEnd && !this.active) await this.recoverInterrupted();
       if (this.active) {
@@ -539,7 +543,35 @@ export class WorldEvents {
       await this.startEvent(this.choose(list, s.pick));
     } catch (err) {
       console.warn('[Eventos]', err.message);
+    } finally {
+      this.looping = false;
     }
+  }
+
+  // Para !evento: qué está pasando ahora mismo
+  activeInfo() {
+    if (!this.active) return null;
+    const a = this.active;
+    return { id: a.ev.id, name: a.ev.name, desc: a.ev.desc, minsLeft: a.ev.durationMin ? Math.max(0, Math.ceil((a.endsAt - Date.now()) / 60_000)) : 0 };
+  }
+
+  // Para !evento lanzar: un fundador dispara a mano un evento ya desbloqueado por la era
+  async launchById(id, by) {
+    const ev = WORLD_EVENTS.find(e => e.id === id && e.weight > 0);
+    if (!ev) return { ok: false, msg: `No existe el evento "${id}".` };
+    if (this.active) return { ok: false, msg: `Ya hay un evento en curso: ${this.active.ev.name}.` };
+    const era = await this.eraIndex().catch(() => null);
+    if (era === null) return { ok: false, msg: 'No sé en qué era están (Supabase no responde); no lanzo eventos a ciegas.' };
+    if (ev.minEra > era) return { ok: false, msg: `${ev.name} se desbloquea en la ERA ${ev.minEra}; todavía no.` };
+    if (Date.now() - (this.saved.lastEndAt || 0) < 5 * 60_000) return { ok: false, msg: 'El mundo acaba de tener un evento; esperen 5 minutos.' };
+    this.startEvent(ev, `a mano por ${by}`).catch(err => console.warn('[Eventos]', err.message));
+    return { ok: true, ev };
+  }
+
+  async catalogForEra() {
+    const era = await this.eraIndex().catch(() => null);
+    if (era === null) return null;
+    return WORLD_EVENTS.filter(e => e.weight > 0 && e.minEra <= era);
   }
 
   // Para !evento: cuándo podría tocar el próximo según la clave dinámica

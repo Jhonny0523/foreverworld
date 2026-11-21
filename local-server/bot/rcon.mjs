@@ -188,8 +188,10 @@ export class RconClient {
         return res.body;
       } catch (err) {
         this._reset(err);
-        // One automatic reconnect attempt on dropped socket (not auth errors)
-        if (!String(err.message).includes('authentication')) {
+        // Un reintento automático solo si el socket se cayó. Si fue un timeout, el servidor pudo
+        // haber ejecutado el comando igual (lag): reenviarlo duplicaría un "give" o un "clear".
+        const msg = String(err.message);
+        if (!msg.includes('authentication') && !msg.includes('timeout')) {
           await this.connect();
           const res = await this._sendRaw(SERVERDATA_EXECCOMMAND, command, SERVERDATA_RESPONSE_VALUE);
           return res.body;

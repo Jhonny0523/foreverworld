@@ -454,7 +454,7 @@ export class RuleEnforcer {
     if (failed.length) {
       console.warn('[Enforcer] Criterios de scoreboard rechazados:', failed);
     } else {
-      console.log(`[Enforcer] ${OBJECTIVES.length} objetivos de vigilancia activos (sin alterar sidebar).`);
+      console.log(`[Enforcer] ${OBJECTIVES.length + farmObjectives.length} objetivos de vigilancia activos (sin alterar sidebar).`);
     }
     return failed;
   }
@@ -523,6 +523,17 @@ export class RuleEnforcer {
           if (!/entity data:/i.test(dataRes)) break;
           const countMatch = String(dataRes).match(/\bcount:\s*(\d+)/i);
           const stackCount = countMatch ? Math.max(1, Number(countMatch[1]) || 1) : 1;
+          const capLeft = caps ? Math.floor(caps.get(item)) : Infinity;
+          if (stackCount > capLeft) {
+            // El stack del suelo trae más de lo que salió de la infracción (p. ej. 64 cueros comprados
+            // y tirados al lado): solo se descuenta lo que toca y el resto se queda en el suelo.
+            const modRes = await this.rcon.send(`execute at ${player} run data modify entity @n[type=minecraft:item,distance=..8,nbt={Item:{id:"${item}"}}] Item.count set value ${stackCount - capLeft}`);
+            if (/Modified/i.test(String(modRes || ''))) {
+              collected.set(item, (collected.get(item) || 0) + capLeft);
+              caps.set(item, 0);
+            }
+            break;
+          }
           const killRes = await this.rcon.send(`execute at ${player} run kill @n[type=minecraft:item,distance=..8,nbt={Item:{id:"${item}"}}]`);
           if (!/Killed\s+/i.test(killRes)) break;
           collected.set(item, (collected.get(item) || 0) + stackCount);
@@ -671,6 +682,7 @@ export class RuleEnforcer {
       actionTaken = clearItemsList.length ? 'Amonestación y registro de infracción' : 'Aviso inmediato de restricción';
     }
     this.memory?.recordEvent('infraction', `${player}: ${violationSummary}${transfer.summary ? ` (${transfer.summary})` : ''}`);
+    this.memory?.recordInfraction?.(player, violationSummary, transfer.summary);
 
     try {
       await this.rcon.send(`execute at ${player} run playsound minecraft:entity.villager.no master ${player} ~ ~ ~ 1 0.85`);
@@ -1042,6 +1054,15 @@ export class RuleEnforcer {
     }
   }
 
+  // Pausar/reanudar la vigilancia. Al reanudar, lo que se hizo durante la pausa NO se castiga:
+  // la primera pasada solo vacía los marcadores acumulados.
+  setEnabled(on) {
+    const next = Boolean(on);
+    if (next && !this.enabled) this.drainNextPoll = true;
+    this.enabled = next;
+    return this.enabled;
+  }
+
   async pollOnce() {
     if (!this.enabled || this.polling) return;
     if (!this.objectivesReady && Date.now() - this.lastInitTryAt < 5000) return;
@@ -1083,6 +1104,11 @@ export class RuleEnforcer {
           this.recordRoleDrops(this.getPlayerRole(p, state), scores);
         }
         tickScores.set(p, scores);
+      }
+      if (this.drainNextPoll) {
+        this.drainNextPoll = false;
+        console.log('[Enforcer] Vigilancia reanudada: marcadores de la pausa vaciados sin sancionar.');
+        return;
       }
 
       // Fase B: evaluar infracciones con ventanas de entrega ya actualizadas

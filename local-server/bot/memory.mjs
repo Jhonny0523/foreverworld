@@ -6,6 +6,7 @@ const MAX_PENDING_LOG = 180;
 const MAX_SESSION_MEMORIES = 20;
 const MAX_PINNED_NOTES = 30;
 const MAX_PERMITS = 60;
+const MAX_INFRACTIONS = 150;
 
 // Permisos y prohibiciones expresas sobre monopolios (persisten entre reinicios).
 export const PERMIT_SCOPES = {
@@ -45,7 +46,8 @@ function defaultData() {
     sessionMemories: [],
     pinnedNotes: [],
     permits: [],
-    prohibitions: []
+    prohibitions: [],
+    infractions: []
   };
 }
 
@@ -66,7 +68,8 @@ export class SessionMemory {
           sessionMemories: Array.isArray(parsed?.sessionMemories) ? parsed.sessionMemories.slice(-MAX_SESSION_MEMORIES) : [],
           pinnedNotes: Array.isArray(parsed?.pinnedNotes) ? parsed.pinnedNotes.slice(-MAX_PINNED_NOTES) : [],
           permits: Array.isArray(parsed?.permits) ? parsed.permits.slice(-MAX_PERMITS) : [],
-          prohibitions: Array.isArray(parsed?.prohibitions) ? parsed.prohibitions.slice(-MAX_PERMITS) : []
+          prohibitions: Array.isArray(parsed?.prohibitions) ? parsed.prohibitions.slice(-MAX_PERMITS) : [],
+          infractions: Array.isArray(parsed?.infractions) ? parsed.infractions.slice(-MAX_INFRACTIONS) : []
         };
       }
     } catch (err) {
@@ -119,6 +122,29 @@ export class SessionMemory {
   recordEvent(type, text) {
     this._pushPending(type || 'event', text);
     this.save();
+  }
+
+  /* ---------- Expediente de infracciones (persiste entre sesiones, para !expediente y el Juez) ---------- */
+  recordInfraction(player, text, seized = '') {
+    const clean = String(text || '').trim().replace(/\s+/g, ' ').slice(0, 160);
+    if (!player || !clean) return null;
+    if (!Array.isArray(this.data.infractions)) this.data.infractions = [];
+    const entry = { ts: Date.now(), player: String(player), text: clean, seized: String(seized || '').slice(0, 120) };
+    this.data.infractions.push(entry);
+    while (this.data.infractions.length > MAX_INFRACTIONS) this.data.infractions.shift();
+    this.save();
+    return entry;
+  }
+
+  getInfractions(player = null, limit = 8) {
+    const low = player ? String(player).toLowerCase() : null;
+    const list = (this.data.infractions || []).filter(e => !low || e.player.toLowerCase() === low);
+    return list.slice(-Math.max(1, limit)).reverse();
+  }
+
+  countInfractions(player, sinceMs = 0) {
+    const low = String(player || '').toLowerCase();
+    return (this.data.infractions || []).filter(e => e.player.toLowerCase() === low && e.ts >= sinceMs).length;
   }
 
   addPinnedNote(by, note) {

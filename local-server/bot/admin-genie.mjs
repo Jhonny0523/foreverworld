@@ -595,13 +595,19 @@ export class AdminGenie {
         const p = new Promise(resolve => {
           const tid = this._trackTimer(setTimeout(async () => {
             this.pendingTimers.delete(tid);
-            await this._executeStep(step, errors);
+            // Un paso diferido que falla (RCON caído) no debe tumbar el bot con un rechazo sin atrapar
+            try {
+              await this._executeStep(step, errors);
+            } catch (err) {
+              errors.push(`${step.tipo}: ${err.message}`);
+              this.onLog(`[Admin error] paso diferido: ${err.message}`);
+            }
             resolve();
           }, delayMs));
         });
         bgTasks.push(p);
       } else if (step.tipo === 'countdown') {
-        bgTasks.push(this._executeStep(step, errors));
+        bgTasks.push(this._executeStep(step, errors).catch(err => { errors.push(`countdown: ${err.message}`); }));
       } else {
         await this._executeStep(step, errors);
       }

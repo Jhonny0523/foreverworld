@@ -46,6 +46,8 @@
       lore: {},
       world: {},
       nationLore: { myth: {}, scad: {} },
+      religions: {},
+      devotion: {},
       economy: {
         holdings: { myth: { M: 100, S: 0 }, scad: { M: 0, S: 100 } },
         bank: { M: 0, S: 0 },
@@ -1729,6 +1731,42 @@
       <div class="section-stack" style="gap:10px;">${D.NATION_PROMPTS.map(p => `<div><label class="text-xs text-white">${esc(p.label)}</label>
         <textarea class="mc-textarea" rows="2" style="margin-top:4px;" data-bind-live="nationLore.${s}.${p.id}" placeholder="${esc(p.ph)}">${esc((state.nationLore[s] || {})[p.id] || '')}</textarea></div>`).join('')}</div>`)).join('')}</div>`;
 
+    // Religiones: una ficha por Estado y por invitado. Solo preguntas; la fe la escriben ellos.
+    const religionCard = pid => {
+      const r = (state.religions || {})[pid] || {};
+      const names = String(r.names || '').split(',').map(x => x.trim()).filter(Boolean);
+      const color = E.isState(pid) ? stateColor(pid) : 'cyan';
+      return panel(`
+        ${head(esc(pname(pid).toUpperCase()), color, esc(r.faith ? r.faith.toUpperCase() : (E.isState(pid) ? nat(pid).nation.toUpperCase() : 'INVITADO')),
+          names.length ? `Invocan a: ${names.map(n => `<strong class="text-gold">${esc(n)}</strong>`).join(', ')}` : 'Sin dios con nombre todavía: en el servidor nadie responde a esta fe.')}
+        <div class="section-stack" style="gap:10px;">${(D.RELIGION_PROMPTS || []).map(p => `<div><label class="text-xs text-white">${esc(p.label)}</label>
+          <textarea class="mc-textarea" rows="${p.rows || 2}" style="margin-top:4px;" data-bind-live="religions.${pid}.${p.id}" placeholder="${esc(p.ph)}">${esc(r[p.id] || '')}</textarea></div>`).join('')}</div>`);
+    };
+    // Convicción: cada jugador declara qué fe profesa (o la Razón) y marca sus hitos
+    const faithOptions = () => Object.entries(state.religions || {})
+      .filter(([, r]) => String((r && r.names) || '').trim())
+      .map(([rp, r]) => [rp, `Fe: ${(r.faith || '').trim() || String(r.names).split(',')[0].trim()} (de ${pname(rp)})`]);
+    const devotionCard = pid => {
+      const d = (state.devotion || {})[pid] || {};
+      const path = d.creed === 'razon' ? 'razon' : (d.creed && (state.religions || {})[d.creed] ? 'fe' : '');
+      const list = path === 'razon' ? (D.REASON_MILESTONES || []) : path === 'fe' ? (D.FAITH_MILESTONES || []) : [];
+      const marks = d.marks || {};
+      const level = list.filter(m => marks[m.id]).length;
+      const mine = me === pid;
+      return `<div class="mc-panel-dark p-md">
+        <div class="flex-between" style="gap:8px;">${ptag(pid)}<span class="mc-tag ${path ? 'tag-gold' : 'tag-slate'}">${path === 'razon' ? 'Razón' : path === 'fe' ? 'Fe' : 'Sin declarar'} · ${level}/${list.length || 7}</span></div>
+        <select class="mc-select font-mono" style="margin-top:8px;width:100%;" data-bind="devotion.${pid}.creed" ${mine ? '' : 'disabled'}>${opts([['', '— sin declarar —'], ...faithOptions(), ['razon', 'La Razón (sin dios)']], d.creed || '')}</select>
+        ${list.length ? `<div class="section-stack" style="gap:4px;margin-top:8px;">${list.map(m => `<label class="text-xs" style="display:flex;gap:6px;align-items:flex-start;cursor:${mine ? 'pointer' : 'not-allowed'};" title="${esc(m.desc)}">
+          <input type="checkbox" data-bind="devotion.${pid}.marks.${m.id}" ${marks[m.id] ? 'checked' : ''} ${mine ? '' : 'disabled'}/>
+          <span><strong class="${marks[m.id] ? 'text-emerald' : 'text-white'}">${esc(m.title)}</strong> <span class="text-dim">— ${esc(m.desc)}</span></span></label>`).join('')}</div>` : '<div class="text-xs text-dim" style="margin-top:8px;">Elige una fe con dios nombrado o la Razón para ver sus hitos.</div>'}
+      </div>`;
+    };
+    const devotion = `<div class="mc-panel-dark p-md" style="margin:12px 0 10px 0;"><strong class="font-mono text-gold text-xs">CONVICCIÓN DE CADA JUGADOR</strong>
+      <div class="text-xs text-muted" style="margin-top:4px;line-height:1.55;">Quien profesa una fe es su fiel: solo a sus fieles la deidad puede ayudar sin que se lo pidan. Quien sigue la Razón no tiene dios, pero su temple y su método valen lo mismo: misma probabilidad de salir de un apuro o de dar con un hallazgo. Cada hito cumplido aumenta esas probabilidades (honor de jugador: márquenlos cuando de verdad estén hechos).</div></div>
+      <div class="grid-3" style="gap:10px;">${participants().map(devotionCard).join('')}</div>`;
+    const religions = `<p class="text-xs text-muted" style="margin:0 0 10px 0;line-height:1.55;">Cada uno puede fundar su propia fe (o ninguna). Pueden compartir dios con otro nombre, contradecirse o pelearse por él. Lo que escriban aquí y en las crónicas de tipo <em>Mito</em> o <em>Religión</em> es lo único que se sabe de lo divino en Miscolandia… y dicen que, muy de vez en cuando, alguien allá arriba escucha cuando lo llaman por su nombre.</p>
+      <div class="grid-2">${participants().map(religionCard).join('')}</div>${devotion}`;
+
     const answered = D.ERAS.map(e => ({ e, ans: Object.entries(state.lore[e.id] || {}).filter(([, v]) => v && v.trim()) })).filter(x => x.ans.length);
     const eraAnswers = panel(`
       ${head('POR ERAS', 'amethyst', 'RESPUESTAS DE LAS ERAS', 'Lo que han respondido en las preguntas de cada era (se editan en el Roadmap).')}
@@ -1742,7 +1780,7 @@
       <details class="mc-panel-dark p-md" style="margin-bottom:12px;"><summary class="font-mono text-sm text-gold" style="cursor:pointer;font-weight:700;">✍️ Escribir una crónica</summary><div style="margin-top:10px;">
         <div class="grid-4" style="gap:8px;margin-bottom:8px;">
           <select id="ch-era" class="mc-select font-mono">${opts(eraOptions, eraLabel(currentEraIndex()))}</select>
-          <select id="ch-type" class="mc-select font-mono">${opts(['Historia', 'Comercio', 'Tratado', 'Hazaña', 'Disputa', 'Evento', 'Temporada'].map(x => [x, x]), 'Historia')}</select>
+          <select id="ch-type" class="mc-select font-mono">${opts(['Historia', 'Comercio', 'Tratado', 'Hazaña', 'Disputa', 'Evento', 'Temporada', 'Mito', 'Religión'].map(x => [x, x]), 'Historia')}</select>
           <select id="ch-author" class="mc-select font-mono">${peopleOpts(me || 'myth')}</select>
           <input id="ch-title" class="mc-input" placeholder="Título"/>
         </div>
@@ -1759,6 +1797,7 @@
 
     $('view-lore').innerHTML = `<div data-undo-slot style="margin-bottom:12px;"></div>` + chron + world
       + fold('nations', `🏛️ Ficha de ${esc(nat('myth').nation)} y ${esc(nat('scad').nation)}`, nations)
+      + fold('religions', '🕯️ Religiones y fe', religions)
       + fold('eraAnswers', '📜 Respuestas a las preguntas de cada era', eraAnswers);
   }
 
@@ -1960,8 +1999,15 @@
     { cat: 'Aduana & Permisos', cmd: '!duelo 5', desc: 'Habilita PvP consensuado temporal sin alertas OOC (!duelo fin al acabar).' },
     { cat: 'Archivista (NotOutContext)', cmd: '!certificado &6&lACTA | &aTexto...', desc: 'Convierte Libro y Pluma en libro firmado a colores (soporta autor: A y B).' },
     { cat: 'Archivista (NotOutContext)', cmd: '!papel &6&lSELLO REAL | &7Folio 001', desc: 'Sella 1 papel en mano con colores & y lore.' },
+    { cat: 'Aduana & Permisos', cmd: '!yo', desc: 'Tu ficha: rol, permisos y prohibiciones, infracciones de la semana y (fundadores) tesoro y mercancía en custodia.' },
+    { cat: 'Aduana & Permisos', cmd: '!expediente Scadrial0523', desc: 'Últimas infracciones que registró la Aduana (se guardan entre sesiones; el Juez también las ve).' },
+    { cat: 'Eventos del mundo', cmd: '!evento', desc: 'Qué evento está en curso y a qué horas podría tocar el próximo.' },
+    { cat: 'Eventos del mundo', cmd: '!evento lista', desc: 'Eventos ya desbloqueados por la Era actual (☾ de noche, ☀ de día).' },
+    { cat: 'Eventos del mundo', cmd: '!evento lanzar luna_sangre', desc: 'Solo fundadores: dispara a mano un evento desbloqueado (!evento on|off pausa los espontáneos).' },
     { cat: 'Consola Admin', cmd: 'say !admin que el servidor se cierre en 10 segundos y aparezca un contador', desc: 'Orden libre desde consola del servidor o consola-admin.bat.' },
-    { cat: 'NPCs en Chat', cmd: 'Su Excelencia <consulta>', desc: 'Juez (requiere respeto), Fiscal, Arquitecto, Banquero, Archivista o Pregonero.' }
+    { cat: 'NPCs en Chat', cmd: 'Su Excelencia <consulta>', desc: 'Juez (con "Excelencia" se pone solemne; solo se indigna si lo insultan), Fiscal, Arquitecto, Banquero, Archivista, Cartógrafo o Pregonero.' },
+    { cat: 'NPCs en Chat', cmd: '<nombre de su dios>, escúchame…', desc: 'Si su fe (Lore → Religiones y fe) le dio nombre, se le puede invocar en el chat. Casi nunca contesta, y muy rara vez concede un favor pequeño.' },
+    { cat: 'NPCs en Chat', cmd: 'cartógrafo dónde queda el portal de la fortaleza?', desc: 'Cartógrafo: portales, estaciones y obras con coordenadas registradas aquí en Territorio; convierte Overworld↔Nether.' }
   ];
 
   const MC_SWATCHES = [
@@ -2146,7 +2192,7 @@
 
     const botGuideHtml = panel(`
       ${head('SERVIDOR EN VIVO', 'emerald', 'COMANDOS DEL BOT Y NPCS DE MISCOLANDIA',
-        'Escribe estos comandos en el chat de Minecraft o llama a cualquier NPC por su nombre (Juez, Fiscal, Arquitecto, Banquero, Archivista, Pregonero). Clic en copiar para pegar rápido.')}
+        'Escribe estos comandos en el chat de Minecraft o llama a cualquier NPC por su nombre (Juez, Fiscal, Arquitecto, Banquero, Archivista, Cartógrafo, Pregonero). Clic en copiar para pegar rápido.')}
       <div class="grid-2" style="gap:8px;">
         ${BOT_CHEATSHEET.map(c => `
           <div class="mc-cmd-row">
@@ -2157,6 +2203,11 @@
             </div>
             <button type="button" class="mc-btn" style="padding:4px 8px;flex-shrink:0;" data-action="copy-text" data-copy="${esc(c.cmd)}">📋</button>
           </div>`).join('')}
+      </div>
+      <div class="mc-panel-dark p-md" style="margin-top:10px;">
+        <strong class="font-mono text-gold text-xs">⏳ PRÓXIMAS VENTANAS DE EVENTO</strong>
+        <div id="bot-next-events" class="text-xs text-white font-mono" style="margin-top:6px;line-height:1.7;">Calculando…</div>
+        <div class="text-xs text-dim" style="margin-top:4px;">Misma clave dinámica que el bot (franjas de 30 min, 35%). Que haya ventana no garantiza evento: depende de la Era, la hora del juego y que haya alguien conectado. En el juego: <code>!evento</code>.</div>
       </div>`);
 
     const colorTesterHtml = panel(`
@@ -2250,6 +2301,41 @@
       + fold('m-shop', '⚙️ Tienda automática que acepta billetes', shop)
       + fold('m-sync', '🔄 Usar la app en dos PCs', sync);
     updateColorPreviewDom();
+    fillNextEventWindows();
+  }
+
+  // Réplica de WorldEvents.slotInfo (local-server/bot/events.mjs): sha256("mundo|fecha|franja")
+  async function nextEventWindows(count = 4, slotMinutes = 30, chancePct = 35) {
+    if (!(window.crypto && crypto.subtle)) return null;
+    const slotMs = slotMinutes * 60_000;
+    const worldId = (window.FW_SUPABASE_CONFIG && window.FW_SUPABASE_CONFIG.worldId) || 'main';
+    const out = [];
+    let t = Date.now();
+    for (let i = 0; i < 96 && out.length < count; i++, t += slotMs) {
+      const slot = Math.floor(t / slotMs);
+      const d = new Date(slot * slotMs);
+      const key = `${worldId}|${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}|${slot}`;
+      const h = new DataView(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(key)));
+      if (h.getUint32(0) % 100 >= chancePct) continue;
+      const startAt = slot * slotMs + (h.getUint32(4) % Math.floor(slotMs * 0.8));
+      if (startAt > Date.now()) out.push(startAt);
+    }
+    return out;
+  }
+  async function fillNextEventWindows() {
+    const box = $('bot-next-events');
+    if (!box) return;
+    try {
+      const list = await nextEventWindows();
+      if (!$('bot-next-events')) return;
+      if (!list) { box.textContent = 'Este navegador no puede calcularlo (requiere https o localhost).'; return; }
+      const fmtT = ts => new Date(ts).toLocaleString('es-CO', { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+      box.innerHTML = list.length
+        ? list.map(ts => `• ${esc(fmtT(ts))} <span class="text-dim">(en ${Math.max(1, Math.round((ts - Date.now()) / 60_000))} min)</span>`).join('<br>')
+        : 'Sin ventanas en las próximas 48 h.';
+    } catch {
+      box.textContent = 'No se pudo calcular.';
+    }
   }
 
   /* ======================== Render global ======================== */
@@ -2555,6 +2641,9 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       const last = state.economy.sealed.last;
       const p = last && state.economy.prices.find(x => x.id === last.priceId);
       if (!p) return;
+      // Sin acuerdo no hay precio que aplicar (antes podía dejar la tarifa en "undefined")
+      if (!last.deal || !(Number(last.price) > 0)) return fail('La oferta sellada no cerró trato: no hay precio que aplicar.');
+      if (!requireIdentified('aplicar el precio de la oferta sellada')) return;
       const c = curFor(p.seller, p);
       log('Tarifa', `${p.name} queda en ${money(last.price, c)} por oferta sellada.`);
       p.history.push({ t: Date.now(), price: last.price, via: 'oferta sellada' });
@@ -3589,6 +3678,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
   ACTIONS['led-void'] = async el => {
     const l = state.economy.ledger.find(x => x.id === el.dataset.id);
     if (!l || l.void) return;
+    if (!requireIdentified('anular un movimiento del Libro Mayor')) return;
     if (!l.delta) return voidLegacy(l);
     if (!VOIDABLE.has(l.type)) return fail('Este tipo se corrige en su sección (préstamos, acciones u obras) o con Deshacer.');
     for (const [pid, d] of Object.entries(l.delta)) {
@@ -3636,6 +3726,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
   ACTIONS['led-edit'] = async el => {
     const l = state.economy.ledger.find(x => x.id === el.dataset.id);
     if (!l) return;
+    if (!requireIdentified('editar un asiento del Libro Mayor')) return;
     const t = await askText('Editar el texto del movimiento (los montos no cambian; para eso usa Anular):', l.text);
     if (t === null || !t.trim() || t === l.text) return;
     l.text = t.trim();
@@ -3645,6 +3736,8 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
 
   /* ---------- Ajuste manual de saldos (para corregir errores viejos) ---------- */
   ACTIONS['adjust-apply'] = () => {
+    // Reescribir saldos a mano es poder de fundador: un invitado o alguien sin identificar no puede
+    if (!E.isState(me)) return fail('Solo un Estado fundador puede ajustar saldos a mano (elige "Soy:" arriba).');
     const note = val('adj-note');
     if (!note) return fail('Escribe el motivo del ajuste (queda en el Libro Mayor).');
     const changes = [];
@@ -4032,6 +4125,10 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
           renderAll();
           return fail('Solo un Estado fundador puede cambiar la configuración general.');
         }
+        if (t.dataset.bind.startsWith('devotion.') && t.dataset.bind.split('.')[1] !== me) {
+          renderAll();
+          return fail(`Cada convicción la declara su dueño: elige "Soy: ${pname(t.dataset.bind.split('.')[1])}" arriba.`);
+        }
         let v = t.type === 'checkbox' ? t.checked : t.value;
         if (t.dataset.type === 'number') v = num(v, 0);
         setPath(state, t.dataset.bind, v);
@@ -4059,6 +4156,10 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
         if (t.dataset.bindLive.startsWith('settings.') && !E.isState(me)) {
           renderAll();
           return fail('Solo un Estado fundador puede cambiar la configuración general.');
+        }
+        if (t.dataset.bindLive.startsWith('religions.') && t.dataset.bindLive.split('.')[1] !== me) {
+          renderAll();
+          return fail(`Cada fe la escribe su creyente: elige "Soy: ${pname(t.dataset.bindLive.split('.')[1])}" arriba.`);
         }
         setPath(state, t.dataset.bindLive, t.value);
         clearTimeout(liveTimer);
@@ -4144,7 +4245,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
 
   /* ======================== Actualización en vivo (anti-caché) ======================== */
 
-  const CURRENT_APP_VER = (CLOUD && CLOUD.APP_VER) || '20261120183000';
+  const CURRENT_APP_VER = (CLOUD && CLOUD.APP_VER) || '20261120213000';
   let detectedNewVer = '';
 
   function forceLiveReload(targetVer) {

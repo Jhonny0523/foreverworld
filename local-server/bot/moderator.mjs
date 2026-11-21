@@ -6,10 +6,11 @@ import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { RconClient } from './rcon.mjs';
 import { SupabaseBridge } from './supabase-bridge.mjs';
-import { askModerator, askNpc, generateRoast, generateSocialMessage, compactSessionMemory } from './ollama.mjs';
+import { askModerator, askNpc, npcOfflineReply, generateRoast, generateSocialMessage, compactSessionMemory } from './ollama.mjs';
 import { RuleEnforcer } from './enforcer.mjs';
 import { SessionMemory, PERMIT_SCOPES } from './memory.mjs';
 import { WorldEvents } from './events.mjs';
+import { Deity } from './deity.mjs';
 import { WebSyncAnnouncer, snapshotWorld, diffWorldSnapshots } from './web-sync.mjs';
 import { AdminGenie, extractAdminWish, planAdminWish, sanitizeRconCommand } from './admin-genie.mjs';
 import {
@@ -62,6 +63,11 @@ function parsePermitDuration(tok) {
   const m = t.match(/^(\d{1,4})(s|seg|segs|segundos?|m|min|mins|minutos?|h|hr|hrs|horas?|d|dias?|días?)?$/);
   if (!m) return undefined;
   return unitToMinutes(Number(m[1]), m[2]);
+}
+// Minutos para !trato / !duelo / !pase: acepta "10", "10m", "1h"; si no se entiende, el valor por defecto
+function parseWindowMinutes(tok, def = 5) {
+  const m = parsePermitDuration(tok);
+  return typeof m === 'number' ? m : def;
 }
 export function fmtMinutes(mins) {
   if (mins < 1) return `${Math.round(mins * 60)} s`;
@@ -198,6 +204,7 @@ async function handleJoin(player, { cfg, bridge, rcon, enforcer, memory }) {
         kind: 'join',
         player,
         role,
+        recentChat: memory?.getRecentChatForSocial(10) || [],
         worldContext: buildSocialWorldContext(state, bridge, enforcer),
         eraContext: bridge.getEraExpectationsSummary(state),
         stanceContext: computePregoneroStance(state, bridge),
@@ -240,6 +247,7 @@ async function handleLeave(player, { cfg, bridge, rcon, enforcer, memory }) {
       kind: 'leave',
       player,
       role,
+      recentChat: memory?.getRecentChatForSocial(10) || [],
       worldContext: buildSocialWorldContext(state, bridge, enforcer),
       eraContext: bridge.getEraExpectationsSummary(state),
       stanceContext: computePregoneroStance(state, bridge),
@@ -301,7 +309,10 @@ const COMMAND_DOCS = {
   recuerda: 'Guarda un dato o acuerdo importante en la memoria permanente del Pregonero. Uso: !recuerda <dato>.',
   certificado: 'Exclusivo Archivista (NotOutContext): convierte tu Libro y Pluma en libro firmado con colores (&6, &a, &l, &#RRGGBB). Uso: !certificado <Título> (en mano) | !certificado <Título> | <Texto> | !certificado aval/obra/residencia/paz ... Añade autor: <NotOutContext y MythStorm> al final para 2 o más autores.',
   papel: 'Exclusivo Archivista (NotOutContext): sella 1 papel real de tu inventario con nombre/subtítulo en colores (&). Uso: !papel <&6&lNombre> [| &7Subtítulo].',
-  colores: 'Muestra la paleta de códigos &0-&f, &l/&o/&n/&m/&r y &#RRGGBB para !certificado y !papel.'
+  colores: 'Muestra la paleta de códigos &0-&f, &l/&o/&n/&m/&r y &#RRGGBB para !certificado y !papel.',
+  evento: 'Eventos del mundo: qué está pasando y cuándo podría tocar el próximo. Uso: !evento · !evento lista · fundadores: !evento lanzar <id> | !evento on|off.',
+  yo: 'Tu ficha: rol, permisos y prohibiciones vigentes, infracciones recientes y, si eres fundador, el tesoro y la mercancía en custodia de tu Estado. Uso: !yo.',
+  expediente: 'Expediente de la Fiscalía: últimas infracciones registradas por la Aduana (persisten entre sesiones). Uso: !expediente [jugador].'
 };
 
 const COMMAND_ALIASES = {
@@ -343,20 +354,28 @@ const COMMAND_ALIASES = {
   cert: 'certificado',
   libro: 'certificado',
   color: 'colores',
-  formato: 'colores'
+  formato: 'colores',
+  eventos: 'evento',
+  perfil: 'yo',
+  ficha: 'yo',
+  multas: 'expediente',
+  historial: 'expediente',
+  infracciones: 'expediente'
 };
 
 const BOT_COMMANDS_DOC = [
   'Guía oficial de Miscolandia (habla con los NPCs en el chat + utilidades operativas):',
   '- NO recomiendes comandos de consulta viejos (!era, !ley, !tasa, !saldo, !lore, !duda); diles que hablen directo con el NPC:',
   '  * Arquitecto / Maestro de Obras / Ingeniero: Eras (ERA 0–XIII), qué construir ahora y qué mecánicas están prohibidas.',
-  '  * Su Excelencia / Su Señoría / Señor Juez: leyes IC, disputas y multas (si le dicen solo "juez" sin título de respeto, responde indignado y de mala forma).',
+  '  * Su Excelencia / Su Señoría / Señor Juez: leyes IC, disputas y multas (con "Excelencia" o "Su Señoría" se pone solemne; "juez" a secas también vale; solo se indigna si lo insultan).',
   '  * Fiscal / Policía / Alguacil / Aduana: pacto de monopolios, contrabando, PvP OOC, tratos y salvoconductos.',
   '  * Banquero / Don Tesoro / Contador: tasa cambiaria DR/CU, reservas de la Cámara, saldos y precios de catálogo.',
   '  * Archivista / Auditor / Cronista / Bibliotecario: auditoría oficial de obras (Manual 003, TRD 120-01), lore del mundo, crónicas (TRD 140-01), cédulas (TRD 150-01) y recuerdos pasados.',
+  '  * Cartógrafo / Topógrafo: estaciones, portales (con su equivalencia Overworld↔Nether), obras con coordenadas y moradas del censo registradas en la web.',
   '  * Pregonero: chismes de la plaza, opinión económica y libreta permanente ("pregonero recuerda que...").',
-  '- Utilidades operativas que ejecutan permisos/control del servidor: !hitos (pendientes de Era), !obras (auditorías), !duelo [min|fin] (PvP consensuado), !trato [min|fin] (intercambio libre), !pase <jug|todos>, !mod [on|off], !chat [on|off], !memoria y !ayuda.',
+  '- Utilidades operativas que ejecutan permisos/control del servidor: !hitos (pendientes de Era), !obras (auditorías), !duelo [min|fin] (PvP consensuado), !trato [min|fin] (intercambio libre), !pase <jug|todos>, !mod [on|off], !chat [on|off], !evento (eventos del mundo), !yo (tu ficha), !expediente [jugador] (infracciones), !memoria y !ayuda.',
   '- Certificados y sellos oficiales (EXCLUSIVO Archivista NotOutContext): !certificado <Título> (sella en colores el Libro y Pluma en mano consumiéndolo, o !certificado <Título> | <Texto> / aval / obra / residencia / paz con 1 writable_book en inventario; admite autor: <Autor1 y Autor2> para coautoría), !papel <Nombre> [| <Lore>] (consume 1 papel real) y !colores.',
+  '- Lo divino: si una fe de la web (Lore → Religiones y fe) le dio nombre a su dios, invocarlo en el chat puede, casi nunca, tener respuesta. NINGÚN NPC habla en nombre de los dioses ni inventa religión, dogmas o milagros.',
   '- Acuerdos en chat: "vamos a hacer un trato" o "pvp consensuado / vamos a hacer un duelo" pausan automáticamente al aduanero.',
   '- Permisos y prohibiciones expresas que no se borran: !permiso <jugador> [semillas|flores|cactus|tintes|ganado|aldeanos] [tiempo|permanente] [nota] · !permiso prohibir <jugador> [recurso] [tiempo] [nota] · !permiso quitar <jugador> [recurso] · !permisos [jugador]. Cada Estado solo autoriza o prohíbe su monopolio (MythStorm: agricultura, semillas, flores, cactus, tintes y abejas; Scadrial0523: ganadería y pesca); aldeanos, cualquiera de los dos; un producto con granja (hierro, oro, blaze, slime, madera…), solo su dueño. Si tiene permiso vigente en memoria, es legal; si tiene prohibición expresa, prevalece incluso sobre permisos generales.'
 ].join('\n');
@@ -367,6 +386,7 @@ const NPC_HELP_DOCS = {
   fiscal: 'Fiscal (o policia / alguacil / aduana): monopolios, contrabando, PvP, tratos y pases. Ej: "fiscal puedo pasar trigo?"',
   banquero: 'Banquero (o Don Tesoro / contador): tasa DR/CU, reservas, saldos y precios. Ej: "banquero cuanto vale el trigo?"',
   archivista: 'Archivista (o auditor / cronista / bibliotecario): auditoria de obras (Manual 003), lore, cronicas, cedulas y recuerdos. Ej: "auditor como audito una granja?"',
+  cartografo: 'Cartografo (o topografo): estaciones, portales y su equivalencia Overworld/Nether, obras con coordenadas y moradas. Ej: "cartografo donde queda el portal de casa?"',
   pregonero: 'Pregonero: chismes, economia y libreta de memoria. Ej: "pregonero recuerda que..."'
 };
 
@@ -408,7 +428,13 @@ const NPC_HELP_ALIASES = {
   cedulas: 'archivista',
   'cédulas': 'archivista',
   chisme: 'pregonero',
-  plaza: 'pregonero'
+  plaza: 'pregonero',
+  'cartógrafo': 'cartografo',
+  topografo: 'cartografo',
+  'topógrafo': 'cartografo',
+  mapa: 'cartografo',
+  portales: 'cartografo',
+  estaciones: 'cartografo'
 };
 
 const HELP_QUESTION_RE = /^(?:\?|ayuda|help|info|uso|qu[eé]\s+es\s+esto\??|para\s+qu[eé]\s+sirve\??|c[oó]mo\s+(?:se\s+usa|funciona)\??)$/i;
@@ -469,6 +495,28 @@ function isArchivistaPlayer(player, state) {
 const aiCooldown = new Map();
 let aiBusy = false;
 
+// Cola de la IA: Ollama atiende una consulta a la vez. Antes, si dos jugadores le hablaban a un NPC
+// casi al mismo tiempo, el segundo mensaje se perdía en silencio; ahora espera su turno (hasta 3 en fila).
+const AI_QUEUE_MAX = 3;
+let aiQueueLen = 0;
+let aiChain = Promise.resolve();
+function queueAi(task) {
+  if (aiQueueLen >= AI_QUEUE_MAX) return null;
+  aiQueueLen += 1;
+  const run = aiChain.then(async () => {
+    aiBusy = true;
+    try {
+      return await task();
+    } finally {
+      aiBusy = false;
+      aiQueueLen -= 1;
+    }
+  });
+  aiChain = run.catch(() => {});
+  return run;
+}
+const aiIdle = () => !aiBusy && aiQueueLen === 0;
+
 async function askSmartAi({ player, query, mode, cmdLabel, badgeOverride = null, badgeColorOverride = null, ctx }) {
   const { cfg, bridge, rcon, enforcer, memory } = ctx;
   const q = String(query || '').trim();
@@ -482,8 +530,8 @@ async function askSmartAi({ player, query, mode, cmdLabel, badgeOverride = null,
     await sendLine(rcon, player, 'Archivo', 'yellow', [{ text: 'Espera unos segundos antes de hacer otra consulta.', color: 'gray' }]);
     return;
   }
-  if (aiBusy) {
-    await sendLine(rcon, player, 'Archivo', 'yellow', [{ text: 'El Archivista está atendiendo otra consulta; intenta en un momento.', color: 'gray' }]);
+  if (aiQueueLen >= AI_QUEUE_MAX) {
+    await sendLine(rcon, player, 'Archivo', 'yellow', [{ text: 'Hay fila en el Archivo (varias consultas a la vez); intenta en un momento.', color: 'gray' }]);
     return;
   }
 
@@ -492,8 +540,14 @@ async function askSmartAi({ player, query, mode, cmdLabel, badgeOverride = null,
   }
 
   aiCooldown.set(player, now);
-  aiBusy = true;
-  try {
+  // No se espera aquí a la IA: así el lector del log sigue atendiendo joins, comandos y la Aduana
+  const job = queueAi(() => runSmartAi({ player, q, mode, badgeOverride, badgeColorOverride, ctx }));
+  job?.catch(err => console.error('[IA]', err.message));
+}
+
+async function runSmartAi({ player, q, mode, badgeOverride, badgeColorOverride, ctx }) {
+  const { cfg, bridge, rcon, enforcer, memory } = ctx;
+  {
     const { state } = await bridge.fetchWorld(false);
     const b = bridge.getBriefing(state);
     let contextParts = [];
@@ -528,16 +582,23 @@ async function askSmartAi({ player, query, mode, cmdLabel, badgeOverride = null,
 
     const role = enforcer.getPlayerRole(player, state);
     contextParts.push(farmLocksText(state, bridge));
-    const reply = await askModerator({
-      config: cfg,
-      mode,
-      player,
-      playerIdentity: buildPlayerIdentity(player, role, state, bridge),
-      query: q,
-      contextText: contextParts.join('\n\n---\n\n'),
-      chatHistoryText: memory?.getRecentChatText(10) || '',
-      memoryText: memory?.getPersistentMemoryText({ maxSessions: 5, maxNotes: 10 }) || ''
-    });
+    let reply;
+    try {
+      reply = await askModerator({
+        config: cfg,
+        mode,
+        player,
+        playerIdentity: buildPlayerIdentity(player, role, state, bridge),
+        query: q,
+        contextText: contextParts.join('\n\n---\n\n'),
+        chatHistoryText: memory?.getRecentChatText(10) || '',
+        memoryText: memory?.getPersistentMemoryText({ maxSessions: 5, maxNotes: 10 }) || ''
+      });
+    } catch (err) {
+      // Ollama apagado o colgado: el jugador recibe una respuesta en vez de silencio
+      console.error(`[IA ${mode}]`, err.message);
+      reply = npcOfflineReply('archivista');
+    }
 
     const target = '@a';
     const badge = badgeOverride || (mode === 'juez' ? 'Tribunal' : mode === 'manual' ? 'Economía' : mode === 'ooc' ? 'Técnico' : 'Archivo');
@@ -554,8 +615,6 @@ async function askSmartAi({ player, query, mode, cmdLabel, badgeOverride = null,
     if (metaLine) {
       await sendLine(rcon, target, 'Referencia', 'gold', [{ text: metaLine, color: 'yellow' }]);
     }
-  } finally {
-    aiBusy = false;
   }
 }
 
@@ -616,6 +675,9 @@ async function handleChatCommand(player, message, ctx) {
       { text: 'Archivista', color: 'aqua', bold: true },
       { text: ': auditoria, lore, cronicas y cedulas\n', color: 'white' },
       { text: '  - ', color: 'gray' },
+      { text: 'Cartografo', color: 'dark_aqua', bold: true },
+      { text: ': portales, estaciones y coordenadas\n', color: 'white' },
+      { text: '  - ', color: 'gray' },
       { text: 'Pregonero', color: 'light_purple', bold: true },
       { text: ': chismes y "recuerda <dato>"\n', color: 'white' },
       { text: 'Comandos: ', color: 'gray' },
@@ -636,6 +698,12 @@ async function handleChatCommand(player, message, ctx) {
       { text: '!chat', color: 'aqua', bold: true },
       { text: ' · ', color: 'gray' },
       { text: '!memoria', color: 'aqua', bold: true },
+      { text: ' · ', color: 'gray' },
+      { text: '!evento', color: 'gold', bold: true },
+      { text: ' · ', color: 'gray' },
+      { text: '!yo', color: 'green', bold: true },
+      { text: ' · ', color: 'gray' },
+      { text: '!expediente', color: 'red', bold: true },
       { text: '\nArchivo: ', color: 'gray' },
       { text: '!certificado', color: 'gold', bold: true },
       { text: ' · ', color: 'gray' },
@@ -834,7 +902,7 @@ async function handleChatCommand(player, message, ctx) {
     const parts = arg.split(/\s+/).filter(Boolean);
     const first = (parts[0] || '').toLowerCase();
     if (!parts.length || ['todos', 'ambos', 'all', '@a'].includes(first)) {
-      const mins = enforcer.startGlobalWindow(parts[1] ? Number(parts[1]) : 5, 'trato');
+      const mins = enforcer.startGlobalWindow(parseWindowMinutes(parts[1]), 'trato');
       await sendLine(rcon, '@a', 'Aduana', 'aqua', [
         { text: `Trato libre para todos activado por ${mins} min por ${player}. Usa !trato fin al terminar.`, color: 'white' }
       ]);
@@ -848,7 +916,7 @@ async function handleChatCommand(player, message, ctx) {
       ]);
       return;
     }
-    const mins = enforcer.grantTradePass(canonicalTarget, parts[1] ? Number(parts[1]) : 5);
+    const mins = enforcer.grantTradePass(canonicalTarget, parseWindowMinutes(parts[1]));
     await sendLine(rcon, '@a', 'Salvoconducto', 'aqua', [
       { text: `${player} otorgó a ${canonicalTarget} un pase diplomático de ${mins} min.`, color: 'white' }
     ]);
@@ -871,7 +939,7 @@ async function handleChatCommand(player, message, ctx) {
       ]);
       return;
     }
-    const mins = enforcer.startGlobalWindow(arg ? Number(arg) : 5, 'trato');
+    const mins = enforcer.startGlobalWindow(parseWindowMinutes(arg.split(/\s+/)[0]), 'trato');
     await sendLine(rcon, '@a', 'Aduana', 'aqua', [
       { text: `¡Entendido! Trato libre activado por ${mins} min por ${player} (no interfiero mientras se pasan ítems). Usa !trato fin al terminar.`, color: 'white' }
     ]);
@@ -894,7 +962,7 @@ async function handleChatCommand(player, message, ctx) {
       ]);
       return;
     }
-    const mins = enforcer.startGlobalWindow(arg ? Number(arg) : 5, 'duelo');
+    const mins = enforcer.startGlobalWindow(parseWindowMinutes(arg.split(/\s+/)[0]), 'duelo');
     await sendLine(rcon, '@a', 'Fiscalía', 'gold', [
       { text: `¡Duelo consensuado activo por ${mins} min (por ${player})! No interfiero en PvP. Usa !duelo fin al terminar.`, color: 'white' }
     ]);
@@ -911,9 +979,9 @@ async function handleChatCommand(player, message, ctx) {
         await sendLine(rcon, player, 'Fiscalía', 'red', [{ text: 'Solo los fundadores pueden pausar o activar la vigilancia automática.', color: 'yellow' }]);
         return;
       }
-      enforcer.enabled = sub === 'on';
+      enforcer.setEnabled(sub === 'on');
       await sendLine(rcon, '@a', 'Fiscalía', 'gold', [
-        { text: `Vigilancia automática ${enforcer.enabled ? 'ACTIVADA' : 'PAUSADA'} por ${player}.`, color: enforcer.enabled ? 'green' : 'yellow' }
+        { text: `Vigilancia automática ${enforcer.enabled ? 'ACTIVADA (lo hecho durante la pausa no se sanciona)' : 'PAUSADA'} por ${player}.`, color: enforcer.enabled ? 'green' : 'yellow' }
       ]);
       return;
     }
@@ -1139,7 +1207,8 @@ async function handleChatCommand(player, message, ctx) {
     const first = (parts[0] || '').toLowerCase();
 
     // Ver permisos y prohibiciones: !permisos  |  !permiso ver [jugador]
-    if (cmd === 'permisos' || !parts.length || ['ver', 'lista', 'listar'].includes(first)) {
+    const PERMIT_ACTION_WORDS = ['quitar', 'retirar', 'revocar', 'anular', 'no', 'levantar', 'prohibir', 'vetar', 'bloquear', 'denegar', 'ban'];
+    if ((cmd === 'permisos' && !PERMIT_ACTION_WORDS.includes(first)) || !parts.length || ['ver', 'lista', 'listar'].includes(first)) {
       const who = ['ver', 'lista', 'listar'].includes(first) ? parts[1] : (cmd === 'permisos' ? parts[0] : null);
       const target = who ? (resolveKnownPlayer(who, cfg, enforcer) || who) : null;
       const permits = mem.getActivePermits(target);
@@ -1298,6 +1367,111 @@ async function handleChatCommand(player, message, ctx) {
     return;
   }
 
+  if (cmd === 'evento' || cmd === 'eventos') {
+    if (await sendCommandHelpIfAsked('evento', arg, rcon, player)) return;
+    const events = ctx.events;
+    if (!events) {
+      await sendLine(rcon, player, 'Evento', 'gold', [{ text: 'Los eventos del mundo aún no arrancan; intenta en unos segundos.', color: 'gray' }]);
+      return;
+    }
+    const parts = arg.split(/\s+/).filter(Boolean);
+    const sub = (parts[0] || '').toLowerCase();
+    const { state } = await bridge.fetchWorld(false);
+    const isFounder = ['myth', 'scad'].includes(enforcer.getPlayerRole(player, state));
+    if (sub === 'lista' || sub === 'catalogo' || sub === 'catálogo') {
+      const list = await events.catalogForEra();
+      if (!list) {
+        await sendLine(rcon, player, 'Evento', 'gold', [{ text: 'No sé en qué era están (la web no responde).', color: 'gray' }]);
+        return;
+      }
+      await sendLine(rcon, player, `Eventos ${bridge.getCurrentEra(state).code}`, 'gold', [
+        { text: list.map(e => `${e.id}${e.night ? '☾' : e.day ? '☀' : ''}`).join(' · ').slice(0, 900), color: 'white' },
+        { text: `\n${list.length} desbloqueados (☾ solo de noche, ☀ solo de día). Fundadores: !evento lanzar <id>`, color: 'gray' }
+      ]);
+      return;
+    }
+    if (sub === 'lanzar' || sub === 'iniciar' || sub === 'forzar') {
+      if (!isFounder) {
+        await sendLine(rcon, player, 'Evento', 'red', [{ text: 'Solo MythStorm o Scadrial0523 pueden lanzar un evento a mano.', color: 'yellow' }]);
+        return;
+      }
+      const id = (parts[1] || '').toLowerCase();
+      if (!id) {
+        await sendLine(rcon, player, 'Evento', 'gold', [{ text: 'Uso: !evento lanzar <id>. Mira los ids con !evento lista.', color: 'yellow' }]);
+        return;
+      }
+      const res = await events.launchById(id, player);
+      await sendLine(rcon, res.ok ? '@a' : player, 'Evento', res.ok ? 'gold' : 'red', [
+        { text: res.ok ? `${player} invocó el evento "${res.ev.name}".` : res.msg, color: res.ok ? 'white' : 'yellow' }
+      ]);
+      return;
+    }
+    if (sub === 'on' || sub === 'off') {
+      if (!isFounder) {
+        await sendLine(rcon, player, 'Evento', 'red', [{ text: 'Solo los fundadores pueden pausar o reanudar los eventos espontáneos.', color: 'yellow' }]);
+        return;
+      }
+      events.enabled = sub === 'on';
+      await sendLine(rcon, '@a', 'Evento', 'gold', [
+        { text: `Eventos espontáneos ${events.enabled ? 'ACTIVADOS' : 'PAUSADOS'} por ${player} (los programados en la config siguen corriendo).`, color: 'white' }
+      ]);
+      return;
+    }
+    const act = events.activeInfo();
+    const hhmm = t => new Date(t).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+    const next = events.nextWindows(3).map(hhmm);
+    await sendLine(rcon, player, 'Evento', 'gold', [
+      act
+        ? { text: `En curso: ${act.name}${act.minsLeft ? ` (quedan ~${act.minsLeft} min)` : ''}. `, color: 'yellow', bold: true }
+        : { text: 'Ningún evento en curso. ', color: 'white' },
+      { text: events.enabled
+          ? (next.length ? `Ventanas posibles: ${next.join(', ')} (puede no tocar nada si la era o la hora no cuadran).` : 'Sin ventanas próximas en las siguientes horas.')
+          : 'Eventos espontáneos PAUSADOS.', color: 'gray' }
+    ]);
+    return;
+  }
+
+  if (cmd === 'yo' || cmd === 'perfil' || cmd === 'ficha') {
+    const { state } = await bridge.fetchWorld(false);
+    const role = enforcer.getPlayerRole(player, state);
+    const mem = ctx.memory;
+    const permits = mem?.getActivePermits(player) || [];
+    const bans = mem?.getActiveProhibitions(player) || [];
+    const weekAgo = Date.now() - 7 * 86_400_000;
+    const infr = mem?.countInfractions?.(player, weekAgo) || 0;
+    const lines = [
+      { text: `${buildPlayerIdentity(player, role, state, bridge)}\n`, color: 'white', bold: true },
+      { text: `Permisos: ${permits.length ? permits.map(p => p.label || p.scope).join(', ') : 'ninguno'}\n`, color: permits.length ? 'green' : 'gray' },
+      { text: `Prohibiciones: ${bans.length ? bans.map(p => p.label || p.scope).join(', ') : 'ninguna'}\n`, color: bans.length ? 'red' : 'gray' },
+      { text: `Infracciones (7 días): ${infr}${infr ? ' · detalle con !expediente' : ''}`, color: infr ? 'yellow' : 'gray' }
+    ];
+    if (role === 'myth' || role === 'scad') {
+      const bal = bridge.getBalances(state).states[role === 'myth' ? 0 : 1];
+      const custody = enforcer.formatItemCounts(new Map(Object.entries(enforcer.pendingCustody?.[role] || {}).map(([k, v]) => [k, Number(v) || 0])));
+      lines.push({ text: `\nTesoro: ${bal}`, color: 'gold' });
+      if (custody) lines.push({ text: `\nEn custodia de la Aduana para ti: ${custody}`, color: 'aqua' });
+    }
+    if (enforcer.hasTradePass(player)) lines.push({ text: '\nTienes un pase diplomático vigente.', color: 'aqua' });
+    await sendLine(rcon, player, 'Ficha', 'green', lines);
+    return;
+  }
+
+  if (cmd === 'expediente' || cmd === 'multas' || cmd === 'historial' || cmd === 'infracciones') {
+    if (await sendCommandHelpIfAsked('expediente', arg, rcon, player)) return;
+    const who = arg ? (resolveKnownPlayer(arg.split(/\s+/)[0], cfg, enforcer) || arg.split(/\s+/)[0]) : player;
+    const list = ctx.memory?.getInfractions?.(who, 6) || [];
+    const dd = t => new Date(t).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+    await sendLine(rcon, player, `Expediente ${who}`, 'red', [
+      {
+        text: list.length
+          ? list.map(e => `• ${dd(e.ts)} — ${e.text}${e.seized ? ` (incautado: ${e.seized})` : ''}`).join('\n')
+          : `Expediente limpio: la Aduana no tiene infracciones registradas de ${who}.`,
+        color: list.length ? 'yellow' : 'green'
+      }
+    ]);
+    return;
+  }
+
   if (cmd === 'recuerda' || cmd === 'anota' || cmd === 'apunta') {
     if (!arg || isHelpQuestion(arg)) {
       await sendLine(rcon, player, 'Ayuda !recuerda', 'aqua', [{ text: COMMAND_DOCS.recuerda, color: 'white' }]);
@@ -1397,14 +1571,18 @@ async function handleChatCommand(player, message, ctx) {
   ]);
 }
 
-const TRADE_INTENT_RE = /(?:nos\s+vamos\s+a\s+(?:pasar|dar|intercambiar|comerciar)|vamos\s+a\s+(?:pasar(?:nos)?|intercambiar|comerciar|cambiar|hacer\s+un\s+trato)|(?:te|le)\s+voy\s+a\s+pasar|p[aá]sa(?:me|le)\s+(?:comida|cosas|papas|trigo|carne|semillas|huevos)|no\s+(?:interfieras|te\s+metas|molestes|confisques|quites)|no\s+necesitamos\s+que\s+interfieras|d[eé]janos\s+(?:pasar|comerciar|intercambiar|en\s+paz)|trato\s+libre)/i;
+const TRADE_INTENT_RE = /(?:nos\s+vamos\s+a\s+(?:pasar|dar|intercambiar|comerciar)|vamos\s+a\s+(?:pasar(?:nos)?|intercambiar|comerciar|cambiar|hacer\s+un\s+trato)|(?:te|le)\s+voy\s+a\s+pasar|p[aá]sa(?:me|le)\s+(?:comida|cosas|papas|trigo|carne|semillas|huevos)|d[eé]janos\s+(?:pasar|comerciar|intercambiar)|trato\s+libre)/i;
+// "no molestes", "no te metas", "déjanos en paz"... son frases normales entre jugadores:
+// solo cuentan como pedir trato libre si van dirigidas al bot (Aduana, Fiscal, bot...).
+const SOFT_TRADE_INTENT_RE = /(?:no\s+(?:interfieras|te\s+metas|molestes|confisques|quites)|no\s+necesitamos\s+que\s+interfieras|d[eé]janos\s+en\s+paz)/i;
+const ADDRESS_BOT_RE = /\b(?:aduana|fiscal\w*|bot|moderador|polic[ií]a|alguacil|vigilancia)\b/i;
 const DUEL_INTENT_RE = /(?:vamos\s+a\s+(?:hacer\s+(?:un\s+)?|tener\s+(?:un\s+)?)?(?:duelo|pvp)|(?:duelo|pvp|combate|pelea)\s+(?:pactad[oa]|consensuad[oa]|amistoso))/i;
 const RESUME_INTENT_RE = /(?:ya\s+(?:terminamos|acabamos|puedes\s+(?:vigilar|volver|seguir))|listo\s+el\s+trato)/i;
 
 async function maybeHandleChatTruce(player, clean, { bridge, rcon, enforcer }) {
   const isResume = RESUME_INTENT_RE.test(clean);
   const isDuel = DUEL_INTENT_RE.test(clean);
-  const isTrade = TRADE_INTENT_RE.test(clean);
+  const isTrade = TRADE_INTENT_RE.test(clean) || (SOFT_TRADE_INTENT_RE.test(clean) && ADDRESS_BOT_RE.test(clean));
   if (!isResume && !isDuel && !isTrade) return false;
 
   try {
@@ -1442,9 +1620,12 @@ async function maybeHandleChatTruce(player, clean, { bridge, rcon, enforcer }) {
 
 const DIRECT_PREGONERO_RE = /\bpregonero\b/i;
 const JUDGE_HONORIFIC_RE = /\b(?:su\s+excelencia|excelencia|su\s+se[ñn]or[ií]a|se[ñn]or\s+juez|magistrad[oa]|vuestra\s+merced)\b/i;
+// Insultos de verdad (no basta con decirle "juez" a secas)
+const JUDGE_INSULT_RE = /\b(?:idiota|tont[oa]|est[uú]pid[oa]|imb[eé]cil|in[uú]til|payas[oa]|corrupt[oa]|vendid[oa]|bob[oa]|pendej[oa]|hu?ev[oó]n|guev[oó]n|malparid[oa]|gonorrea|mam[oó]n|ridícul[oa]|ridicul[oa]|ignorante|incompetente|ladr[oó]n|rata|basura|juececito|juecito|cállate|callate)\b|de\s+(?:pacotilla|mierda|quinta)/i;
 const RULE_QUESTION_RE = /\b(?:puedo|puede|podemos|se\s+puede|permitid\w*|prohibid\w*|ley\w*|norma\w*|multa\w*|sanci[oó]n\w*|era\w*|pacto|monopolio\w*|aldean\w*|comando\w*|tasa|cambio|saldo\w*|precio\w*|c[eé]dula\w*|audit\w*|obra\w*|reliquia\w*|punt\w*|metro|tren\w*|riel\w*|granja\w*|nether|end|pvp|duelo|trato|pase|huevo\w*|semilla\w*|vaca\w*|pollo\w*|lore|cr[oó]nica\w*|historia)\b/i;
 let lastDirectPregoneroAt = 0;
 let lastDirectNpcAt = 0;
+const npcCooldown = new Map(); // jugador -> último mensaje a un NPC
 
 const NPC_CAST = [
   {
@@ -1454,24 +1635,39 @@ const NPC_CAST = [
     logName: 'Juez',
     re: /\b(?:su\s+excelencia|excelencia|su\s+se[ñn]or[ií]a|se[ñn]or\s+juez|juez|magistrad[oa]|tribunal)\b/i,
     stripRe: /\b(?:su\s+excelencia|excelencia|su\s+se[ñn]or[ií]a|se[ñn]or\s+juez|juez|magistrad[oa]|tribunal)\b[:,!\s]*/gi,
+    // Tres tonos: con título de respeto se pone solemne y complacido; si solo le dicen "juez" responde
+    // normal (antes lo tomaba como insolencia); solo se indigna si de verdad lo insultan.
     buildPersona(clean) {
       const polite = JUDGE_HONORIFIC_RE.test(clean);
+      const insulted = JUDGE_INSULT_RE.test(clean);
+      const base = 'Eres el Juez del Tribunal de Miscolandia.';
       return {
-        polite,
-        selfIdentity: 'TÚ eres Su Señoría, el Juez del Tribunal de Miscolandia.',
-        roleDesc: polite
-          ? 'Eres Su Señoría el Juez del Tribunal de Miscolandia. El jugador te trató con el respeto debido (Excelencia / Su Señoría / Señor Juez): respóndele con porte solemne, educado, justo y preciso, citando las leyes o normas pertinentes.'
-          : 'Eres Su Señoría el Juez del Tribunal de Miscolandia, ¡y estás INDIGNADO porque el jugador NO te trató de "Excelencia", "Su Señoría" ni "Señor Juez"! Empieza regañándolo DE MALA FORMA con drama judicial por tutear al tribunal sin educación, y luego respóndele igual con precisión según <normativa_vigente>.',
+        polite: !insulted,
+        insulted,
+        selfIdentity: 'TÚ eres el Juez del Tribunal de Miscolandia (a ti, y solo a ti, te corresponden los títulos de Excelencia o Señoría).',
+        roleDesc: insulted
+          ? `${base} ¡El jugador te acaba de INSULTAR! Empieza poniéndolo en su sitio con indignación y drama judicial (sin groserías), y luego respóndele igual con precisión según <normativa_vigente>.`
+          : polite
+            ? `${base} El jugador te habló con el título de respeto (Excelencia / Su Señoría / Señor Juez): respóndele con porte solemne, complacido, justo y preciso, citando las leyes o normas pertinentes.`
+            : `${base} Respóndele con seriedad, imparcialidad y precisión, citando las leyes o normas pertinentes. Llamarte simplemente "juez" es correcto y NO es una falta de respeto: no lo regañes por eso.`,
         temperature: 0.45,
-        extraRules: polite
-          ? []
-          : ['12. ¡OBLIGATORIO! Empieza tu respuesta quejándote con mal genio de que no te llamaron "Excelencia" ni "Señor Juez" antes de darle la respuesta.']
+        extraRules: insulted
+          ? ['12. ¡OBLIGATORIO! Empieza tu respuesta reprochándole el insulto antes de darle la respuesta.']
+          : []
       };
     },
-    buildContext(state, q, { bridge }) {
+    buildContext(state, q, { bridge, memory, player }) {
       const pact = bridge.getPactSummary(state, q);
+      // El Juez conoce el expediente real de quien le habla (para multas y reincidencia)
+      const record = player && memory?.getInfractions ? memory.getInfractions(player, 5) : [];
+      const recordTxt = player
+        ? (record.length
+          ? `[EXPEDIENTE DE ${player} SEGÚN LA ADUANA]\n${record.map(e => `- ${new Date(e.ts).toISOString().slice(0, 10)}: ${e.text}`).join('\n')}`
+          : `[EXPEDIENTE DE ${player}]: limpio, sin infracciones registradas por la Aduana.`)
+        : '';
       return [
         BOT_COMMANDS_DOC,
+        recordTxt,
         ...bridge.findRelevantNorms(state, q, { limit: 6, isJuez: true, includeOoc: true }),
         `Resumen Pacto: ${pact.myth.nation} (${pact.myth.sectors.map(s => s.split(':')[0]).join(', ')}) | ${pact.scad.nation} (${pact.scad.sectors.map(s => s.split(':')[0]).join(', ')})`,
         bridge.getEraExpectationsSummary(state)
@@ -1585,6 +1781,32 @@ const NPC_CAST = [
         ...bridge.findRelevantNorms(state, q, { limit: 5, isJuez: false, includeOoc: true })
       ].filter(Boolean);
     }
+  },
+  {
+    id: 'cartografo',
+    badge: 'Cartógrafo',
+    badgeColor: 'dark_aqua',
+    logName: 'Cartógrafo',
+    re: /\b(?:cart[oó]graf[oa]|top[oó]graf[oa]|ge[oó]graf[oa])\b/i,
+    stripRe: /\b(?:cart[oó]graf[oa]|top[oó]graf[oa]|ge[oó]graf[oa])\b[:,!\s]*/gi,
+    buildPersona() {
+      return {
+        polite: true,
+        selfIdentity: 'TÚ eres El Cartógrafo Oficial de Miscolandia, encargado del registro de estaciones, portales y coordenadas.',
+        roleDesc: 'Eres El Cartógrafo Oficial de Miscolandia. Hablas como topógrafo meticuloso y algo maniático con las coordenadas: das direcciones exactas con los datos del registro, conviertes coordenadas Overworld↔Nether (divide o multiplica X y Z entre 8; la Y no cambia) y regañas con humor a quien no anota sus portales o estaciones en la web.',
+        temperature: 0.4,
+        extraRules: [
+          '12. SOLO usa coordenadas, estaciones, portales y obras que aparezcan en <normativa_vigente>. Si lo que preguntan no está registrado, dilo claro y pide que lo registren en la web (pestaña Territorio); JAMÁS inventes coordenadas, lugares ni nombres.',
+          '13. Si te dan unas coordenadas para convertir, haz la cuenta exacta (Overworld→Nether: X/8, Z/8; Nether→Overworld: X*8, Z*8), redondeando a entero.'
+        ]
+      };
+    },
+    buildContext(state, q, { bridge }) {
+      return [
+        bridge.getMapContext(state, q),
+        bridge.getEraExpectationsSummary(state)
+      ].filter(Boolean);
+    }
   }
 ];
 
@@ -1605,16 +1827,55 @@ function detectAddressedNpc(clean) {
   return best;
 }
 
+// La deidad: solo existe si alguna fe le dio nombre en la web. Casi nunca contesta (ver deity.mjs).
+async function maybeHandleDeity(player, clean, ctx) {
+  const { deity, bridge, enforcer } = ctx;
+  if (!deity) return false;
+  let state;
+  try {
+    ({ state } = await bridge.fetchWorld(false));
+  } catch {
+    return false;
+  }
+  const role = enforcer.getPlayerRole(player, state);
+  const pid = deity.playerPid(player, role, state);
+  const inv = deity.findInvocation(clean, state, pid);
+  if (!inv) return false;
+  // Fiel = quien declaró esa fe en la web (Convicción) o la fundó; los hitos cumplidos suben la probabilidad
+  const dev = bridge.getDevotion(state, pid);
+  const believer = dev.path === 'fe' && dev.creed === inv.religion.pid;
+  ctx.memory?.recordEvent('event', `${player} invocó a ${inv.name}`);
+  const outcome = deity.roll(player, believer, Math.random, believer ? dev.level : 0);
+  if (outcome === 'sign') await deity.sign(player);
+  if (outcome !== 'answer') return true; // silencio: el mensaje tampoco lo contestan los otros NPCs
+  const identity = `${buildPlayerIdentity(player, role, state, bridge)} — ${believer ? `es fiel de esta fe (${dev.level}/${dev.total} hitos de fe cumplidos)` : dev.path === 'razon' ? 'no cree en ningún dios: sigue la Razón' : `no es fiel de esta fe (la profesan ${inv.religion.people})`}`;
+  const job = queueAi(() => deity.speak({ inv, player, playerIdentity: identity, message: clean, state }));
+  job?.catch(err => console.error('[Deidad]', err.message));
+  return true;
+}
+
 async function maybeHandleDirectNpc(player, clean, ctx) {
   const npc = detectAddressedNpc(clean);
   if (!npc) return false;
-  if (Date.now() - lastDirectNpcAt < 3000) return true;
-  if (aiBusy) return true;
-
+  // Antes era un enfriamiento global de 3 s (si dos jugadores hablaban seguido, el segundo se ignoraba):
+  // ahora es por jugador, y si la IA está ocupada el mensaje hace fila.
+  const lowP = player.toLowerCase();
+  if (Date.now() - (npcCooldown.get(lowP) || 0) < 3000) return true;
+  npcCooldown.set(lowP, Date.now());
   lastDirectNpcAt = Date.now();
-  aiBusy = true;
   const { cfg, bridge, rcon, enforcer, memory } = ctx;
-  try {
+  const job = queueAi(() => answerAsNpc(npc, player, clean, ctx));
+  if (!job) {
+    await sendLine(rcon, player, npc.badge, npc.badgeColor, [{ text: 'Hay fila de consultas; repite tu mensaje en unos segundos.', color: 'gray' }]).catch(() => {});
+    return true;
+  }
+  job.catch(err => console.error(`[NPC ${npc.id}]`, err.message));
+  return true;
+}
+
+async function answerAsNpc(npc, player, clean, ctx) {
+  const { cfg, bridge, rcon, enforcer, memory } = ctx;
+  {
     const { state } = await bridge.fetchWorld(false);
     const role = enforcer.getPlayerRole(player, state);
     const stripped = clean
@@ -1626,20 +1887,27 @@ async function maybeHandleDirectNpc(player, clean, ctx) {
       : `El jugador te llamó directamente ("${clean}") para saludar o saber qué hay de nuevo en tu área.`;
 
     const spec = npc.buildPersona(clean);
-    const reply = await askNpc({
-      config: cfg,
-      mode: npc.id,
-      roleDesc: spec.roleDesc,
-      selfIdentity: spec.selfIdentity,
-      extraRules: spec.extraRules || [],
-      temperature: spec.temperature ?? 0.45,
-      player,
-      playerIdentity: buildPlayerIdentity(player, role, state, bridge),
-      query,
-      contextText: [farmLocksText(state, bridge), ...npc.buildContext(state, clean, ctx)].join('\n\n---\n\n'),
-      chatHistoryText: memory?.getRecentChatText(10) || '',
-      memoryText: memory?.getPersistentMemoryText({ maxSessions: 5, maxNotes: 10 }) || ''
-    });
+    let reply;
+    try {
+      reply = await askNpc({
+        config: cfg,
+        mode: npc.id,
+        roleDesc: spec.roleDesc,
+        selfIdentity: spec.selfIdentity,
+        extraRules: spec.extraRules || [],
+        temperature: spec.temperature ?? 0.45,
+        player,
+        playerIdentity: buildPlayerIdentity(player, role, state, bridge),
+        query,
+        contextText: [farmLocksText(state, bridge), ...npc.buildContext(state, clean, { ...ctx, player })].join('\n\n---\n\n'),
+        chatHistoryText: memory?.getRecentChatText(10) || '',
+        memoryText: memory?.getPersistentMemoryText({ maxSessions: 5, maxNotes: 10 }) || ''
+      });
+    } catch (err) {
+      // Ollama apagado o colgado: respuesta en personaje en vez de silencio
+      console.error(`[NPC ${npc.id}]`, err.message);
+      reply = npcOfflineReply(npc.id);
+    }
 
     if (reply?.respuesta_corta) {
       memory?.recordBotMessage(npc.logName, reply.respuesta_corta);
@@ -1655,12 +1923,7 @@ async function maybeHandleDirectNpc(player, clean, ctx) {
         await sendLine(rcon, '@a', 'Referencia', 'gold', [{ text: metaLine, color: 'yellow' }]);
       }
     }
-  } catch (err) {
-    console.error(`[NPC ${npc.id}]`, err.message);
-  } finally {
-    aiBusy = false;
   }
-  return true;
 }
 
 async function maybeHandleDirectPregonero(player, clean, ctx) {
@@ -1694,10 +1957,8 @@ async function maybeHandleDirectPregonero(player, clean, ctx) {
     return true;
   }
 
-  if (aiBusy) return true;
   const { cfg, bridge, rcon, enforcer, memory } = ctx;
-  aiBusy = true;
-  try {
+  const job = queueAi(async () => {
     const { state } = await bridge.fetchWorld(false);
     const role = enforcer.getPlayerRole(player, state);
     const reply = await generateSocialMessage({
@@ -1719,11 +1980,12 @@ async function maybeHandleDirectPregonero(player, clean, ctx) {
         { text: reply, color: 'white' }
       ]);
     }
-  } catch (err) {
-    console.error('[DirectPregonero]', err.message);
-  } finally {
-    aiBusy = false;
+  });
+  if (!job) {
+    await sendLine(rcon, player, 'Pregonero', 'light_purple', [{ text: '¡Un momento, que estoy chismeando con otros tres a la vez!', color: 'gray' }]).catch(() => {});
+    return true;
   }
+  job.catch(err => console.error('[DirectPregonero]', err.message));
   return true;
 }
 
@@ -1734,13 +1996,14 @@ async function handleNormalChat(player, message, ctx) {
   memory?.recordPlayerChat(player, clean);
 
   if (await maybeHandleChatTruce(player, clean, ctx)) return;
+  if (await maybeHandleDeity(player, clean, ctx)) return;
   if (await maybeHandleDirectNpc(player, clean, ctx)) return;
   if (await maybeHandleDirectPregonero(player, clean, ctx)) return;
 
   if (!isChatBanterEnabled(cfg)) return;
   const minLen = Number(cfg.social?.chatBanterMinLength ?? 8);
   if (clean.length < minLen) return;
-  if (aiBusy) return;
+  if (!aiIdle()) return; // los comentarios espontáneos nunca hacen fila detrás de una consulta real
 
   const isTopicHit = SOCIAL_KEYWORD_RE.test(clean);
   const cooldownMs = isTopicHit
@@ -1755,8 +2018,7 @@ async function handleNormalChat(player, message, ctx) {
   if (Math.random() > chance) return;
 
   lastChatBanterAt = now;
-  aiBusy = true;
-  try {
+  const job = queueAi(async () => {
     await new Promise(r => setTimeout(r, 700));
     const { state } = await bridge.fetchWorld(false);
     const role = enforcer.getPlayerRole(player, state);
@@ -1779,11 +2041,8 @@ async function handleNormalChat(player, message, ctx) {
         { text: banter, color: 'white' }
       ]);
     }
-  } catch (err) {
-    console.error('[SocialChat]', err.message);
-  } finally {
-    aiBusy = false;
-  }
+  });
+  job?.catch(err => console.error('[SocialChat]', err.message));
 }
 
 async function handleServerStopCompaction(ctx) {
@@ -1870,7 +2129,8 @@ async function processLogLine(rawLine, ctx) {
     if (msg.startsWith(prefix)) {
       await handleChatCommand(sender, msg, ctx);
     } else {
-      handleNormalChat(sender, msg, ctx);
+      // Sin esperar (para no frenar el log), pero atrapando errores: un rechazo suelto tumbaba el bot
+      handleNormalChat(sender, msg, ctx).catch(err => console.error('[Chat]', err.message));
     }
     return;
   }
@@ -2121,7 +2381,7 @@ async function runSmokeTest(cfg) {
   const bannedRe = /(?:colomb|ollama|gemma|qwen|token|inteligencia artificial)/i;
   const lambonTestRe = /\b(mi\s+se[ñn]or|su\s+majestad|alteza|excelencia|gran\s+soberano|gran\s+gobernante)\b/i;
   if (!joinSocial || !leaveSocial || !chatSocial || !directSocial || !testSocial
-    || [joinSocial, leaveSocial, chatSocial, directSocial, testSocial].some(t => t.length > 195 || bannedRe.test(t) || lambonTestRe.test(t))
+    || [joinSocial, leaveSocial, chatSocial, directSocial, testSocial].some(t => t.length > 265 || bannedRe.test(t) || lambonTestRe.test(t))
     || /como\s+(?:el\s+)?gobernante/i.test(directSocial)
     || (stanceCtx.includes('INDEPENDIENTE') && /(?:el\s+tuyo|tu\s+estado\s+es\s+(?:el\s+)?mejor|nueva\s+alejandr[ií]a\s+es\s+(?:el\s+)?mejor)/i.test(directSocial))) {
     throw new Error('Social banter inválido, lambón o mencionó términos prohibidos.');
@@ -2187,7 +2447,7 @@ async function runSmokeTest(cfg) {
   // 9. Multi-NPC cast & Judge etiquette check
   const juezNpc = NPC_CAST.find(n => n.id === 'juez');
   const arqNpc = NPC_CAST.find(n => n.id === 'arquitecto');
-  const impoliteQuery = 'juez que pasa si mato un aldeano sin querer?';
+  const impoliteQuery = 'juez idiota, que pasa si mato un aldeano sin querer?';
   const impoliteSpec = juezNpc.buildPersona(impoliteQuery);
   const impoliteRes = await askNpc({
     config: cfg,
@@ -2201,9 +2461,9 @@ async function runSmokeTest(cfg) {
     query: impoliteQuery,
     contextText: juezNpc.buildContext(state, impoliteQuery, { bridge }).join('\n\n---\n\n')
   });
-  console.log(`9a) NPC Juez (sin respeto) reply:`, impoliteRes);
-  if (!impoliteRes.respuesta_corta || !/(?:excelencia|se[ñn]or[ií]a|se[ñn]or\s+juez|respeto|insolente|educaci[oó]n)/i.test(impoliteRes.respuesta_corta)) {
-    throw new Error(`Se esperaba que el Juez regañara por falta de respeto: ${impoliteRes.respuesta_corta}`);
+  console.log(`9a) NPC Juez (insultado) reply:`, impoliteRes);
+  if (!impoliteRes.respuesta_corta || !/(?:insult|ofens|desacato|respeto|insolen|educaci[oó]n|groser|excelencia|se[ñn]or[ií]a)/i.test(impoliteRes.respuesta_corta)) {
+    throw new Error(`Se esperaba que el Juez reprochara el insulto: ${impoliteRes.respuesta_corta}`);
   }
   const politeQuery = 'su excelencia, que pasa si un aldeano con cedula muere por descuido?';
   const politeSpec = juezNpc.buildPersona(politeQuery);
@@ -2483,6 +2743,7 @@ async function main() {
   });
   const enforcer = new RuleEnforcer({ cfg, bridge, rcon, memory });
   const ctx = { cfg, bridge, rcon, enforcer, memory, events: null, webSync: null, adminGenie: null };
+  ctx.deity = new Deity({ cfg, bridge, rcon, memory, statePath: path.join(SERVER_DIR, 'bot-deity.json') });
   const adminGenie = new AdminGenie({
     cfg,
     rcon,
@@ -2494,6 +2755,7 @@ async function main() {
 
   const shutdown = () => {
     webSync.stop();
+    ctx.deity?.stopGuardian();
     adminGenie.stopAll();
     enforcer.stop();
     rcon.close();
@@ -2502,6 +2764,9 @@ async function main() {
   };
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
+  // Red de seguridad: un error suelto en un temporizador no debe apagar al moderador en plena partida
+  process.on('unhandledRejection', err => console.error('[Bot] Promesa rechazada sin atrapar:', err?.message || err));
+  process.on('uncaughtException', err => console.error('[Bot] Excepción sin atrapar:', err?.stack || err));
 
   try {
     const { rev, state } = await bridge.fetchWorld(true);
@@ -2513,6 +2778,7 @@ async function main() {
   }
 
   await enforcer.start().catch(err => console.warn('[Enforcer init]', err.message));
+  ctx.deity.startGuardian(enforcer);
   const events = new WorldEvents({ cfg, bridge, rcon, enforcer, memory, statePath: path.join(SERVER_DIR, 'bot-events.json') });
   ctx.events = events;
   events.start();

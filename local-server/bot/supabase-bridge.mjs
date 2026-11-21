@@ -39,6 +39,17 @@ function expandQueryTokens(query) {
   if (/granja/.test(norm)) {
     for (const w of ['granja', 'pistones', 'tolvas', 'observadores', 'hierro']) tokens.add(w);
   }
+  // Estructuras: los jugadores las nombran en inglés y las Eras en español
+  const STRUCTURES = [
+    [/(ancient|ciudad\s+antigua|deep\s*dark|oscuridad|warden|sculk)/, ['ciudad', 'antigua', 'deep', 'dark']],
+    [/(trial|camara\s+de\s+prueba|ominos)/, ['trial', 'chamber', 'chambers']],
+    [/(fortaleza|fortress|nether\s+fortress)/, ['fortaleza', 'nether']],
+    [/(bastion|bastion\s+remnant|piglin)/, ['bastion', 'piglins']],
+    [/(mansion|woodland|bosque\s+oscuro)/, ['mansion', 'bosque']],
+    [/(monumento|monument|guardian)/, ['monumento', 'oceano']],
+    [/(stronghold|portal\s+del\s+end|end\s+city|ciudad\s+del\s+end|elytra|shulker)/, ['end', 'fortaleza', 'elytras']]
+  ];
+  for (const [re, add] of STRUCTURES) if (re.test(norm)) add.forEach(w => tokens.add(w));
   return [...tokens];
 }
 
@@ -86,7 +97,7 @@ export class SupabaseBridge {
     if (typeof this.E.setCategories === 'function') {
       this.E.setCategories(this.D.WORK_CATEGORIES || []);
     }
-    this.E.setCategories(this.D.WORK_CATEGORIES || []);
+    this.inflight = null;
   }
 
   buildLocalFallbackState() {
@@ -179,13 +190,22 @@ export class SupabaseBridge {
     if (!force && this.cache.row && (now - this.cache.at) < CACHE_TTL_MS) {
       return this.cache.row;
     }
+    // Varias partes del bot piden el mundo a la vez (Aduana, eventos, NPCs): una sola descarga para todas
+    if (this.inflight) return this.inflight;
+    this.inflight = this._fetchWorldNow(now).finally(() => { this.inflight = null; });
+    return this.inflight;
+  }
+
+  async _fetchWorldNow(now) {
     try {
       const q = `/rest/v1/fw_worlds?id=eq.${encodeURIComponent(this.cfg.worldId || 'main')}&select=id,rev,updated_at,state`;
       const res = await fetch(`${this.cfg.url}${q}`, {
         headers: {
           apikey: this.cfg.anonKey,
           Authorization: `Bearer ${this.cfg.anonKey}`
-        }
+        },
+        // Sin límite, un Supabase colgado dejaba a la Aduana esperando para siempre
+        signal: AbortSignal.timeout(10_000)
       });
       if (!res.ok) {
         throw new Error(`Supabase HTTP ${res.status}: ${await res.text()}`);
@@ -423,7 +443,9 @@ export class SupabaseBridge {
     const matches = q
       ? list.filter(v => normalizeText(`${v.name || ''} ${v.cedula || ''} ${v.home || ''} ${v.prof || ''} ${v.species || ''}`).includes(q))
       : list.slice(0, 6);
-    return matches.slice(0, 6).map((v, i) => {
+    return matches.slice(0, 6).map(v => {
+      // Folio provisional según su posición en el censo completo (igual que la web), no en la búsqueda
+      const i = Math.max(0, list.indexOf(v));
       const isAnim = v.kind === 'animal';
       const owner = isAnim ? (v.owner || 'myth') : (v.owner || state.professions?.[v.prof] || 'myth');
       const natName = this.E.isState(owner) ? this.nat(state, owner).nation : this.pname(state, owner);
@@ -499,7 +521,7 @@ export class SupabaseBridge {
       results.unshift(`[REFERENCIA DE AUDITORÍA TRD 120-01]: Audita oficialmente el Archivista Nacional (NotOutContext / Revisor designado; supletoriamente el Estado socio).\nCategorías: ${cats}.\nReliquias principales (solo 1.ª por tipo): ${rels}.`);
     }
 
-    if (/(era|granja|nether|end|encant|villager|aldean|portal|beacon|elytra|metro|tren|riel|vagoneta|piston|tolva|cobre|trial|hierro|wither|warden|shulker)/i.test(normalizeText(query))) {
+    if (/(era|granja|nether|end|encant|villager|aldean|portal|beacon|elytra|metro|tren|riel|vagoneta|piston|tolva|cobre|trial|hierro|wither|warden|shulker|ancient|ciudad|city|deep|sculk|fortaleza|fortress|bastion|mansion|monumento|monument|stronghold|estructura|lootear|loot|botin|saquear|explorar)/i.test(normalizeText(query))) {
       const era = this.getCurrentEra(state);
       results.unshift(this.getErasRoadmapText(state, query));
       results.unshift(`[Referencia Técnica de Era Actual: ${era.code} — ${era.name}]\nPermitido: ${era.allowed.join(' | ')}\nProhibido: ${era.banned.join(' | ')}`);
@@ -614,7 +636,7 @@ export class SupabaseBridge {
       infra.push(`Estaciones ferroviarias: ${state.stations.map(x => x.name || x.id).filter(Boolean).slice(0, 8).join(', ')}`);
     }
     if (Array.isArray(state?.portals) && state.portals.length) {
-      infra.push(`Portales registrados: ${state.portals.map(x => x.name || x.id).filter(Boolean).slice(0, 8).join(', ')}`);
+      infra.push(`Portales registrados: ${state.portals.map(x => x.label || x.name || x.id).filter(Boolean).slice(0, 8).join(', ')}`);
     }
     if (state?.mega?.name) {
       infra.push(`Megaobra: ${state.mega.name}`);
@@ -787,6 +809,87 @@ export class SupabaseBridge {
       pendingReq,
       nextEraCode: ERAS[cur.index + 1] ? ERAS[cur.index + 1].code : 'ERA ∞'
     };
+  }
+
+  // Religiones escritas en la web (Lore → Religiones y fe). Solo cuenta una fe si le dieron nombre a su dios.
+  getReligions(state) {
+    const rel = state?.religions && typeof state.religions === 'object' ? state.religions : {};
+    const tx = this.makeTx(state);
+    const out = [];
+    for (const [pid, r] of Object.entries(rel)) {
+      if (!r || typeof r !== 'object') continue;
+      const names = String(r.names || '').split(/[,;\n]/).map(x => x.trim()).filter(x => normalizeText(x).replace(/[^a-z0-9]/g, '').length >= 2).slice(0, 8);
+      if (!names.length) continue;
+      const believer = this.pname(state, pid);
+      const people = (pid === 'myth' || pid === 'scad') ? this.nat(state, pid).nation : `${believer} (invitado)`;
+      const field = k => tx(String(r[k] || '').trim()).slice(0, 500);
+      out.push({ pid, believer, people, faith: field('faith'), names, nature: field('nature'), pleases: field('pleases'), angers: field('angers'), prayer: field('prayer'), rites: field('rites') });
+    }
+    return out;
+  }
+
+  // Convicción de un participante (web → Religiones y fe → Convicción): fe que profesa o la Razón, y sus hitos
+  getDevotion(state, pid) {
+    if (!pid) return { path: null, creed: null, level: 0, total: 0 };
+    const d = state?.devotion?.[pid] || {};
+    const rel = state?.religions || {};
+    const hasNames = rp => Boolean(String(rel?.[rp]?.names || '').trim());
+    let creed = d.creed || null;
+    if (!creed && hasNames(pid)) creed = pid; // quien fundó una fe con dios nombrado es su fiel aunque no lo declare
+    const path = creed === 'razon' ? 'razon' : (creed && hasNames(creed) ? 'fe' : null);
+    const list = path === 'razon' ? (this.D.REASON_MILESTONES || []) : path === 'fe' ? (this.D.FAITH_MILESTONES || []) : [];
+    const marks = d.marks || {};
+    return { path, creed: path ? creed : null, level: list.filter(m => marks[m.id] === true).length, total: list.length };
+  }
+
+  getSacredTexts(state, limit = 4) {
+    const tx = this.makeTx(state);
+    const chrons = (Array.isArray(state?.chronicles) ? state.chronicles : [])
+      .filter(c => /^(mito|religi[oó]n)$/i.test(String(c.type || '').trim()))
+      .slice(0, limit)
+      .map(c => `[${c.type} · ${this.pname(state, c.author) || c.author}] ${c.title || ''}: ${tx(c.body || '').replace(/\s+/g, ' ').slice(0, 400)}`);
+    const beliefs = ['myth', 'scad']
+      .map(s => ({ s, b: String(state?.nationLore?.[s]?.beliefs || '').trim() }))
+      .filter(x => x.b)
+      .map(x => `[Creencias de ${this.nat(state, x.s).nation}] ${tx(x.b).slice(0, 300)}`);
+    const origin = String(state?.world?.origin || '').trim();
+    return [...beliefs, ...(origin ? [`[Mito de origen del mundo] ${tx(origin).slice(0, 400)}`] : []), ...chrons];
+  }
+
+  // Datos de territorio para el Cartógrafo: solo lo que la web tiene registrado (nada inventado)
+  getMapContext(state, query = '') {
+    const tokens = expandQueryTokens(query);
+    const rank = (txt) => {
+      const hay = normalizeText(txt);
+      return tokens.reduce((s, t) => s + (hay.includes(t) ? 1 : 0), 0);
+    };
+    const pick = (list, toText, max) => list
+      .map((x, i) => ({ x, i, s: rank(toText(x)) }))
+      .sort((a, b) => b.s - a.s || a.i - b.i)
+      .slice(0, max)
+      .map(({ x }) => toText(x));
+    const ownerName = o => (o === 'myth' || o === 'scad') ? this.nat(state, o).nation : (o ? this.pname(state, o) : 'sin dueño');
+    const stations = Array.isArray(state?.stations) ? state.stations : [];
+    const portals = Array.isArray(state?.portals) ? state.portals : [];
+    const works = (state?.economy?.works || []).filter(w => String(w.coords || '').trim());
+    const homes = (state?.villagers || []).filter(v => !v.deceased && String(v.home || '').trim());
+    const blocks = [];
+    blocks.push(stations.length
+      ? `[ESTACIONES REGISTRADAS EN LA WEB]\n${pick(stations, s => `- ${s.name || 'Estación'}${s.line ? ` (línea ${s.line})` : ''}${s.coords ? ` · coords ${s.coords}` : ''} · ${ownerName(s.owner)}`, 12).join('\n')}`
+      : '[ESTACIONES]: ninguna registrada todavía en la web.');
+    blocks.push(portals.length
+      ? `[PORTALES REGISTRADOS (Overworld ↔ Nether, X,Z)]\n${pick(portals, p => `- ${p.label || p.name || 'Portal'}: Overworld ${p.ow || '?'} ↔ Nether ${p.nh || '?'}`, 12).join('\n')}`
+      : '[PORTALES]: ninguno registrado todavía en la web.');
+    blocks.push(works.length
+      ? `[OBRAS CON COORDENADAS]\n${pick(works, w => `- ${w.name} (${ownerName(w.owner)}, ${w.status || 'pendiente'}) · coords ${w.coords}`, 12).join('\n')}`
+      : '[OBRAS CON COORDENADAS]: ninguna obra tiene coordenadas anotadas en la web.');
+    if (homes.length) {
+      blocks.push(`[MORADAS DEL CENSO]\n${pick(homes, v => `- ${v.name}${v.cedula ? ` (${v.cedula})` : ''}: ${v.home}`, 8).join('\n')}`);
+    }
+    const rail = Number(state?.railBlocks) || 0;
+    if (rail > 0) blocks.push(`[RED FERROVIARIA]: ${rail} bloques de riel registrados en la web.`);
+    blocks.push('Regla del Nether: 1 bloque en el Nether = 8 en el Overworld (X y Z se dividen entre 8; Y no cambia).');
+    return blocks.join('\n\n');
   }
 
   getWorksSummary(state) {

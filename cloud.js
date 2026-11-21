@@ -9,7 +9,7 @@ window.FW_CLOUD = (() => {
   const REV_PREFIX = 'forever_world_cloud_rev_';
   const BASE_PREFIX = 'forever_world_cloud_base_';
   const WORLD_UI_KEYS = ['rpLawsSeeded', 'foodRuleV1', 'guestSeedV1', 'luthadelV1'];
-  const APP_VER = '20261120183000';
+  const APP_VER = '20261120213000';
   let warnedOutdated = false;
 
   let client = null;
@@ -323,7 +323,9 @@ window.FW_CLOUD = (() => {
   }
 
   async function checkForUpdates() {
-    if (!client || pushing || pushTimer || status === 'unconfigured' || status === 'offline') return;
+    // En conflicto el jugador todavía no eligió qué copia conservar: no se descarga nada solo
+    // (antes el latido de 15 s pisaba la copia local mientras el aviso seguía abierto).
+    if (!client || pushing || pushTimer || status === 'unconfigured' || status === 'offline' || status === 'conflict') return;
     if (channel && (channel.state === 'closed' || channel.state === 'errored')) {
       subscribeRealtime();
     }
@@ -382,6 +384,12 @@ window.FW_CLOUD = (() => {
             return;
           }
           if (currentRev !== null && Number(row.rev) <= Number(currentRev)) return;
+          if (status === 'conflict') {
+            // Guardar la versión más nueva de la nube para cuando el jugador decida, sin pisar lo local
+            if (!conflictRow || Number(row.rev) > Number(conflictRow.rev || 0)) conflictRow = row;
+            emitStatus();
+            return;
+          }
           applyIncomingRow(row, true);
         }
       )
