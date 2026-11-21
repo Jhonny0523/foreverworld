@@ -12,7 +12,7 @@ import { SessionMemory, PERMIT_SCOPES } from './memory.mjs';
 import { WorldEvents } from './events.mjs';
 import { Deity } from './deity.mjs';
 import { WebSyncAnnouncer, snapshotWorld, diffWorldSnapshots } from './web-sync.mjs';
-import { AdminGenie, extractAdminWish, planAdminWish, sanitizeRconCommand } from './admin-genie.mjs';
+import { AdminGenie, extractAdminWish, planAdminWish, sanitizeRconCommand, setWikiCachePath } from './admin-genie.mjs';
 import {
   COLOR_PALETTE_LIST,
   parseFormattedText,
@@ -1796,7 +1796,7 @@ const NPC_CAST = [
         roleDesc: 'Eres El Cartógrafo Oficial de Miscolandia. Hablas como topógrafo meticuloso y algo maniático con las coordenadas: das direcciones exactas con los datos del registro, conviertes coordenadas Overworld↔Nether (divide o multiplica X y Z entre 8; la Y no cambia) y regañas con humor a quien no anota sus portales o estaciones en la web.',
         temperature: 0.4,
         extraRules: [
-          '12. SOLO usa coordenadas, estaciones, portales y obras que aparezcan en <normativa_vigente>. Si lo que preguntan no está registrado, dilo claro y pide que lo registren en la web (pestaña Territorio); JAMÁS inventes coordenadas, lugares ni nombres.',
+          '12. SOLO usa coordenadas, estaciones, portales y obras que aparezcan en <normativa_vigente> (incluidos los datos EN VIVO de posición actual y última muerte de quien te habla, si vienen). Si lo que preguntan no está registrado, dilo claro y pide que lo registren en la web (pestaña Territorio); JAMÁS inventes coordenadas, lugares ni nombres.',
           '13. Si te dan unas coordenadas para convertir, haz la cuenta exacta (Overworld→Nether: X/8, Z/8; Nether→Overworld: X*8, Z*8), redondeando a entero.'
         ]
       };
@@ -1825,6 +1825,40 @@ function detectAddressedNpc(clean) {
     return null; // Pregonero apareció primero; lo atiende maybeHandleDirectPregonero
   }
   return best;
+}
+
+const DIM_NAMES = { 'minecraft:overworld': 'Overworld', 'minecraft:the_nether': 'Nether', 'minecraft:the_end': 'End' };
+async function readPlayerPos(player, rcon) {
+  const res = String(await rcon.send(`data get entity ${player} Pos`));
+  const nums = (res.match(/\[([^\]]+)\]/) || [])[1]?.split(',').map(x => Math.floor(parseFloat(x))) || [];
+  const dimRes = String(await rcon.send(`data get entity ${player} Dimension`));
+  const dim = (dimRes.match(/"([a-z_:]+)"/) || [])[1];
+  return nums.length === 3 && nums.every(Number.isFinite) ? { x: nums[0], y: nums[1], z: nums[2], dim: DIM_NAMES[dim] || dim || '?' } : null;
+}
+async function readLastDeath(player, rcon) {
+  const res = String(await rcon.send(`data get entity ${player} LastDeathLocation`));
+  const pos = (res.match(/pos:\s*\[I;\s*(-?\d+),\s*(-?\d+),\s*(-?\d+)\]/) || []).slice(1).map(Number);
+  const dim = (res.match(/dimension:\s*"([a-z_:]+)"/) || [])[1];
+  return pos.length === 3 ? { x: pos[0], y: pos[1], z: pos[2], dim: DIM_NAMES[dim] || dim || '?' } : null;
+}
+async function playerGeoContext(player, ctx) {
+  if (!/^[A-Za-z0-9_]{1,16}$/.test(player)) return '';
+  try {
+    const here = await readPlayerPos(player, ctx.rcon);
+    const death = await readLastDeath(player, ctx.rcon);
+    return [
+      here ? `[POSICIÓN ACTUAL DE ${player} (dato en vivo del servidor)]: X ${here.x}, Y ${here.y}, Z ${here.z} en el ${here.dim}${here.dim === 'Overworld' ? ` (equivale a X ${Math.floor(here.x / 8)}, Z ${Math.floor(here.z / 8)} en el Nether)` : here.dim === 'Nether' ? ` (equivale a X ${here.x * 8}, Z ${here.z * 8} en el Overworld)` : ''}.` : '',
+      death ? `[ÚLTIMA MUERTE DE ${player}]: X ${death.x}, Y ${death.y}, Z ${death.z} en el ${death.dim}.` : `[ÚLTIMA MUERTE DE ${player}]: no consta.`
+    ].filter(Boolean).join('\n');
+  } catch {
+    return '';
+  }
+}
+async function tellDeathCoords(player, ctx) {
+  await new Promise(r => setTimeout(r, 400));
+  const d = await readLastDeath(player, ctx.rcon);
+  if (!d) return;
+  await ctx.rcon.tellraw(player, ['', { text: '[Cartógrafo] ', color: 'dark_aqua', bold: true }, { text: `Caíste en X ${d.x}, Y ${d.y}, Z ${d.z} (${d.dim}). Tus cosas duran 5 minutos en el suelo.`, color: 'white' }]);
 }
 
 // La deidad: solo existe si alguna fe le dio nombre en la web. Casi nunca contesta (ver deity.mjs).
@@ -1887,6 +1921,8 @@ async function answerAsNpc(npc, player, clean, ctx) {
       : `El jugador te llamó directamente ("${clean}") para saludar o saber qué hay de nuevo en tu área.`;
 
     const spec = npc.buildPersona(clean);
+    // El Cartógrafo sabe dónde está quien le habla y dónde murió por última vez
+    const liveGeo = npc.id === 'cartografo' ? await playerGeoContext(player, ctx) : '';
     let reply;
     try {
       reply = await askNpc({
@@ -1899,7 +1935,7 @@ async function answerAsNpc(npc, player, clean, ctx) {
         player,
         playerIdentity: buildPlayerIdentity(player, role, state, bridge),
         query,
-        contextText: [farmLocksText(state, bridge), ...npc.buildContext(state, clean, { ...ctx, player })].join('\n\n---\n\n'),
+        contextText: [liveGeo, farmLocksText(state, bridge), ...npc.buildContext(state, clean, { ...ctx, player })].filter(Boolean).join('\n\n---\n\n'),
         chatHistoryText: memory?.getRecentChatText(10) || '',
         memoryText: memory?.getPersistentMemoryText({ maxSessions: 5, maxNotes: 10 }) || ''
       });
@@ -2151,8 +2187,10 @@ async function processLogLine(rawLine, ctx) {
       const adv = rest.match(/^has made the advancement \[([^\]]+)\]/);
       if (adv) {
         ctx.memory?.recordEvent('event', `${canonical} consiguió el logro [${adv[1]}]`);
-      } else if (/(?:was slain by|was shot by|was blown up by|fell from|hit the ground|drowned|burned|went up in flames|tried to swim in lava|suffocated|starved|withered|killed|died)/i.test(rest)) {
+      } else if (/(?:was slain by|was shot by|was blown up by|blew up|fell |doomed to fall|hit the ground|drowned|burned|went up in flames|tried to swim in lava|lava|suffocated|starved|withered|killed|died|squashed|squished|impaled|froze|pricked|poked|struck by lightning|fireballed|stung|obliterated|discovered the floor|experienced kinetic|walked into|was roasted|didn't want to live|was pummeled)/i.test(rest)) {
         ctx.memory?.recordEvent('death', `${canonical} ${rest}`);
+        // Coordenadas de la muerte, en privado (para volver por las cosas)
+        tellDeathCoords(canonical, ctx).catch(() => {});
       }
     }
   }
@@ -2744,6 +2782,7 @@ async function main() {
   const enforcer = new RuleEnforcer({ cfg, bridge, rcon, memory });
   const ctx = { cfg, bridge, rcon, enforcer, memory, events: null, webSync: null, adminGenie: null };
   ctx.deity = new Deity({ cfg, bridge, rcon, memory, statePath: path.join(SERVER_DIR, 'bot-deity.json') });
+  setWikiCachePath(path.join(SERVER_DIR, 'bot-wiki-cache.json'));
   const adminGenie = new AdminGenie({
     cfg,
     rcon,

@@ -387,6 +387,10 @@ export async function generateSocialMessage({ config, kind, player, role, worldC
   if (!msg || BANNED_TERM_RE.test(msg) || LAMBON_RE.test(msg)) {
     return fallback;
   }
+  // Garantía: si le pidieron mirar algo y no aclaró que no tiene ojos, se lo anteponemos
+  if (asksToSee && !/(no\s+tengo\s+ojos|sin\s+ojos|no\s+(?:puedo|te\s+puedo|logro)\s+ver|no\s+veo|ciego)/i.test(msg)) {
+    return smartTruncate(`No tengo ojos, ${player}, pero… ${msg.charAt(0).toLowerCase()}${msg.slice(1)}`, 280);
+  }
   return msg;
 }
 
