@@ -4,7 +4,7 @@
 // de "gracia", la gracia de la semana es poca, y lo que puede dar depende de la Era (no adelanta progresión).
 
 import fs from 'node:fs';
-import { sanitizeChatText, smartTruncate } from './ollama.mjs';
+import { buildOllamaOptions, sanitizeChatText, smartTruncate } from './ollama.mjs';
 
 const SAFE_PLAYER_RE = /^[A-Za-z0-9_]{1,16}$/;
 const BANNED_TERM_RE = /(?:colomb|ollama|gemma|qwen|token|inteligencia artificial|modelo de lenguaje)/i;
@@ -450,7 +450,7 @@ export class Deity {
         think: false,
         keep_alive: this.cfg.ollamaKeepAlive || '10m',
         format,
-        options: { temperature, num_predict: numPredict, num_ctx: 8192 },
+        options: buildOllamaOptions(this.cfg, { temperature, num_predict: numPredict, num_ctx: 8192 }),
         messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }]
       })
     });

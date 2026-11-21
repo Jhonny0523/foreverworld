@@ -6,7 +6,7 @@ import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { RconClient } from './rcon.mjs';
 import { SupabaseBridge } from './supabase-bridge.mjs';
-import { askModerator, askNpc, npcOfflineReply, generateRoast, generateSocialMessage, compactSessionMemory } from './ollama.mjs';
+import { askModerator, askNpc, buildOllamaOptions, npcOfflineReply, generateRoast, generateSocialMessage, compactSessionMemory } from './ollama.mjs';
 import { RuleEnforcer } from './enforcer.mjs';
 import { SessionMemory, PERMIT_SCOPES } from './memory.mjs';
 import { WorldEvents } from './events.mjs';
@@ -1716,12 +1716,12 @@ const NPC_CAST = [
       };
     },
     buildContext(state, q, { bridge }) {
-      return [
+      return [...new Set([
         BOT_COMMANDS_DOC,
         bridge.getEraExpectationsSummary(state),
         ...bridge.findOocContext(state, q),
         ...bridge.findRelevantNorms(state, q, { limit: 3, isJuez: false, includeOoc: true })
-      ].filter(Boolean);
+      ].filter(Boolean))];
     }
   },
   {
@@ -2854,10 +2854,15 @@ async function runSmokeTest(cfg) {
   const resLuth = resolveWishPlayers('castiga al de luthadel', [], state, cfg);
   const effFixed = sanitizeRconCommand('effect give NotOutContext minecraft:levitation 4s');
   const mobFixed = sanitizeRconCommand('execute at NotOutContext run summon minecraft:chicken ~1 ~ ~ {CustomName:\'{"text":"Inspector","color":"gold"}\'}');
+  const optsSplit = buildOllamaOptions({ ollamaNumGpu: 22, ollamaNumCtx: 6144 }, { temperature: 0.2 });
+  const optsCpu = buildOllamaOptions({ ollamaNumGpu: 0 }, {});
   if (
     !resNoc.targets.has('notoutcontext') ||
     !resArch.targets.has('notoutcontext') ||
     !resLuth.targets.has('scadrial0523') ||
+    optsSplit.num_gpu !== 22 ||
+    optsSplit.num_ctx !== 6144 ||
+    optsCpu.num_gpu !== 0 ||
     effFixed !== 'effect give NotOutContext minecraft:levitation 4' ||
     !mobFixed.includes('CustomName:{text:"Inspector",color:"gold"}') ||
     riskyReason('effect give NotOutContext minecraft:levitation 5 1', 'castiga a noc', resNoc.targets) !== null ||

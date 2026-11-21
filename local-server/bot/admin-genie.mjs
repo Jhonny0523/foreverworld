@@ -3,6 +3,7 @@
 // Si un comando falla, lee el error, consulta la sintaxis (help del servidor + Minecraft Wiki) y reintenta.
 
 import fs from 'node:fs';
+import { buildOllamaOptions } from './ollama.mjs';
 
 const BOSSBAR_ID = 'minecraft:admin_timer';
 
@@ -101,6 +102,8 @@ function normalizeSnbtQuirks(cmd) {
     });
     return `${key}=[${fixedBody}]`;
   });
+  // En 1.21.5+ / 26.4 minecraft:enchantments va directo (sin wrapper {levels:{...}})
+  out = out.replace(/(minecraft:enchantments|enchantments)=\{\s*levels\s*:\s*(\{[^}]*\})\s*\}/gi, '$1=$2');
   // En Minecraft Vanilla /effect give <objetivo> <efecto> <segundos> NO lleva sufijo "s" (ej. 10, no 10s)
   out = out.replace(/(\beffect\s+give\s+\S+\s+\S+\s+)(\d+)s\b/gi, '$1$2');
   // Si /title recibe texto suelto sin llaves ni comillas, envuélvelo en SNBT {text:"..."}
@@ -430,7 +433,7 @@ const EFFECT_WORDS = [
   [/\b(mare\w*|n[aá]usea)\b/i, 'nausea', 0, false]
 ];
 // Lo que el intérprete NO sabe hacer: si aparece, se usa la IA (con parche de lo que olvide)
-const COMPLEX_RE = /\b(da|dale|dales|darle|darles|regal\w*|entreg\w*|quit\w*|qu[ií]tale\w*|borr\w*|limpi\w*|tp|teletransport\w*|lleva\w*|trae\w*|constru\w*|invoc\w*|spawn\w*|aparece\w*|mata\w*|mat[aá]\w*|explot\w*|cambia\w*|modo|gamemode|kick|ban\w*|op|deop|whitelist|dificultad|bloque\w*|cofre\w*|cuenta\s+regresiva|contador|cierra|apaga|reinicia|guarda\w*|castig\w*|trolle\w*|broma|susto|asust\w*|tortur\w*|humill\w*|premi\w*|bendic\w*|bendec\w*|sorprend\w*|show|espect[aá]culo|caos|locura|gana|quieras)\b/i;
+const COMPLEX_RE = /\b(da|dale|dales|darle|darles|regal\w*|entreg\w*|quit\w*|qu[ií]tale\w*|borr\w*|limpi\w*|tp|teletransport\w*|lleva\w*|trae\w*|constru\w*|invoc\w*|spawn\w*|aparece\w*|mata\w*|mat[aá]\w*|explot\w*|cambia\w*|modo|gamemode|kick|ban\w*|op|deop|whitelist|dificultad|bloque\w*|cofre\w*|cuenta\s+regresiva|contador|cierra|apaga|reinicia|guarda\w*|castig\w*|trolle\w*|broma|susto|asust\w*|tortur\w*|humill\w*|premi\w*|bendic\w*|bendec\w*|sorprend\w*|show|espect[aá]culo|caos|locura|gana|quieras|[ií]tem\w*|objeto\w*|espada\w*|pico\w*|hacha\w*|arco\w*|armadura\w*|escudo\w*|poci[oó]n\w*|libro\w*|diamante\w*|galleta\w*|encant\w*|llamad[oa]|tama[ñn]o|escala|knockback|sharpness|mending|unbreaking|looting|fortune|efficiency|empuje|filo|irrompibilidad)\b/i;
 
 function ownMessage(w) {
   // 1) Entre comillas  2) Después de ":"  3) Después del verbo de decir/pantalla/celebrar
@@ -482,10 +485,11 @@ export function homerIntents(wish, onlinePlayers = []) {
   // Las órdenes se buscan FUERA del texto del mensaje ("di: mañana hay feria" no debe hacerlo de día)
   const cmdPart = msgRaw ? w.replace(msgRaw, ' ') : w;
   const hasEffectWord = EFFECT_WORDS.some(([re]) => re.test(cmdPart));
+  const hasItemNoun = /\b(un|una|unos|unas)\s+(?!(?:segundo|minuto|rayo|fuego|cohete|t[ií]tulo|mensaje|anuncio|poco|rato))/i.test(cmdPart);
   const complex = COMPLEX_RE.test(cmdPart
     .replace(/sin\s+dar\s+items?/gi, '')
     .replace(/\bpon(?:le)?\s+(?:en|por)\s+(?:la\s+)?pantalla\b/gi, '')
-    .replace(hasEffectWord ? /\b(dale|dales|darle|darles|ponle|ponles)\b/gi : /a^/, ''));
+    .replace((hasEffectWord && !hasItemNoun) ? /\b(dale|dales|darle|darles|ponle|ponles)\b/gi : /a^/, ''));
   const named = namedPlayers(w, onlinePlayers);
   const all = /\b(todos|todas|todo\s+el\s+mundo|cada\s+jugador|nosotros|nos|a\s+todos)\b/i.test(w);
   const pasos = [];
@@ -798,7 +802,7 @@ export async function repairCommand({ config, wish, failedCmd, error, serverHelp
       think: false,
       keep_alive: config.ollamaKeepAlive || '10m',
       format: { type: 'object', properties: { comando: { type: 'string' }, explicacion: { type: 'string' } }, required: ['comando'] },
-      options: { temperature: 0.1, num_predict: 900, num_ctx: 8192 },
+      options: buildOllamaOptions(config, { temperature: 0.1, num_predict: 900, num_ctx: 8192 }),
       messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }]
     })
   });
@@ -899,7 +903,12 @@ export async function planAdminWish({ config, wish, onlinePlayers = [], worldCon
     'REGLAS DE SINTAXIS VANILLA 26.4:',
     '1. Sin "/" inicial en "comando" (ej: "time set day", nunca "/time set day").',
     '2. Servidor 100% Vanilla sin plugins (NO existen /fly, /god, /home, /tpa, /broadcast, /countdown, /mute, /jail). Usa comandos reales: time, weather, tp, give, effect, summon, damage, attribute, title, tellraw, playsound, particle, gamerule, difficulty, gamemode, xp, clear, bossbar, setblock, save-all, stop, whitelist, ban, pardon, kick. Recuerda: en effect give el tiempo es un entero SIN "s" (ej. 15 0, nunca 15s).',
-    '3. Componentes y nombres en 26.4 usan SNBT compuesto sin comillas simples alrededor (CustomName:{text:"...",color:"gold"}, minecraft:custom_name={text:"...",color:"gold",italic:false}). NUNCA uses CustomName:\'{...}\' ni {display:{Name:...}}.',
+    '3. Componentes y nombres en 26.4 usan SNBT compuesto sin comillas simples alrededor (CustomName:{text:"...",color:"gold"}, minecraft:custom_name={text:"...",color:"gold",italic:false}). NUNCA uses CustomName:\'{...}\', {Enchantments:[...]} ni {display:{Name:...}}.',
+    '3b. CHUleta VANILLA 26.4 (ítem encantado, poción, partículas, tamaño):',
+    '   - Ítem encantado/nombrado: give J minecraft:wooden_sword[minecraft:custom_name={text:"Espada del Destierro",color:"gold",italic:false},minecraft:enchantments={"minecraft:knockback":3},minecraft:unbreakable={}] 1',
+    '   - Poción arrojadiza: give J minecraft:splash_potion[minecraft:potion_contents={potion:"minecraft:strong_healing"}] 1',
+    '   - Partícula con color: particle minecraft:dust{color:[1.0,0.2,0.2],scale:1.5} ~ ~1 ~ 1 1 1 0 60',
+    '   - Tamaño/escala (solo si lo piden): attribute J minecraft:scale base set 1.5 (y volver a 1 con delay_sec si es temporal)',
     '4. Fuegos artificiales en 26.4 (usa has_twinkle:true,has_trail:true, nunca "flicker"): execute as @a at @s run summon minecraft:firework_rocket ~ ~1 ~ {LifeTime:20,FireworksItem:{id:"minecraft:firework_rocket",count:1,components:{"minecraft:fireworks":{flight_duration:1,explosions:[{shape:"large_ball",colors:[I;16755200,5636095],has_twinkle:true,has_trail:true}]}}}}',
     '5. Cuentas regresivas ("en N segundos con contador"): usa UN SOLO paso tipo:"countdown" con segundos, titulo, subtitulo con "{s}", color, bossbar:true, mensaje_final y comandos_finales (["save-all","stop"] si cierra el servidor).',
     '6. Cancelar contador: tipo:"cancel_countdown". Anuncio solo chat/pantalla: tipo:"broadcast" (pantalla:true para título grande).',
@@ -932,11 +941,11 @@ export async function planAdminWish({ config, wish, onlinePlayers = [], worldCon
             think: false,
             keep_alive: config.adminModel ? '2m' : (config.ollamaKeepAlive || '10m'),
             format: ADMIN_PLAN_SCHEMA,
-            options: {
+            options: buildOllamaOptions(config, {
               temperature,
               num_predict: 2600,
               num_ctx: 8192
-            },
+            }),
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: userPrompt }

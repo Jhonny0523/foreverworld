@@ -661,16 +661,16 @@
         <div style="margin-top:auto;">
           <div class="flex-between text-xs text-muted font-mono" style="margin-bottom:5px;">
             <span>Casa de moneda ${tip('imprimir')} ${tip('quemar')}</span>
-            <span class="flex-row-wrap" style="gap:4px;">
+            ${me === s ? `<span class="flex-row-wrap" style="gap:4px;">
               ${quickAmounts.map(n => `<button type="button" class="eco-quick-chip" data-action="mint-fill" data-s="${s}" data-v="${n}">+${n}</button>`).join('')}
               ${room > 0 ? `<button type="button" class="eco-quick-chip" data-action="mint-fill" data-s="${s}" data-v="${room}" title="Llenar margen imprimible">Máx</button>` : ''}
-            </span>
+            </span>` : ''}
           </div>
-          <div class="flex-row-wrap" style="gap:6px;">
+          ${me === s ? `<div class="flex-row-wrap" style="gap:6px;">
             <input id="mint-${s}" type="number" step="0.01" min="1" value="10" class="mc-input font-mono" style="width:86px;"/>
             <button class="mc-btn mc-btn-${color}" data-action="mint" data-s="${s}" style="flex:1;">Imprimir</button>
             <button class="mc-btn" data-action="burn" data-s="${s}" style="flex:1;">Quemar</button>
-          </div>
+          </div>` : `<div class="mc-slot p-sm text-xs text-dim font-mono">Solo ${esc(nat(s).player)} opera esta Casa de Moneda.</div>`}
         </div>
       </div>`;
   }
@@ -736,19 +736,25 @@
           </div>
         </div>
         <div style="margin-top:auto;">
-          <div class="text-xs text-muted font-mono" style="margin-bottom:4px;">Convertir moneda ${tip('deslizamiento')}</div>
-          <div class="grid-3" style="gap:6px;">
-            <select id="swap-who" class="mc-select font-mono">${peopleOpts(me || 'myth')}</select>
-            <select id="swap-from" class="mc-select font-mono">${curOpts('M')}</select>
-            <input id="swap-amt" type="number" step="0.01" min="1" value="10" class="mc-input font-mono"/>
-          </div>
-          <div class="flex-between" style="margin-top:6px;"><span id="swap-preview" class="text-xs font-mono text-diamond"></span><button class="mc-btn" data-action="swap">Cambiar</button></div>
+          <div class="text-xs text-muted font-mono" style="margin-bottom:4px;">Convertir moneda ${me && participants().includes(me) ? `(${esc(pname(me))}) ` : ''}${tip('deslizamiento')}</div>
+          ${me && participants().includes(me) ? `
+            <input type="hidden" id="swap-who" value="${esc(me)}"/>
+            <div class="grid-2" style="gap:6px;">
+              <select id="swap-from" class="mc-select font-mono">${curOpts('M')}</select>
+              <input id="swap-amt" type="number" step="0.01" min="1" value="10" class="mc-input font-mono"/>
+            </div>
+            <div class="flex-between" style="margin-top:6px;"><span id="swap-preview" class="text-xs font-mono text-diamond"></span><button class="mc-btn" data-action="swap">Cambiar</button></div>
+          ` : `
+            <div class="text-xs text-dim" style="margin-bottom:6px;">Elige quién eres en "Soy:" arriba para cambiar divisas.</div>
+            <div class="flex-between"><span class="text-xs text-dim">—</span><button class="mc-btn" disabled>Cambiar</button></div>
+          `}
         </div>
       </div>`;
   }
 
   function priceRows(s, shopQ = '') {
     const q = (shopQ || '').trim().toLowerCase();
+    const mine = me === s;
     const allItems = state.economy.prices.filter(p => p.seller === s);
     const items = q ? allItems.filter(p => (p.name + ' ' + (p.unit || '')).toLowerCase().includes(q)) : allItems;
     if (!allItems.length) {
@@ -767,13 +773,18 @@
           : `${fmt(E.convert(state, p.price, c, E.otherCur(c)))}${fixedCur ? '' : ` ${esc(sym(E.otherCur(c)))}`}`;
         return `<tr>
         <td><div class="text-white" style="font-weight:700;">${esc(p.name)}</div><div class="text-xs text-dim">${esc(p.unit || '')}</div></td>
-        <td><div class="flex-row-wrap" style="gap:4px;flex-wrap:nowrap;"><input type="number" min="0" step="0.01" value="${p.price}" class="mc-input font-mono" style="width:70px;padding:3px 5px;" id="price-${p.id}"/><span class="text-xs">${esc(sym(c))}</span></div></td>
+        <td>${mine
+          ? `<div class="flex-row-wrap" style="gap:4px;flex-wrap:nowrap;"><input type="number" min="0" step="0.01" value="${p.price}" class="mc-input font-mono" style="width:70px;padding:3px 5px;" id="price-${p.id}"/><span class="text-xs">${esc(sym(c))}</span></div>`
+          : `<span class="font-mono text-white">${fmt(p.price)} ${esc(sym(c))}</span>`}</td>
         <td class="font-mono text-xs text-emerald">${equiv}</td>
         <td><div class="flex-row-wrap" style="gap:4px;flex-wrap:nowrap;">
-          <button class="mc-btn" style="padding:3px 6px;" data-action="price-set" data-id="${p.id}" title="Guardar nuevo precio">✔</button>
-          <button class="mc-btn mc-btn-emerald" style="padding:3px 6px;" data-action="price-buy" data-id="${p.id}" title="Comprar">🛒</button>
-          <button class="mc-btn mc-btn-amethyst" style="padding:3px 6px;" data-action="price-challenge" data-id="${p.id}" title="Impugnar con oferta sellada">⚖</button>
-          <button class="mc-btn" style="padding:3px 6px;" data-action="price-del" data-id="${p.id}">✕</button>
+          ${mine ? `
+            <button class="mc-btn" style="padding:3px 6px;" data-action="price-set" data-id="${p.id}" title="Guardar nuevo precio">✔</button>
+            <button class="mc-btn" style="padding:3px 6px;" data-action="price-del" data-id="${p.id}" title="Eliminar de tu tienda">✕</button>
+          ` : `
+            <button class="mc-btn mc-btn-emerald" style="padding:3px 6px;" data-action="price-buy" data-id="${p.id}" title="Comprar">🛒</button>
+            <button class="mc-btn mc-btn-amethyst" style="padding:3px 6px;" data-action="price-challenge" data-id="${p.id}" title="Impugnar con oferta sellada">⚖</button>
+          `}
         </div></td></tr>`;
       }).join('')}
       </tbody></table>`;
@@ -853,36 +864,42 @@
       <div class="grid-3" style="align-items:stretch;">${treasuryCard('myth')}${bankCard()}${treasuryCard('scad')}</div>`);
 
     // Compra y transferencia
-    const buySeller = participants().includes(state.ui.buySeller) ? state.ui.buySeller : 'scad';
+    const identified = Boolean(me && participants().includes(me));
+    const otherSellers = identified ? participants().filter(p => p !== me) : participants();
+    const buySeller = otherSellers.includes(state.ui.buySeller)
+      ? state.ui.buySeller
+      : (otherSellers.find(p => p !== (me || '')) || otherSellers[0] || 'scad');
     const buyIsState = E.isState(buySeller);
     const sellerItems = eco.prices.filter(p => p.seller === buySeller);
     const buyItemObj = sellerItems.find(p => p.id === state.ui.buyItem);
     const buyCurNow = buyItemObj
       ? curFor(buySeller, buyItemObj)
       : (['M', 'S', 'U'].includes(state.ui.buyCur) ? state.ui.buyCur : (buyIsState ? curOf(buySeller) : 'M'));
-    const defaultBuyer = (state.ui.buyBuyer && state.ui.buyBuyer !== buySeller && participants().includes(state.ui.buyBuyer))
-      ? state.ui.buyBuyer
-      : (me && me !== buySeller && participants().includes(me) ? me : (buyIsState ? E.otherState(buySeller) : 'myth'));
     const buyInner = `
         <div class="grid-2" style="gap:8px;">
-          ${field('Vendedor', `<select id="buy-seller" class="mc-select font-mono" data-action-change="buy-seller">${peopleOpts(buySeller)}</select>`)}
-          ${field('Comprador', `<select id="buy-buyer" class="mc-select font-mono">${peopleOpts(defaultBuyer, participants().filter(p => p !== buySeller))}</select>`)}
+          ${field('Comprador', identified
+            ? `<input type="hidden" id="buy-buyer" value="${esc(me)}"/><div class="mc-slot p-sm flex-between" style="min-height:36px;">${ptag(me)}<span class="text-xs text-dim font-mono">Tú</span></div>`
+            : `<input type="hidden" id="buy-buyer" value=""/><div class="mc-slot p-sm text-xs text-dim" style="min-height:36px;">Elige "Soy:" arriba para comprar con tu cuenta.</div>`)}
+          ${field('Vendedor', `<select id="buy-seller" class="mc-select font-mono" data-action-change="buy-seller">${peopleOpts(buySeller, otherSellers)}</select>`)}
           ${field('Producto', `<select id="buy-item" class="mc-select" data-action-change="buy-item">${opts([...sellerItems.map(p => [p.id, `${p.name} — ${fmt(p.price)} ${sym(curFor(buySeller, p))}`]), ['__otro', 'Otro (precio acordado)']], state.ui.buyItem)}</select>`)}
           ${field('Cantidad', `<input id="buy-qty" type="number" min="1" value="1" class="mc-input font-mono"/>`)}
           ${field('Moneda y precio unitario', `<div class="grid-2" style="gap:6px;"><select id="buy-cur" class="mc-select font-mono">${curOpts(buyCurNow, true)}</select><input id="buy-price" type="number" min="0" step="0.01" class="mc-input font-mono"/></div>`)}
           ${field('Concepto', `<input id="buy-note" class="mc-input" placeholder="Ej. 2 stacks de hierro"/>`)}
         </div>
         <div id="buy-preview" class="mc-slot p-sm text-xs font-mono" style="margin:10px 0;"></div>
-        <button class="mc-btn mc-btn-emerald" data-action="buy" style="width:100%;">Registrar compra en Libro Mayor</button>`;
+        <button class="mc-btn mc-btn-emerald" data-action="buy" style="width:100%;" ${identified ? '' : 'disabled'}>Registrar compra en Libro Mayor</button>`;
+    const payTos = identified ? participants().filter(p => p !== me) : participants();
     const payInner = `
         <div class="grid-2" style="gap:8px;">
-          ${field('De', `<select id="tr-from" class="mc-select font-mono">${peopleOpts(me || 'myth')}</select>`)}
-          ${field('Para', `<select id="tr-to" class="mc-select font-mono">${peopleOpts('scad')}</select>`)}
+          ${field('De', identified
+            ? `<input type="hidden" id="tr-from" value="${esc(me)}"/><div class="mc-slot p-sm flex-between" style="min-height:36px;">${ptag(me)}<span class="text-xs text-dim font-mono">Tú</span></div>`
+            : `<input type="hidden" id="tr-from" value=""/><div class="mc-slot p-sm text-xs text-dim" style="min-height:36px;">Elige "Soy:" arriba.</div>`)}
+          ${field('Para', `<select id="tr-to" class="mc-select font-mono">${peopleOpts(payTos[0] || '', payTos)}</select>`)}
           ${field('Moneda', `<select id="tr-cur" class="mc-select font-mono">${curOpts('M', true)}</select>`)}
           ${field('Monto', `<input id="tr-amt" type="number" step="0.01" min="0" value="10" class="mc-input font-mono"/>`)}
         </div>
         <div style="margin:8px 0;">${field('Concepto', `<input id="tr-note" class="mc-input" placeholder="Ej. Contrato obra norte / Reparación Ley 001"/>`)}</div>
-        <button class="mc-btn mc-btn-diamond" data-action="transfer" style="width:100%;">Transferir y asentar</button>
+        <button class="mc-btn mc-btn-diamond" data-action="transfer" style="width:100%;" ${identified ? '' : 'disabled'}>Transferir y asentar</button>
         <p class="text-xs text-dim" style="margin:8px 0 0 0;">Si quien paga no tiene esa moneda, la Cámara convierte el faltante. En ${esc(sym('U'))} se liquida al cambio del día.</p>`;
     const trade = `<div class="grid-2">
       ${panel(`${head('COMPRAR', 'emerald', 'REGISTRAR UNA COMPRA', `Se liquida en ${esc(sym('M'))}, ${esc(sym('S'))} o canasta neutra ${esc(sym('U'))} al cambio del día, dejando asiento en TRD 130-01.`)}${buyInner}`)}
@@ -893,6 +910,7 @@
     const shopQ = state.ui.shopQ || '';
     const shopCard = sid => {
       const isSt = E.isState(sid);
+      const mine = me === sid;
       const itemCnt = eco.prices.filter(p => p.seller === sid).length;
       const defaultCur = isSt ? curOf(sid) : 'M';
       const badgeTxt = isSt ? `${esc(sym(curOf(sid)))} / ${esc(sym('U'))} · ${itemCnt} ítems` : `Invitado · DR/CU/OE · ${itemCnt} ítems`;
@@ -900,12 +918,12 @@
         <div class="flex-between" style="margin-bottom:${isSt ? '8px' : '4px'};"><strong class="font-mono text-${isSt ? stateColor(sid) : 'diamond'} text-sm">${esc(actorLabel(sid))} vende</strong><span class="mc-tag tag-${isSt ? stateColor(sid) : 'cyan'}">${badgeTxt}</span></div>
         ${isSt ? '' : `<div class="text-xs text-dim" style="margin-bottom:8px;">Ley 003: bienes propios, botín de exploración, libros, servicios archivísticos y contratos (cobra en ${esc(sym('M'))}, ${esc(sym('S'))} o ${esc(sym('U'))}).</div>`}
         <div style="overflow-x:auto;">${priceRows(sid, shopQ)}</div>
-        <div class="grid-4" style="gap:6px;margin-top:10px;">
+        ${mine ? `<div class="grid-4" style="gap:6px;margin-top:10px;">
           <input id="np-name-${sid}" class="mc-input" placeholder="Producto / servicio"/>
           <input id="np-unit-${sid}" class="mc-input" placeholder="Unidad (ej. u / stack)"/>
           <select id="np-cur-${sid}" class="mc-select font-mono">${curOpts(defaultCur, true)}</select>
           <div class="flex-row-wrap" style="gap:4px;flex-wrap:nowrap;"><input id="np-price-${sid}" type="number" min="0" step="0.01" class="mc-input font-mono" placeholder="Precio"/><button class="mc-btn mc-btn-emerald" data-action="price-add" data-s="${sid}">+</button></div>
-        </div>
+        </div>` : `<div class="text-xs text-dim" style="margin-top:8px;">Solo ${esc(actorLabel(sid))} edita su tienda.</div>`}
       </div>`;
     };
     const guestIds = state.guests.map(g => g.id);
@@ -934,14 +952,14 @@
         </summary>
         <div class="grid-2" style="margin-top:14px;">
           ${STATES.map(s => `<div class="mc-panel-dark p-md"><div class="flex-between"><strong class="font-mono text-${stateColor(s)} text-sm">${esc(nat(s).nation)}</strong>
-              <button class="mc-btn mc-btn-${stateColor(s)}" style="padding:3px 8px;" data-action="guide-add-all" data-s="${s}">+ Agregar todos a su tienda</button></div>
+              ${me === s ? `<button class="mc-btn mc-btn-${stateColor(s)}" style="padding:3px 8px;" data-action="guide-add-all" data-s="${s}">+ Agregar todos a su tienda</button>` : ''}</div>
             <div style="overflow-x:auto;margin-top:8px;"><table class="mc-table"><thead><tr><th>Producto</th><th>Precio</th><th></th></tr></thead><tbody>
             ${D.PRICE_GUIDE.map((g, i) => ({ g, i })).filter(x => x.g.seller === s).map(({ g, i }, k, arr) => {
               const listed = eco.prices.some(p => p.seller === s && p.name === g.name);
               const header = k === 0 || arr[k - 1].g.group !== g.group ? `<tr><td colspan="3" class="font-mono text-xs text-gold" style="padding-top:12px;font-weight:700;">${esc(g.group.toUpperCase())}</td></tr>` : '';
               return header + `<tr><td><div class="text-white text-xs" style="font-weight:700;">${esc(g.name)}</div><div class="text-xs text-dim">${esc(g.unit)}${g.note ? ' · ' + esc(tx(g.note)) : ''}</div></td>
                 <td class="font-mono text-xs" style="white-space:nowrap;">${fmt(g.price)} ${esc(sym(curOf(s)))}</td>
-                <td>${listed ? '<span class="text-xs text-emerald">✔</span>' : `<button class="mc-btn" style="padding:2px 7px;" data-action="guide-add" data-i="${i}" title="Agregar a la lista">+</button>`}</td></tr>`;
+                <td>${listed ? '<span class="text-xs text-emerald">✔</span>' : (me === s ? `<button class="mc-btn" style="padding:2px 7px;" data-action="guide-add" data-i="${i}" title="Agregar a la lista">+</button>` : '')}</td></tr>`;
             }).join('')}</tbody></table></div></div>`).join('')}
         </div>
       </details>`;
@@ -977,10 +995,10 @@
     const auditedWorks = eco.works.filter(w => w.status === 'auditada');
     const mythWorkPts = auditedWorks.filter(w => w.owner === 'myth').reduce((a, w) => a + (effPts[w.id] || 0), 0);
     const scadWorkPts = auditedWorks.filter(w => w.owner === 'scad').reduce((a, w) => a + (effPts[w.id] || 0), 0);
-    const workForm = `
+    const workForm = E.isState(me) ? `
       <div class="mc-panel-dark p-md" style="margin-bottom:14px;">
         <div class="grid-4" style="gap:8px;align-items:end;">
-          ${field('Dueño', `<select id="w-owner" class="mc-select font-mono">${stateOpts(E.isState(me) ? me : 'myth')}</select>`)}
+          ${field('Dueño', `<input type="hidden" id="w-owner" value="${esc(me)}"/><div class="mc-slot p-sm text-xs text-white" style="min-height:36px;">${esc(nat(me).nation)} <span class="text-dim">(${esc(nat(me).player)})</span></div>`)}
           ${field('Categoría', `<select id="w-cat" class="mc-select" data-action-change="w-cat">${opts(CATS.map(c => [c.id, `${c.name} (${c.pts})`]), 'edif')}</select>`)}
           ${field('Nombre en el mundo', `<input id="w-name" class="mc-input" placeholder="Ej. Siderúrgica del Norte"/>`)}
           ${field('Producto (granja) o reliquia', `<input id="w-product" class="mc-input" list="relic-list" placeholder="Ej. hierro / Tridente"/><datalist id="relic-list">${(D.FARM_LOCKS || []).map(l => `<option value="${esc(l.aliases[0])}">Granja: ${esc(l.label)} (bloquea a mano al auditarse)</option>`).join('')}${D.RELICS.map(r => `<option value="${esc(r.name)}"></option>`).join('')}</datalist>`)}
@@ -988,7 +1006,7 @@
           ${field('Puntos propuestos', `<input id="w-pts" type="number" min="1" value="10" class="mc-input font-mono"/>`)}
           <div style="grid-column:span 2;display:flex;align-items:end;"><button class="mc-btn mc-btn-emerald" data-action="work-add" style="width:100%;">+ Registrar obra (TRD 120-01)</button></div>
         </div>
-      </div>`;
+      </div>` : `<div class="mc-panel-dark p-md text-xs text-muted" style="margin-bottom:14px;">Solo los Estados fundadores (${esc(pname('myth'))} o ${esc(pname('scad'))}) registran obras; como Archivista o invitado puedes auditarlas o consultarlas en la tabla de abajo.</div>`;
     // Bloqueo automático por granjas: lo que el moderador del servidor ya no deja conseguir a mano
     const locksNow = typeof D.activeFarmLocks === 'function' ? D.activeFarmLocks(state) : [];
     const lockedIds = new Set(locksNow.map(x => x.lock.id));
@@ -1048,14 +1066,22 @@
       </div>`);
 
     // Préstamos
-    const lenderSel = state.ui.loanLender || 'bank';
+    const lenderOpts = identified
+      ? [...(E.isState(me) ? [['bank', state.settings.bankName]] : []), [me, `${pname(me)} (tú)`]]
+      : [];
+    const lenderSel = identified
+      ? (lenderOpts.some(([id]) => id === state.ui.loanLender) ? state.ui.loanLender : lenderOpts[0][0])
+      : 'bank';
+    const loanDebtors = identified ? participants().filter(p => p !== me) : [];
     const loansPanel = panel(`
       ${head('CRÉDITO', 'amethyst', `PRÉSTAMOS ${tip('prestamo')} ${tip('mora')}`,
         `${esc(state.settings.bankName)} presta solo a Estados: máximo ${state.settings.bankCollateralPct}% de su capitalización y ${state.settings.bankLiquidityPct}% de sus reservas, a un ${state.settings.bankRate}% de interés. Quien cae en mora no puede imprimir ni pedir más. Para préstamos largos usen <strong>${esc(state.settings.basket.plural)}</strong> (${esc(sym('U'))}): se devuelve al cambio del día y el riesgo queda repartido.`)}
-      <div class="mc-panel-dark p-md" style="margin-bottom:12px;">
+      ${identified ? `<div class="mc-panel-dark p-md" style="margin-bottom:12px;">
         <div class="grid-2" style="gap:8px;align-items:end;">
-          ${field('Prestamista', `<select id="ln-lender" class="mc-select font-mono" data-action-change="ln-lender">${opts([['bank', state.settings.bankName], ...participants().map(p => [p, pname(p)])], lenderSel)}</select>`)}
-          ${field('Deudor', `<select id="ln-borrower" class="mc-select font-mono">${peopleOpts(lenderSel === 'bank' ? (E.isState(me) ? me : 'myth') : 'scad', lenderSel === 'bank' ? STATES : participants())}</select>`)}
+          ${field('Prestamista', `<select id="ln-lender" class="mc-select font-mono" data-action-change="ln-lender">${opts(lenderOpts, lenderSel)}</select>`)}
+          ${field('Deudor', lenderSel === 'bank' && E.isState(me)
+            ? `<input type="hidden" id="ln-borrower" value="${esc(me)}"/><div class="mc-slot p-sm text-xs text-white" style="min-height:36px;">${esc(nat(me).nation)} <span class="text-dim">(tú)</span></div>`
+            : `<select id="ln-borrower" class="mc-select font-mono">${peopleOpts(loanDebtors[0] || '', loanDebtors)}</select>`)}
           ${field('Denominación', `<select id="ln-cur" class="mc-select font-mono">${curOpts('U', true)}</select>`)}
           ${field('Monto', `<input id="ln-amt" type="number" step="0.01" min="1" value="20" class="mc-input font-mono"/>`)}
           ${field('Interés total %', lenderSel === 'bank' ? `<input class="mc-input font-mono" value="${state.settings.bankRate}" disabled/>` : `<input id="ln-int" type="number" min="0" value="5" class="mc-input font-mono"/>`)}
@@ -1064,7 +1090,7 @@
           <button class="mc-btn mc-btn-amethyst" data-action="loan-add" style="height:36px;">Otorgar préstamo</button>
         </div>
         <div id="ln-limit" class="text-xs font-mono text-dim" style="margin-top:8px;"></div>
-      </div>
+      </div>` : `<div class="mc-panel-dark p-md text-xs text-muted" style="margin-bottom:12px;">Elige quién eres en "Soy:" arriba para solicitar u otorgar préstamos.</div>`}
       <div class="section-stack" style="gap:8px;">
         ${eco.loans.length ? eco.loans.map(l => {
           const due = E.loanDue(l);
@@ -1100,16 +1126,20 @@
             <div class="flex-between" style="margin-bottom:6px;"><strong class="font-mono text-${stateColor(s)} text-sm">${esc(nat(s).nation)}</strong><span class="font-mono text-xs text-white">${money(E.sharePrice(state, s, CATS), curOf(s))} / acc.</span></div>
             <div class="boss-bar-track" style="height:7px;margin-bottom:8px;" title="${pctOut}% en manos externas"><div class="boss-bar-fill" style="width:${pctOut}%;background:var(--c-aqua);"></div></div>
             <ul class="mc-list" style="margin-bottom:10px;">${Object.entries(book).map(([pid, n]) => `<li>${ptag(pid)}<span class="font-mono text-xs text-white">${n} acc.${pid === s ? ' (tesoro)' : ''}</span></li>`).join('')}</ul>
-            ${field('Inversor', `<select id="sh-who-${s}" class="mc-select font-mono">${peopleOpts(participants().find(p => p !== s), participants().filter(p => p !== s))}</select>`)}
-            <div class="grid-3" style="gap:6px;margin-top:8px;align-items:end;">
-              ${field('Cantidad', `<input id="sh-n-${s}" type="number" min="1" value="5" class="mc-input font-mono"/>`)}
-              <button class="mc-btn mc-btn-emerald" data-action="sh-buy" data-s="${s}">Comprar</button>
-              <button class="mc-btn" data-action="sh-sell" data-s="${s}">Vender</button>
-            </div>
-            <div class="grid-3" style="gap:6px;margin-top:8px;align-items:end;">
-              ${field('Dividendo / acc.', `<input id="sh-div-${s}" type="number" step="0.01" min="0" value="0.1" class="mc-input font-mono"/>`)}
-              <button class="mc-btn mc-btn-gold" data-action="sh-div" data-s="${s}" style="grid-column:span 2;">Repartir dividendo</button>
-            </div>
+            ${!identified ? '<div class="text-xs text-dim">Elige "Soy:" arriba para invertir o repartir dividendos.</div>' : me === s ? `
+              <div class="grid-3" style="gap:6px;margin-top:8px;align-items:end;">
+                ${field('Dividendo / acc.', `<input id="sh-div-${s}" type="number" step="0.01" min="0" value="0.1" class="mc-input font-mono"/>`)}
+                <button class="mc-btn mc-btn-gold" data-action="sh-div" data-s="${s}" style="grid-column:span 2;">Repartir dividendo</button>
+              </div>
+            ` : `
+              <input type="hidden" id="sh-who-${s}" value="${esc(me)}"/>
+              <div class="text-xs text-muted font-mono" style="margin-bottom:4px;">Inversor: <strong class="text-white">${esc(pname(me))}</strong></div>
+              <div class="grid-3" style="gap:6px;margin-top:6px;align-items:end;">
+                ${field('Cantidad', `<input id="sh-n-${s}" type="number" min="1" value="5" class="mc-input font-mono"/>`)}
+                <button class="mc-btn mc-btn-emerald" data-action="sh-buy" data-s="${s}">Comprar</button>
+                <button class="mc-btn" data-action="sh-sell" data-s="${s}">Vender</button>
+              </div>
+            `}
           </div>`;
         }).join('')}
       </div>`);
@@ -1277,6 +1307,7 @@
     const box = $('buy-preview');
     if (!box) return;
     const b = readBuy();
+    if (!b.buyer) { box.innerHTML = '<span class="text-dim">Elige "Soy:" arriba para comprar con tu cuenta.</span>'; return; }
     if (!(b.total > 0)) { box.innerHTML = '<span class="text-dim">Indica un precio.</span>'; return; }
     const res = E.pay(clone(state), b.buyer, b.seller, b.cur, b.total, true);
     if (!res.ok) { box.innerHTML = `Total: <strong class="text-white">${money(b.total, b.cur)}</strong><br><span class="text-redstone">${esc(res.msg)}</span>`; return; }
@@ -1311,25 +1342,35 @@
 
   function renderStatePage() {
     const set = state.settings;
-    const nationForm = s => `
+    const founder = E.isState(me);
+    const nationForm = s => {
+      const mine = me === s;
+      const dis = mine ? '' : 'disabled';
+      return `
       <div class="mc-panel-dark p-md" style="border-color:${stateBorder(s)};">
+        <div class="flex-between" style="margin-bottom:8px;">
+          <strong class="font-mono text-xs text-${stateColor(s)}">${esc(nat(s).nation.toUpperCase())}</strong>
+          <span class="mc-tag ${mine ? 'tag-emerald' : 'tag-slate'}">${mine ? 'Tu Estado' : `Solo ${esc(nat(s).player)}`}</span>
+        </div>
         <div class="grid-2" style="gap:8px;">
-          ${field('Jugador (nick)', `<input class="mc-input" data-bind="settings.nations.${s}.player" value="${esc(nat(s).player)}"/>`)}
-          ${field('Estado', `<input class="mc-input" data-bind="settings.nations.${s}.nation" value="${esc(nat(s).nation)}"/>`)}
-          ${field('Moneda', `<input class="mc-input" data-bind="settings.nations.${s}.currency" value="${esc(nat(s).currency)}"/>`)}
-          ${field('Símbolo', `<input class="mc-input font-mono" maxlength="4" data-bind="settings.nations.${s}.symbol" value="${esc(nat(s).symbol)}"/>`)}
+          ${field('Jugador (nick)', `<input class="mc-input" data-bind="settings.nations.${s}.player" value="${esc(nat(s).player)}" ${dis}/>`)}
+          ${field('Estado', `<input class="mc-input" data-bind="settings.nations.${s}.nation" value="${esc(nat(s).nation)}" ${dis}/>`)}
+          ${field('Moneda', `<input class="mc-input" data-bind="settings.nations.${s}.currency" value="${esc(nat(s).currency)}" ${dis}/>`)}
+          ${field('Símbolo', `<input class="mc-input font-mono" maxlength="4" data-bind="settings.nations.${s}.symbol" value="${esc(nat(s).symbol)}" ${dis}/>`)}
         </div>
       </div>`;
-    const numField = (label, path, help, k) => field(`${label} ${k ? tip(k) : ''}${help ? ` <span class="text-dim">— ${help}</span>` : ''}`, `<input type="number" min="0" class="mc-input font-mono" data-bind="${path}" data-type="number" value="${esc(getPath(state, path))}"/>`);
+    };
+    const founderDis = founder ? '' : 'disabled';
+    const numField = (label, path, help, k) => field(`${label} ${k ? tip(k) : ''}${help ? ` <span class="text-dim">— ${help}</span>` : ''}`, `<input type="number" min="0" class="mc-input font-mono" data-bind="${path}" data-type="number" value="${esc(getPath(state, path))}" ${founderDis}/>`);
 
     const config = panel(`
-      ${head('CONFIGURACIÓN', 'slate', 'JUGADORES, ESTADOS Y MONEDAS', 'Todo nombre que aparece en la app sale de aquí.')}
+      ${head('CONFIGURACIÓN', 'slate', 'JUGADORES, ESTADOS Y MONEDAS', 'Todo nombre que aparece en la app sale de aquí (cada gobernante edita solo su Estado y su moneda).')}
       <div class="grid-2">${nationForm('myth')}${nationForm('scad')}</div>
       <div class="mc-panel-dark p-md" style="margin-top:14px;">
         <div class="grid-3" style="gap:10px;">
-          ${field('Nombre del banco neutral', `<input class="mc-input" data-bind="settings.bankName" value="${esc(set.bankName)}"/>`)}
-          ${field('Unidad neutral (singular)', `<input class="mc-input" data-bind="settings.basket.name" value="${esc(set.basket.name)}"/>`)}
-          ${field('Unidad neutral (plural / símbolo)', `<div class="grid-2" style="gap:6px;"><input class="mc-input" data-bind="settings.basket.plural" value="${esc(set.basket.plural)}"/><input class="mc-input font-mono" maxlength="4" data-bind="settings.basket.symbol" value="${esc(set.basket.symbol)}"/></div>`)}
+          ${field('Nombre del banco neutral', `<input class="mc-input" data-bind="settings.bankName" value="${esc(set.bankName)}" ${founderDis}/>`)}
+          ${field('Unidad neutral (singular)', `<input class="mc-input" data-bind="settings.basket.name" value="${esc(set.basket.name)}" ${founderDis}/>`)}
+          ${field('Unidad neutral (plural / símbolo)', `<div class="grid-2" style="gap:6px;"><input class="mc-input" data-bind="settings.basket.plural" value="${esc(set.basket.plural)}" ${founderDis}/><input class="mc-input font-mono" maxlength="4" data-bind="settings.basket.symbol" value="${esc(set.basket.symbol)}" ${founderDis}/></div>`)}
           ${numField('Emisión fundacional', 'settings.baseIssue', 'dinero inicial de cada país', 'fundacional')}
           ${numField('Acciones por Estado', 'settings.sharesTotal', '', 'acciones')}
           ${numField('Inercia del cambio', 'settings.fxInertia', 'más alto = cambio más estable', 'inercia')}
@@ -1726,21 +1767,26 @@
         ${p.id === 'worldName' ? `<input class="mc-input" style="margin-top:4px;" data-bind="world.worldName" value="${esc(state.world.worldName || '')}" placeholder="${esc(p.ph)}"/>`
           : `<textarea class="mc-textarea" rows="3" style="margin-top:4px;" data-bind-live="world.${p.id}" placeholder="${esc(p.ph)}">${esc(state.world[p.id] || '')}</textarea>`}</div>`).join('')}</div>`);
 
-    const nations = `<div class="grid-2">${STATES.map(s => panel(`
-      ${head(nat(s).player.toUpperCase(), stateColor(s), esc(nat(s).nation.toUpperCase()))}
+    const nations = `<div class="grid-2">${STATES.map(s => {
+      const mine = me === s;
+      return panel(`
+      ${head(nat(s).player.toUpperCase(), stateColor(s), esc(nat(s).nation.toUpperCase()),
+        mine ? 'Tu ficha oficial de Estado.' : `Solo editable como ${esc(nat(s).player)}.`)}
       <div class="section-stack" style="gap:10px;">${D.NATION_PROMPTS.map(p => `<div><label class="text-xs text-white">${esc(p.label)}</label>
-        <textarea class="mc-textarea" rows="2" style="margin-top:4px;" data-bind-live="nationLore.${s}.${p.id}" placeholder="${esc(p.ph)}">${esc((state.nationLore[s] || {})[p.id] || '')}</textarea></div>`).join('')}</div>`)).join('')}</div>`;
+        <textarea class="mc-textarea" rows="2" style="margin-top:4px;" data-bind-live="nationLore.${s}.${p.id}" placeholder="${esc(p.ph)}" ${mine ? '' : 'disabled'}>${esc((state.nationLore[s] || {})[p.id] || '')}</textarea></div>`).join('')}</div>`);
+    }).join('')}</div>`;
 
     // Religiones: una ficha por Estado y por invitado. Solo preguntas; la fe la escriben ellos.
     const religionCard = pid => {
       const r = (state.religions || {})[pid] || {};
       const names = String(r.names || '').split(',').map(x => x.trim()).filter(Boolean);
       const color = E.isState(pid) ? stateColor(pid) : 'cyan';
+      const mine = me === pid;
       return panel(`
         ${head(esc(pname(pid).toUpperCase()), color, esc(r.faith ? r.faith.toUpperCase() : (E.isState(pid) ? nat(pid).nation.toUpperCase() : 'INVITADO')),
-          names.length ? `Invocan a: ${names.map(n => `<strong class="text-gold">${esc(n)}</strong>`).join(', ')}` : 'Sin dios con nombre todavía: en el servidor nadie responde a esta fe.')}
+          `${names.length ? `Invocan a: <strong class="text-gold">${names.map(esc).join(', ')}</strong>` : 'Sin dios con nombre todavía: en el servidor nadie responde a esta fe.'}${mine ? '' : ` · <span class="text-dim">Solo editable como ${esc(pname(pid))}</span>`}`)}
         <div class="section-stack" style="gap:10px;">${(D.RELIGION_PROMPTS || []).map(p => `<div><label class="text-xs text-white">${esc(p.label)}</label>
-          <textarea class="mc-textarea" rows="${p.rows || 2}" style="margin-top:4px;" data-bind-live="religions.${pid}.${p.id}" placeholder="${esc(p.ph)}">${esc(r[p.id] || '')}</textarea></div>`).join('')}</div>`);
+          <textarea class="mc-textarea" rows="${p.rows || 2}" style="margin-top:4px;" data-bind-live="religions.${pid}.${p.id}" ${(p.id === 'faith' || p.id === 'names') ? 'data-rerender="lore"' : ''} placeholder="${esc(p.ph)}" ${mine ? '' : 'disabled'}>${esc(r[p.id] || '')}</textarea></div>`).join('')}</div>`);
     };
     // Convicción: cada jugador declara qué fe profesa (o la Razón) y marca sus hitos
     const hasGod = r => Boolean(String((r && r.names) || '').trim());
@@ -1757,7 +1803,7 @@
       const mine = me === pid;
       return `<div class="mc-panel-dark p-md">
         <div class="flex-between" style="gap:8px;">${ptag(pid)}<span class="mc-tag ${path ? 'tag-gold' : 'tag-slate'}">${path === 'razon' ? 'Razón' : path === 'fe' ? 'Fe' : 'Sin declarar'} · ${level}/${list.length || 7}</span></div>
-        <select class="mc-select font-mono" style="margin-top:8px;width:100%;" data-bind="devotion.${pid}.creed" ${mine ? '' : 'disabled'}>${opts([['', '— sin declarar —'], ...faithOptions(), ['razon', 'La Razón (sin dios)']], d.creed || '')}</select>
+        <select class="mc-select font-mono" style="margin-top:8px;width:100%;" data-bind="devotion.${pid}.creed" ${mine ? '' : 'disabled'}>${opts([['', '— sin declarar —'], ...faithOptions(), ['razon', 'La Razón (sin dios)']], path ? creed : '')}</select>
         ${list.length ? `<div class="section-stack" style="gap:4px;margin-top:8px;">${list.map(m => `<label class="text-xs" style="display:flex;gap:6px;align-items:flex-start;cursor:${mine ? 'pointer' : 'not-allowed'};" title="${esc(m.desc)}">
           <input type="checkbox" data-bind="devotion.${pid}.marks.${m.id}" ${marks[m.id] ? 'checked' : ''} ${mine ? '' : 'disabled'}/>
           <span><strong class="${marks[m.id] ? 'text-emerald' : 'text-white'}">${esc(m.title)}</strong> <span class="text-dim">— ${esc(m.desc)}</span></span></label>`).join('')}</div>` : '<div class="text-xs text-dim" style="margin-top:8px;">Elige una fe con dios nombrado o la Razón para ver sus hitos.</div>'}
@@ -1780,10 +1826,10 @@
     const chron = panel(`
       ${head('ARCHIVO', 'gold', 'CRÓNICAS', 'Lo que pasó, contado por ustedes. Cada uno puede contar el mismo evento desde su Estado.')}
       <details class="mc-panel-dark p-md" style="margin-bottom:12px;"><summary class="font-mono text-sm text-gold" style="cursor:pointer;font-weight:700;">✍️ Escribir una crónica</summary><div style="margin-top:10px;">
-        <div class="grid-4" style="gap:8px;margin-bottom:8px;">
+        <div class="grid-4" style="gap:8px;margin-bottom:8px;align-items:center;">
           <select id="ch-era" class="mc-select font-mono">${opts(eraOptions, eraLabel(currentEraIndex()))}</select>
           <select id="ch-type" class="mc-select font-mono">${opts(['Historia', 'Comercio', 'Tratado', 'Hazaña', 'Disputa', 'Evento', 'Temporada', 'Mito', 'Religión'].map(x => [x, x]), 'Historia')}</select>
-          <select id="ch-author" class="mc-select font-mono">${peopleOpts(me || 'myth')}</select>
+          <input type="hidden" id="ch-author" value="${esc(me || '')}"/><div class="mc-slot p-sm flex-between text-xs"><span class="text-dim">Autor:</span>${me ? ptag(me) : '<span class="text-dim">Elige "Soy:" arriba</span>'}</div>
           <input id="ch-title" class="mc-input" placeholder="Título"/>
         </div>
         <textarea id="ch-body" rows="3" class="mc-textarea" placeholder="Relato…" style="margin-bottom:8px;"></textarea>
@@ -3220,7 +3266,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       if (!requireIdentified('publicar una crónica')) return;
       const title = val('ch-title');
       if (!title) return fail('La crónica necesita título.');
-      state.chronicles.unshift({ id: uid('cro'), era: val('ch-era'), type: val('ch-type'), author: val('ch-author'), title, body: val('ch-body'), t: Date.now() });
+      state.chronicles.unshift({ id: uid('cro'), era: val('ch-era'), type: val('ch-type'), author: me, title, body: val('ch-body'), t: Date.now() });
       commit('lore');
     },
     'chron-del': async el => {
@@ -4123,6 +4169,13 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
         return;
       }
       if (t.dataset.bind) {
+        if (t.dataset.bind.startsWith('settings.nations.')) {
+          const sid = t.dataset.bind.split('.')[2];
+          if (sid !== me) {
+            renderAll();
+            return fail(`Solo ${pname(sid)} puede modificar su Estado y su moneda.`);
+          }
+        }
         if (t.dataset.bind.startsWith('settings.') && !E.isState(me)) {
           renderAll();
           return fail('Solo un Estado fundador puede cambiar la configuración general.');
@@ -4155,9 +4208,20 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     document.addEventListener('input', e => {
       const t = e.target;
       if (t.dataset.bindLive) {
+        if (t.dataset.bindLive.startsWith('settings.nations.')) {
+          const sid = t.dataset.bindLive.split('.')[2];
+          if (sid !== me) {
+            renderAll();
+            return fail(`Solo ${pname(sid)} puede modificar su Estado y su moneda.`);
+          }
+        }
         if (t.dataset.bindLive.startsWith('settings.') && !E.isState(me)) {
           renderAll();
           return fail('Solo un Estado fundador puede cambiar la configuración general.');
+        }
+        if (t.dataset.bindLive.startsWith('nationLore.') && t.dataset.bindLive.split('.')[1] !== me) {
+          renderAll();
+          return fail(`Cada ficha de Estado la escribe su gobernante: elige "Soy: ${pname(t.dataset.bindLive.split('.')[1])}" arriba.`);
         }
         if (t.dataset.bindLive.startsWith('religions.') && t.dataset.bindLive.split('.')[1] !== me) {
           renderAll();
@@ -4247,7 +4311,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
 
   /* ======================== Actualización en vivo (anti-caché) ======================== */
 
-  const CURRENT_APP_VER = (CLOUD && CLOUD.APP_VER) || '20261121150000';
+  const CURRENT_APP_VER = (CLOUD && CLOUD.APP_VER) || '20261121160000';
   let detectedNewVer = '';
 
   function forceLiveReload(targetVer) {

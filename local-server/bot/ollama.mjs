@@ -12,6 +12,21 @@ const RESPONSE_SCHEMA = {
   required: ['respuesta_corta', 'normas_citadas', 'rango_oe', 'requiere_confirmacion']
 };
 
+// Construye las opciones de generación de Ollama respetando límites opcionales de VRAM (ollamaNumGpu / ollamaNumCtx).
+export function buildOllamaOptions(config, base = {}) {
+  const opts = { ...base };
+  const cfgCtx = Number(config?.ollamaNumCtx);
+  opts.num_ctx = Number.isFinite(cfgCtx) && cfgCtx >= 1024 ? Math.round(cfgCtx) : (base.num_ctx || 8192);
+  const rawGpu = config?.ollamaNumGpu;
+  if (rawGpu !== undefined && rawGpu !== null && rawGpu !== '') {
+    const ng = Number(rawGpu);
+    if (Number.isFinite(ng) && ng >= 0) {
+      opts.num_gpu = Math.round(ng);
+    }
+  }
+  return opts;
+}
+
 function parseJsonSafe(raw) {
   const txt = String(raw || '').trim();
   try {
@@ -49,39 +64,77 @@ async function runStructuredAdvice({ config, mode, roleDesc, selfIdentity, extra
     ...extraRules
   ].join('\n');
 
-  const userPrompt = [
-    `<normativa_vigente>\n${contextText || 'Sin normas coincidentes.'}\n</normativa_vigente>`,
-    memoryText ? `<memoria_de_sesiones_anteriores>\n${memoryText}\n</memoria_de_sesiones_anteriores>` : '',
-    chatHistoryText ? `<conversacion_reciente>\n${chatHistoryText}\n</conversacion_reciente>` : '',
-    `<usuario_que_pregunta>\nEl jugador que te habla (NO eres tú) es: ${playerIdentity || player}\n</usuario_que_pregunta>`,
-    `<mensaje_jugador>\n${String(query || '').slice(0, 500)}\n</mensaje_jugador>`
-  ].filter(Boolean).join('\n\n');
-
-  const res = await fetch(`${config.ollamaUrl.replace(/\/+$/, '')}/api/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    // Sin límite, un Ollama colgado dejaba a todos los NPCs "ocupados" para siempre
-    signal: AbortSignal.timeout(Number(config.ollamaTimeoutMs) || 60_000),
-    body: JSON.stringify({
-      model: config.ollamaModel,
-      stream: false,
-      think: false,
-      keep_alive: config.ollamaKeepAlive || '10m',
-      format: RESPONSE_SCHEMA,
-      options: {
-        temperature,
-        num_predict: 700, // con 420 el JSON a veces se cortaba antes de cerrar la respuesta
-        num_ctx: 8192
-      },
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ]
-    })
+  const opts = buildOllamaOptions(config, {
+    temperature,
+    num_predict: 700, // con 420 el JSON a veces se cortaba antes de cerrar la respuesta
+    num_ctx: 8192
   });
 
+  // Deduplica bloques repetidos (ej. guía de eras o normas compartidas) y acota al presupuesto del num_ctx activo
+  const ctxBlocks = [];
+  const seenBlocks = new Set();
+  for (const rawBlock of String(contextText || '').split(/\n\n---\n\n/)) {
+    const clean = rawBlock.trim();
+    if (!clean || seenBlocks.has(clean)) continue;
+    seenBlocks.add(clean);
+    ctxBlocks.push(clean);
+  }
+  const dedupedCtx = ctxBlocks.join('\n\n---\n\n');
+  const fitCtx = (text, limit) => {
+    if (!text || text.length <= limit) return text;
+    return `${text.slice(0, Math.max(500, limit - 60)).trimEnd()}\n[...contexto recortado por límite de ventana...]`;
+  };
+  const fixedChars =
+    String(systemPrompt || '').length +
+    String(memoryText || '').length +
+    String(chatHistoryText || '').length +
+    1400;
+  const maxCtxChars = Math.max(
+    4000,
+    Math.max(10_000, Math.floor((Number(opts.num_ctx) || 8192) * 2.4)) - fixedChars
+  );
+  const cappedCtx = fitCtx(dedupedCtx, maxCtxChars);
+
+  const sendChat = (ctx, hist) => {
+    const prompt = [
+      `<normativa_vigente>\n${ctx || 'Sin normas coincidentes.'}\n</normativa_vigente>`,
+      memoryText ? `<memoria_de_sesiones_anteriores>\n${memoryText}\n</memoria_de_sesiones_anteriores>` : '',
+      hist ? `<conversacion_reciente>\n${hist}\n</conversacion_reciente>` : '',
+      `<usuario_que_pregunta>\nEl jugador que te habla (NO eres tú) es: ${playerIdentity || player}\n</usuario_que_pregunta>`,
+      `<mensaje_jugador>\n${String(query || '').slice(0, 500)}\n</mensaje_jugador>`
+    ].filter(Boolean).join('\n\n');
+
+    return fetch(`${config.ollamaUrl.replace(/\/+$/, '')}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      // Sin límite, un Ollama colgado dejaba a todos los NPCs "ocupados" para siempre
+      signal: AbortSignal.timeout(Number(config.ollamaTimeoutMs) || 60_000),
+      body: JSON.stringify({
+        model: config.ollamaModel,
+        stream: false,
+        think: false,
+        keep_alive: config.ollamaKeepAlive || '10m',
+        format: RESPONSE_SCHEMA,
+        options: opts,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: prompt }
+        ]
+      })
+    });
+  };
+
+  let res = await sendChat(cappedCtx, chatHistoryText);
   if (!res.ok) {
-    throw new Error(`Ollama HTTP ${res.status}: ${await res.text()}`);
+    const errText = await res.text();
+    if (res.status === 400 && /context length/i.test(errText)) {
+      res = await sendChat(fitCtx(dedupedCtx, Math.max(3000, Math.floor(maxCtxChars * 0.55))), '');
+      if (!res.ok) {
+        throw new Error(`Ollama HTTP ${res.status}: ${await res.text()}`);
+      }
+    } else {
+      throw new Error(`Ollama HTTP ${res.status}: ${errText}`);
+    }
   }
   const data = await res.json();
   const content = data?.message?.content ?? '';
@@ -167,8 +220,9 @@ export async function askNpc({ config, roleDesc, selfIdentity, extraRules = [], 
 const BANNED_TERM_RE = /(?:colomb|ollama|gemma|qwen|token|inteligencia artificial)/i;
 
 async function callOllamaJson({ config, schema, systemPrompt, userPrompt, temperature = 0.75, numPredict = 200, timeoutMs = 14000 }) {
+  const effectiveTimeout = Math.max(Number(timeoutMs) || 14000, 30_000);
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const timeout = setTimeout(() => controller.abort(), effectiveTimeout);
   try {
     const res = await fetch(`${config.ollamaUrl.replace(/\/+$/, '')}/api/chat`, {
       method: 'POST',
@@ -180,11 +234,11 @@ async function callOllamaJson({ config, schema, systemPrompt, userPrompt, temper
         think: false,
         keep_alive: config.ollamaKeepAlive || '10m',
         format: schema,
-        options: {
+        options: buildOllamaOptions(config, {
           temperature,
           num_predict: numPredict,
           num_ctx: 8192
-        },
+        }),
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
