@@ -127,7 +127,6 @@ const AGRO_CLEAR_MAP = {
   fw_p_berry: ['minecraft:sweet_berries'],
   fw_p_honey: ['minecraft:honeycomb'],
   fw_m_bnest: ['minecraft:bee_nest', 'minecraft:honeycomb', 'minecraft:honey_bottle'],
-  fw_m_beehive: ['minecraft:beehive', 'minecraft:honeycomb', 'minecraft:honey_bottle'],
   fw_m_bhive: ['minecraft:beehive', 'minecraft:honeycomb', 'minecraft:honey_bottle'],
   fw_k_bee: ['minecraft:honeycomb', 'minecraft:honey_bottle'],
   fw_m_cact: ['minecraft:cactus'],

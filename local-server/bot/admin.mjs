@@ -3,7 +3,9 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { RconClient } from './rcon.mjs';
-import { AdminGenie, extractAdminWish, sanitizeRconCommand } from './admin-genie.mjs';
+import { SupabaseBridge } from './supabase-bridge.mjs';
+import { SessionMemory } from './memory.mjs';
+import { AdminGenie, extractAdminWish, sanitizeRconCommand, setWikiCachePath } from './admin-genie.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -84,13 +86,27 @@ async function main() {
   const dryRun = args.includes('--dry-run');
   const textArgs = args.filter(a => a !== '--dry-run');
 
+  setWikiCachePath(path.join(SERVER_DIR, 'bot-wiki-cache.json'));
+  let bridge = null;
+  let memory = null;
+  try {
+    bridge = new SupabaseBridge(path.resolve(SERVER_DIR, cfg.repoRoot || '..'));
+  } catch (err) {
+    console.warn('[Aviso Supabase]', err.message);
+  }
+  try {
+    memory = new SessionMemory(path.join(SERVER_DIR, 'bot-memory.json'));
+  } catch (err) {
+    console.warn('[Aviso Memoria]', err.message);
+  }
+
   const rcon = new RconClient({
     host: cfg.rconHost || '25.45.82.35',
     port: cfg.rconPort || 25575,
     password: cfg.rconPassword || '',
     timeoutMs: 6000
   });
-  const genie = new AdminGenie({ cfg, rcon });
+  const genie = new AdminGenie({ cfg, rcon, bridge, memory });
 
   const shutdown = () => {
     genie.stopAll();
@@ -112,7 +128,7 @@ async function main() {
 
   console.log('================================================================');
   console.log('  Consola Admin IA Miscolandia (!admin) · conectada por RCON');
-  console.log(`  Modelo: ${cfg.ollamaModel} · Servidor: ${cfg.rconHost || '25.45.82.35'}:${cfg.rconPort || 25575}`);
+  console.log(`  Modelo: ${cfg.adminModel || cfg.ollamaModel} · Servidor: ${cfg.rconHost || '25.45.82.35'}:${cfg.rconPort || 25575}`);
   console.log('================================================================');
   try {
     const online = await rcon.send('list');

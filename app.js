@@ -1743,12 +1743,14 @@
           <textarea class="mc-textarea" rows="${p.rows || 2}" style="margin-top:4px;" data-bind-live="religions.${pid}.${p.id}" placeholder="${esc(p.ph)}">${esc(r[p.id] || '')}</textarea></div>`).join('')}</div>`);
     };
     // Convicción: cada jugador declara qué fe profesa (o la Razón) y marca sus hitos
+    const hasGod = r => Boolean(String((r && r.names) || '').trim());
     const faithOptions = () => Object.entries(state.religions || {})
-      .filter(([, r]) => String((r && r.names) || '').trim())
+      .filter(([, r]) => hasGod(r))
       .map(([rp, r]) => [rp, `Fe: ${(r.faith || '').trim() || String(r.names).split(',')[0].trim()} (de ${pname(rp)})`]);
     const devotionCard = pid => {
       const d = (state.devotion || {})[pid] || {};
-      const path = d.creed === 'razon' ? 'razon' : (d.creed && (state.religions || {})[d.creed] ? 'fe' : '');
+      const creed = d.creed || (hasGod((state.religions || {})[pid]) ? pid : '');
+      const path = creed === 'razon' ? 'razon' : (creed && hasGod((state.religions || {})[creed]) ? 'fe' : '');
       const list = path === 'razon' ? (D.REASON_MILESTONES || []) : path === 'fe' ? (D.FAITH_MILESTONES || []) : [];
       const marks = d.marks || {};
       const level = list.filter(m => marks[m.id]).length;
@@ -1762,9 +1764,9 @@
       </div>`;
     };
     const devotion = `<div class="mc-panel-dark p-md" style="margin:12px 0 10px 0;"><strong class="font-mono text-gold text-xs">CONVICCIÓN DE CADA JUGADOR</strong>
-      <div class="text-xs text-muted" style="margin-top:4px;line-height:1.55;">Quien profesa una fe es su fiel: solo a sus fieles la deidad puede ayudar sin que se lo pidan. Quien sigue la Razón no tiene dios, pero su temple y su método valen lo mismo: misma probabilidad de salir de un apuro o de dar con un hallazgo. Cada hito cumplido aumenta esas probabilidades (honor de jugador: márquenlos cuando de verdad estén hechos).</div></div>
+      <div class="text-xs text-muted" style="margin-top:4px;line-height:1.55;">Quien profesa una fe es su fiel: solo a sus fieles la deidad puede ayudar sin que se lo pidan (aunque puede castigar a cualquiera, sea fiel de esa u otra fe o ateo, si se burla de ella). Quien sigue la Razón no tiene dios: nunca recibe castigos por blasfemia contra sí misma y su temple y método valen lo mismo que la fe en apuros o hallazgos. Cada hito cumplido aumenta esas probabilidades (honor de jugador: márquenlos cuando de verdad estén hechos).</div></div>
       <div class="grid-3" style="gap:10px;">${participants().map(devotionCard).join('')}</div>`;
-    const religions = `<p class="text-xs text-muted" style="margin:0 0 10px 0;line-height:1.55;">Cada uno puede fundar su propia fe (o ninguna). Pueden compartir dios con otro nombre, contradecirse o pelearse por él. Lo que escriban aquí y en las crónicas de tipo <em>Mito</em> o <em>Religión</em> es lo único que se sabe de lo divino en Miscolandia… y dicen que, muy de vez en cuando, alguien allá arriba escucha cuando lo llaman por su nombre.</p>
+    const religions = `<p class="text-xs text-muted" style="margin:0 0 10px 0;line-height:1.55;">Cada uno puede fundar su propia fe (o ninguna). Pueden compartir dios con otro nombre, contradecirse o pelearse por él. Lo que escriban aquí y en las crónicas de tipo <em>Mito</em> o <em>Religión</em> es lo único que se sabe de lo divino en Miscolandia… y dicen que, muy de vez en cuando, alguien allá arriba escucha cuando lo llaman por su nombre — y castiga a quien se burle de cualquier fe con dios nombrado.</p>
       <div class="grid-2">${participants().map(religionCard).join('')}</div>${devotion}`;
 
     const answered = D.ERAS.map(e => ({ e, ans: Object.entries(state.lore[e.id] || {}).filter(([, v]) => v && v.trim()) })).filter(x => x.ans.length);
@@ -2004,9 +2006,9 @@
     { cat: 'Eventos del mundo', cmd: '!evento', desc: 'Qué evento está en curso y a qué horas podría tocar el próximo.' },
     { cat: 'Eventos del mundo', cmd: '!evento lista', desc: 'Eventos ya desbloqueados por la Era actual (☾ de noche, ☀ de día).' },
     { cat: 'Eventos del mundo', cmd: '!evento lanzar luna_sangre', desc: 'Solo fundadores: dispara a mano un evento desbloqueado (!evento on|off pausa los espontáneos).' },
-    { cat: 'Consola Admin', cmd: 'say !admin que el servidor se cierre en 10 segundos y aparezca un contador', desc: 'Orden libre desde consola del servidor o consola-admin.bat.' },
-    { cat: 'NPCs en Chat', cmd: 'Su Excelencia <consulta>', desc: 'Juez (con "Excelencia" se pone solemne; solo se indigna si lo insultan), Fiscal, Arquitecto, Banquero, Archivista, Cartógrafo o Pregonero.' },
-    { cat: 'NPCs en Chat', cmd: '<nombre de su dios>, escúchame…', desc: 'Si su fe (Lore → Religiones y fe) le dio nombre, se le puede invocar en el chat. Casi nunca contesta, y muy rara vez concede un favor pequeño.' },
+    { cat: 'Consola Admin', cmd: 'say !admin castiga a notoutcontext / cierra el servidor en 10s', desc: 'Orden libre desde consola del servidor o consola-admin.bat; entiende contexto, alias (noc, luthadel, alejandria) y comandos Vanilla 26.4.' },
+    { cat: 'NPCs en Chat', cmd: 'Su Majestad / Su Excelencia <consulta>', desc: 'Juez, Fiscal, Arquitecto, Banquero, Archivista, Cartógrafo o Pregonero (el Juez solo se indigna si lo insultan).' },
+    { cat: 'NPCs en Chat', cmd: '<nombre de su dios>, escúchame…', desc: 'Si una fe (Lore → Religiones y fe) le dio nombre, escucha muy rara vez y puede dar favores… o castigar en seco a quien se burle de cualquier dios (La Razón nunca castiga).' },
     { cat: 'NPCs en Chat', cmd: 'cartógrafo dónde queda el portal de la fortaleza?', desc: 'Cartógrafo: portales, estaciones y obras con coordenadas registradas aquí en Territorio; convierte Overworld↔Nether.' }
   ];
 
@@ -4245,7 +4247,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
 
   /* ======================== Actualización en vivo (anti-caché) ======================== */
 
-  const CURRENT_APP_VER = (CLOUD && CLOUD.APP_VER) || '20261120213000';
+  const CURRENT_APP_VER = (CLOUD && CLOUD.APP_VER) || '20261121150000';
   let detectedNewVer = '';
 
   function forceLiveReload(targetVer) {

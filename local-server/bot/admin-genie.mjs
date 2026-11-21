@@ -84,6 +84,13 @@ function normalizeSnbtQuirks(cmd) {
       return full;
     }
   });
+  out = out.replace(/(CustomName):('(\{[^']*\})')/g, (full, key, _quoted, jsonBody) => {
+    try {
+      return `${key}:${toSnbtValue(JSON.parse(jsonBody))}`;
+    } catch {
+      return full;
+    }
+  });
   out = out.replace(/(minecraft:lore|lore)=\[([^\]]*)\]/g, (full, key, body) => {
     const fixedBody = body.replace(/'(\{[^']*\})'/g, (m, jsonBody) => {
       try {
@@ -94,6 +101,10 @@ function normalizeSnbtQuirks(cmd) {
     });
     return `${key}=[${fixedBody}]`;
   });
+  // En Minecraft Vanilla /effect give <objetivo> <efecto> <segundos> NO lleva sufijo "s" (ej. 10, no 10s)
+  out = out.replace(/(\beffect\s+give\s+\S+\s+\S+\s+)(\d+)s\b/gi, '$1$2');
+  // Si /title recibe texto suelto sin llaves ni comillas, envuélvelo en SNBT {text:"..."}
+  out = out.replace(/^((?:execute\b[\s\S]*?\brun\s+)?title\s+\S+\s+(?:title|subtitle|actionbar)\s+)(?!["'{])(.+)$/i, (_, head, txt) => `${head}${toSnbtValue({ text: txt.trim() })}`);
   // Si el LLM dejó llaves '}' sobrantes al final de SNBT, recórtalas para evitar error de sintaxis
   let open = 0;
   let inStr = null;
@@ -187,13 +198,90 @@ function deterministicFallbackPlan(wish) {
   return null;
 }
 
+function normalizeSimple(s) {
+  return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+const CREATIVE_WISH_RE = /\b(castig\w*|trolle\w*|broma|susto|asust\w*|tortur\w*|humill\w*|premi\w*|bendic\w*|bendec\w*|sorprend\w*|show|espectaculo|caos|locura|lo\s+que\s+quieras|lo\s+que\s+se\s+te\s+de\s+la\s+gana)\b/i;
+const DESTRUCTIVE_BLOCKS_RE = /\b(?:minecraft:)?(?:tnt|lava|fire|soul_fire|end_crystal|bedrock|command_block|chain_command_block|repeating_command_block|barrier|spawner|trial_spawner)\b/i;
+const DESTRUCTIVE_MOBS_RE = /\b(?:minecraft:)?(?:wither|ender_dragon|warden|tnt|tnt_minecart|end_crystal|ghast|ravager|elder_guardian)\b/i;
+
+// Resuelve nicks reales de Miscolandia a partir de alias comunes (noc, archivista, luthadel, alejandria, etc.)
+export function resolveWishPlayers(wish, onlinePlayers = [], worldState = null, cfg = null) {
+  const wNorm = normalizeSimple(wish);
+  const NOC_RE = /^notout(?:of)?context$/i;
+  const onlineNoc = (onlinePlayers || []).find(p => NOC_RE.test(String(p || '')));
+  const cfgNoc = (cfg?.players?.guests || []).find(g => NOC_RE.test(String(g || '')));
+  const nocGuest = (worldState?.guests || []).find(g => NOC_RE.test(String(g?.nick || '')));
+  const mythNick = cfg?.players?.myth?.[0] || worldState?.nations?.myth?.player || 'MythStorm';
+  const scadNick = cfg?.players?.scad?.[0] || worldState?.nations?.scad?.player || 'Scadrial0523';
+  const nocNick = onlineNoc || cfgNoc || 'NotOutContext';
+
+  const roster = new Map();
+  const register = (canon, aliases) => {
+    if (!canon || typeof canon !== 'string') return;
+    const key = canon.toLowerCase();
+    const cur = roster.get(key) || { canon, aliases: new Set([canon]) };
+    for (const a of aliases) {
+      const clean = String(a || '').trim();
+      if (clean.length >= 2) cur.aliases.add(clean);
+    }
+    roster.set(key, cur);
+  };
+
+  register(mythNick, [mythNick, 'myth', 'mythstorm', 'alejandria', 'nueva alejandria', 'rey de alejandria', 'agricultor', ...(cfg?.players?.myth || [])]);
+  register(scadNick, [scadNick, 'scad', 'scadrial', 'scadrial0523', 'luthadel', 'ganadero', ...(cfg?.players?.scad || [])]);
+  register(nocNick, [
+    nocNick, 'noc', 'nooc', 'notout', 'notoutcontext', 'notoutofcontext',
+    'archivista', 'auditor', 'contralor', 'invitado',
+    ...(nocGuest ? [nocGuest.nick, nocGuest.id, nocGuest.name] : []),
+    ...(cfg?.players?.guests || []).filter(g => NOC_RE.test(String(g)))
+  ]);
+
+  for (const g of (worldState?.guests || [])) {
+    if (g?.nick && !NOC_RE.test(String(g.nick))) register(g.nick, [g.nick, g.id, g.name]);
+  }
+  for (const g of (cfg?.players?.guests || [])) {
+    if (g && !NOC_RE.test(String(g))) register(g, [g]);
+  }
+  for (const p of (onlinePlayers || [])) {
+    if (/^[A-Za-z0-9_]{1,16}$/.test(p) && !NOC_RE.test(String(p))) register(p, [p]);
+  }
+
+  const targets = new Set();
+  const canonical = [];
+  const aliasNotes = [];
+  for (const [key, entry] of roster.entries()) {
+    let matchedAlias = null;
+    for (const alias of entry.aliases) {
+      const aNorm = normalizeSimple(alias);
+      if (!aNorm) continue;
+      const esc = aNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
+      if (new RegExp(`(?:^|[^a-z0-9_])${esc}(?:$|[^a-z0-9_])`, 'i').test(wNorm)) {
+        matchedAlias = alias;
+        if (aNorm === key) break; // prefiere coincidencia exacta si existe
+      }
+    }
+    if (matchedAlias) {
+      targets.add(key);
+      canonical.push(entry.canon);
+      if (normalizeSimple(matchedAlias) !== key) {
+        aliasNotes.push(`"${matchedAlias}" -> ${entry.canon}`);
+      }
+    }
+  }
+  return { targets, canonical, aliasNotes };
+}
+
 // ¿Por qué un comando del plan NO debe ejecutarse? (null = se permite)
-// 1) Graves (expulsar, banear, op, parar, matar a todos): solo si la orden lo pide con esas palabras.
-// 2) Dar/quitar/teletransportar/efectos/matar a un jugador: solo a jugadores nombrados en la orden;
+// 1) Graves (expulsar, banear, op, parar, matar a todos, mobs/bloques destructivos): solo si se piden.
+// 2) Dar/quitar/teletransportar/efectos/daño/invocar sobre un jugador: solo a jugadores o alias nombrados;
 //    a todos (@a/@e/@r) solo si la orden dice "todos"/"cada"; nunca a uno al azar.
-export function riskyReason(cmd, wish) {
+export function riskyReason(cmd, wish, resolvedTargets = null) {
   const c = String(cmd || '').trim();
   const w = String(wish || '').toLowerCase();
+  const wNorm = normalizeSimple(w);
+  const isCreative = CREATIVE_WISH_RE.test(wNorm);
   const verb = (c.match(/^(\S+)/) || [])[1]?.toLowerCase() || '';
   const GRAVE = {
     kick: /\b(expuls|kick|saca(?:lo|la)?\s+del\s+servidor|echa(?:lo|la)?)/,
@@ -204,32 +292,55 @@ export function riskyReason(cmd, wish) {
     fill: /\b(llena|rellena|fill|construye|pon\s+bloques)\b/, setblock: /\b(bloque|setblock|pon)\b/, clone: /a^/, forceload: /a^/
   };
   if (GRAVE[verb]) {
-    const re = GRAVE[verb] instanceof RegExp ? GRAVE[verb] : null;
-    if (!re || !re.test(w)) return `"${verb}" no fue pedido explícitamente`;
+    if (verb === 'setblock') {
+      if (DESTRUCTIVE_BLOCKS_RE.test(c)) {
+        const blk = (c.match(DESTRUCTIVE_BLOCKS_RE) || [])[0]?.replace(/^minecraft:/i, '').toLowerCase() || '';
+        if (!blk || !wNorm.includes(blk)) return 'bloque destructivo no pedido';
+      } else if (!GRAVE.setblock.test(wNorm) && !isCreative) {
+        return '"setblock" no fue pedido explícitamente';
+      }
+    } else {
+      if (verb === 'fill' && DESTRUCTIVE_BLOCKS_RE.test(c)) return 'bloque destructivo en fill no permitido';
+      const re = GRAVE[verb] instanceof RegExp ? GRAVE[verb] : null;
+      if (!re || (!re.test(w) && !re.test(wNorm))) return `"${verb}" no fue pedido explícitamente`;
+    }
+  }
+  const mobMatch = c.match(/^(?:execute\b[\s\S]*?\brun\s+)?summon\s+(\S+)/i);
+  if (mobMatch && DESTRUCTIVE_MOBS_RE.test(mobMatch[1])) {
+    const mobId = mobMatch[1].replace(/^minecraft:/i, '').toLowerCase();
+    const mobWords = { ender_dragon: /(?:ender_dragon|dragon)/, end_crystal: /(?:end_crystal|crystal|cristal)/, tnt_minecart: /tnt/, elder_guardian: /(?:elder_guardian|guardian)/ };
+    const allowRe = mobWords[mobId] || new RegExp(`\\b${mobId}\\b`, 'i');
+    if (!allowRe.test(wNorm)) return `entidad destructiva "${mobId}" no pedida`;
   }
   // Destino del comando (jugador o selector) para los que afectan a alguien
   let target = null;
   let m;
-  if ((m = c.match(/^(?:give|clear|kill|kick|tp|teleport|xp|experience|gamemode|spawnpoint)\s+(?:add\s+|set\s+|query\s+|creative\s+|survival\s+|adventure\s+|spectator\s+)?(\S+)/i))) target = m[1];
+  if ((m = c.match(/^(?:give|clear|kill|kick|tp|teleport|xp|experience|gamemode|spawnpoint|damage|attribute)\s+(?:add\s+|set\s+|query\s+|creative\s+|survival\s+|adventure\s+|spectator\s+)?(\S+)/i))) target = m[1];
   else if ((m = c.match(/^effect\s+(?:give|clear)\s+(\S+)/i))) target = m[1];
-  else if ((m = c.match(/^execute\s+(?:as|at)\s+(\S+)[\s\S]*\brun\s+(?:give|clear|kill|summon\s+minecraft:lightning_bolt|summon\s+lightning_bolt|effect|tp|damage)\b/i))) target = m[1];
+  else if ((m = c.match(/^execute\s+(?:as|at)\s+(\S+)[\s\S]*\brun\s+(?!summon\s+(?:minecraft:)?firework_rocket\b)(?:give|clear|kill|summon|effect|tp|teleport|damage|attribute|setblock)\b/i))) target = m[1];
   if (/^kill\s+@e\b/i.test(c) && !/\b(mobs|monstruos|entidades|bichos)\b/.test(w)) return 'matar entidades no fue pedido';
   if (!target) return null;
   const sel = target.replace(/\[.*$/, '').toLowerCase();
   const ALL_RE = /\b(todos|todas|todo\s+el\s+mundo|cada\s+(?:uno|jugador)|a\s+todos|everyone|all|nosotros|nos)\b/;
-  if (sel === '@a' || sel === '@e') return ALL_RE.test(w) ? null : 'afecta a todos sin que la orden diga "todos"';
+  if (sel === '@a' || sel === '@e') return ALL_RE.test(wNorm) ? null : 'afecta a todos sin que la orden diga "todos"';
   if (sel === '@r') return 'jugador al azar no permitido';
   if (sel === '@s' || sel === '@p') return null;
-  return w.includes(sel) ? null : `"${target}" no aparece en la orden`;
+  if (w.includes(sel) || wNorm.includes(sel)) return null;
+  if (resolvedTargets && resolvedTargets.has(sel)) return null;
+  return `"${target}" no aparece en la orden`;
 }
 
 // "un rayo sobre X por Y" / "pégale un rayo a X": solo a los jugadores nombrados (o a todos si lo dice)
-export function lightningPlan(wish, onlinePlayers = []) {
+export function lightningPlan(wish, onlinePlayers = [], worldState = null, cfg = null) {
   const w = String(wish || '');
   if (!/\brayos?\b/i.test(w)) return null;
   const low = w.toLowerCase();
   const all = /\b(todos|todo\s+el\s+mundo|a\s+todos|cada\s+jugador)\b/i.test(w);
-  const named = onlinePlayers.filter(p => /^[A-Za-z0-9_]{1,16}$/.test(p) && low.includes(p.toLowerCase()));
+  const resolved = resolveWishPlayers(w, onlinePlayers, worldState, cfg);
+  const named = [...new Set([
+    ...onlinePlayers.filter(p => /^[A-Za-z0-9_]{1,16}$/.test(p) && low.includes(p.toLowerCase())),
+    ...resolved.canonical
+  ])];
   if (!all && !named.length) return null; // no está claro a quién: que no caiga sobre nadie al azar
   const targets = all ? ['@a'] : named;
   const reason = (w.match(/\bpor\s+(.{3,80}?)(?:[.!]|$)/i) || [])[1];
@@ -319,7 +430,7 @@ const EFFECT_WORDS = [
   [/\b(mare\w*|n[aá]usea)\b/i, 'nausea', 0, false]
 ];
 // Lo que el intérprete NO sabe hacer: si aparece, se usa la IA (con parche de lo que olvide)
-const COMPLEX_RE = /\b(da|dale|dales|darle|darles|regal\w*|entreg\w*|quit\w*|qu[ií]tale\w*|borr\w*|limpi\w*|tp|teletransport\w*|lleva\w*|trae\w*|constru\w*|invoc\w*|spawn\w*|aparece\w*|mata\w*|mat[aá]\w*|explot\w*|cambia\w*|modo|gamemode|kick|ban\w*|op|deop|whitelist|dificultad|bloque\w*|cofre\w*|cuenta\s+regresiva|contador|cierra|apaga|reinicia|guarda\w*)\b/i;
+const COMPLEX_RE = /\b(da|dale|dales|darle|darles|regal\w*|entreg\w*|quit\w*|qu[ií]tale\w*|borr\w*|limpi\w*|tp|teletransport\w*|lleva\w*|trae\w*|constru\w*|invoc\w*|spawn\w*|aparece\w*|mata\w*|mat[aá]\w*|explot\w*|cambia\w*|modo|gamemode|kick|ban\w*|op|deop|whitelist|dificultad|bloque\w*|cofre\w*|cuenta\s+regresiva|contador|cierra|apaga|reinicia|guarda\w*|castig\w*|trolle\w*|broma|susto|asust\w*|tortur\w*|humill\w*|premi\w*|bendic\w*|bendec\w*|sorprend\w*|show|espect[aá]culo|caos|locura|gana|quieras)\b/i;
 
 function ownMessage(w) {
   // 1) Entre comillas  2) Después de ":"  3) Después del verbo de decir/pantalla/celebrar
@@ -357,7 +468,11 @@ function splitTitle(msg) {
 
 function namedPlayers(w, onlinePlayers) {
   const low = w.toLowerCase();
-  return (onlinePlayers || []).filter(p => /^[A-Za-z0-9_]{1,16}$/.test(p) && low.includes(p.toLowerCase()));
+  const resolved = resolveWishPlayers(w, onlinePlayers);
+  return [...new Set([
+    ...(onlinePlayers || []).filter(p => /^[A-Za-z0-9_]{1,16}$/.test(p) && low.includes(p.toLowerCase())),
+    ...resolved.canonical
+  ])];
 }
 
 // Devuelve { plan, complex } — plan null si no se reconoce nada; complex=true si hay partes que necesita la IA
@@ -438,7 +553,7 @@ export function patchForgotten(plan, wish, onlinePlayers = []) {
   return plan;
 }
 
-function normalizePlan(rawPlan, wish) {
+function normalizePlan(rawPlan, wish, resolvedTargets = null) {
   const plan = rawPlan && typeof rawPlan === 'object' ? { ...rawPlan } : {};
   const wantsShutdown = SHUTDOWN_WISH_RE.test(String(wish || ''));
   const rawSteps = Array.isArray(plan.pasos) ? plan.pasos.slice(0, 25) : [];
@@ -508,8 +623,8 @@ function normalizePlan(rawPlan, wish) {
   // Modelos chicos a veces escriben los comandos en respuesta_consola en vez de en pasos: se rescatan
   // (solo comandos vanilla reconocibles, nunca stop/op/ban por esta vía)
   if (!pasos.length) {
-    const SALVAGE_RE = /^(?:title|tellraw|execute|summon|effect|weather|time|playsound|particle|xp|bossbar|say|gamerule)\b/i;
-    const raw = String(plan.respuesta_consola || '').replace(/\}(?=\s*(?:execute|title|summon|tellraw|playsound|particle|effect)\b)/g, '}\n');
+    const SALVAGE_RE = /^(?:title|tellraw|execute|summon|effect|weather|time|playsound|particle|xp|bossbar|say|gamerule|give|tp|damage)\b/i;
+    const raw = String(plan.respuesta_consola || '').replace(/\}(?=\s*(?:execute|title|summon|tellraw|playsound|particle|effect|give|tp)\b)/g, '}\n');
     for (const line of raw.split(/\n+/)) {
       const comando = sanitizeRconCommand(line);
       if (comando && SALVAGE_RE.test(comando) && pasos.length < 12) pasos.push({ tipo: 'command', delay_sec: 0, comando });
@@ -520,7 +635,7 @@ function normalizePlan(rawPlan, wish) {
   // Candados: la IA no puede tocar a quien no nombraste ni hacer cosas graves que no pediste
   const blocked = [];
   const safe = cmd => {
-    const why = riskyReason(cmd, wish);
+    const why = riskyReason(cmd, wish, resolvedTargets);
     if (why) blocked.push(`${cmd.slice(0, 60)} (${why})`);
     return !why;
   };
@@ -557,7 +672,45 @@ function parseJsonSafe(raw) {
   const first = stripped.indexOf('{');
   const last = stripped.lastIndexOf('}');
   if (first >= 0 && last > first) {
-    return JSON.parse(stripped.slice(first, last + 1));
+    try {
+      return JSON.parse(stripped.slice(first, last + 1));
+    } catch {}
+  }
+  // Rescate seguro si la respuesta JSON quedó truncada dentro de "pasos": [...]
+  if (first >= 0) {
+    const sliceSrc = stripped.slice(first);
+    const pasosMatch = sliceSrc.match(/"pasos"\s*:\s*\[/);
+    if (pasosMatch) {
+      const arrStart = sliceSrc.indexOf('[', pasosMatch.index);
+      let inStr = false;
+      let escaped = false;
+      let depth = 0;
+      let lastCompleteObjEnd = -1;
+      for (let i = arrStart + 1; i < sliceSrc.length; i++) {
+        const ch = sliceSrc[i];
+        if (escaped) { escaped = false; continue; }
+        if (inStr) {
+          if (ch === '\\') { escaped = true; continue; }
+          if (ch === '"') inStr = false;
+          continue;
+        }
+        if (ch === '"') { inStr = true; continue; }
+        if (ch === '{') depth += 1;
+        else if (ch === '}') {
+          if (depth > 0) {
+            depth -= 1;
+            if (depth === 0) lastCompleteObjEnd = i;
+          }
+        } else if (ch === ']' && depth === 0) {
+          break;
+        }
+      }
+      if (lastCompleteObjEnd > arrStart) {
+        try {
+          return JSON.parse(`${sliceSrc.slice(0, lastCompleteObjEnd + 1)}]}`);
+        } catch {}
+      }
+    }
   }
   throw new Error(`No se pudo parsear plan admin JSON: ${txt.slice(0, 140)}`);
 }
@@ -655,7 +808,65 @@ export async function repairCommand({ config, wish, failedCmd, error, serverHelp
   return { comando: sanitizeRconCommand(parsed?.comando || ''), explicacion: String(parsed?.explicacion || '').slice(0, 200) };
 }
 
-export async function planAdminWish({ config, wish, onlinePlayers = [] }) {
+// Contexto compacto de Miscolandia para que !admin entienda roles, naciones, religiones, aduana y chat reciente.
+export async function buildAdminWorldContext({ bridge = null, memory = null, cfg = null, onlinePlayers = [], worldState = null } = {}) {
+  let state = worldState;
+  if (!state && bridge) {
+    try {
+      const res = await bridge.fetchWorld(false);
+      state = res?.state || null;
+    } catch {}
+  }
+
+  const lines = [];
+  if (state && bridge) {
+    try {
+      const era = bridge.getCurrentEra(state);
+      const myth = bridge.nat(state, 'myth');
+      const scad = bridge.nat(state, 'scad');
+      lines.push(`Era actual: ${era.code} (${era.name}).`);
+      lines.push(`Gobernantes y naciones: ${myth.player} (rey/gobernante de ${myth.nation}; monopolios: agricultura/flores/abejas, encantamientos, redstone) · ${scad.player} (rey/gobernante de ${scad.nation}; monopolios: ganadería/pesca, metalurgia/forja, alquimia, rieles, construcción).`);
+      const NOC_RE = /^notout(?:of)?context$/i;
+      const noc = (onlinePlayers || []).find(p => NOC_RE.test(String(p || '')))
+        || (cfg?.players?.guests || []).find(g => NOC_RE.test(String(g || '')))
+        || 'NotOutContext';
+      const otherGuests = (state.guests || [])
+        .filter(g => g?.nick && !NOC_RE.test(String(g.nick)))
+        .map(g => `${g.nick}${g.name && g.name !== g.nick ? ` (${g.name})` : ''}`);
+      lines.push(`Archivista Nacional / Auditor Oficial (nick exacto: ${noc}; alias: "noc", "archivista", "auditor", "notoutofcontext").${otherGuests.length ? ` Otros invitados: ${otherGuests.join(', ')}.` : ''}`);
+      const rels = bridge.getReligions(state) || [];
+      if (rels.length) {
+        lines.push(`Religiones y deidades activas: ${rels.map(r => `${r.faith || r.names[0]} -> dios/es [${r.names.join(', ')}] (${r.people})`).join(' | ')}.`);
+      }
+    } catch {}
+  } else {
+    const mythNick = cfg?.players?.myth?.[0] || 'MythStorm';
+    const scadNick = cfg?.players?.scad?.[0] || 'Scadrial0523';
+    const nocNick = cfg?.players?.guests?.[0] || 'NotOutContext';
+    lines.push(`Jugadores principales: ${mythNick} (Nueva Alejandría), ${scadNick} (Luthadel), ${nocNick} (Archivista/Auditor, alias: noc).`);
+  }
+
+  if (onlinePlayers.length) {
+    lines.push(`Conectados en este instante: ${onlinePlayers.join(', ')}.`);
+  }
+
+  if (memory) {
+    try {
+      const permits = memory.getActivePermits?.() || [];
+      if (permits.length) lines.push(`Permisos vigentes: ${permits.slice(0, 4).map(p => memory.describePermit(p)).join('; ')}.`);
+      const prohibs = memory.getActiveProhibitions?.() || [];
+      if (prohibs.length) lines.push(`Prohibiciones vigentes: ${prohibs.slice(0, 4).map(p => memory.describeProhibition(p)).join('; ')}.`);
+      const infr = memory.getInfractions?.(null, 4) || [];
+      if (infr.length) lines.push(`Últimas infracciones de Aduana: ${infr.map(e => `${e.player}: ${e.text}`).join(' | ')}.`);
+      const chat = memory.getRecentChatText?.(8);
+      if (chat) lines.push(`Chat reciente:\n${chat}`);
+    } catch {}
+  }
+
+  return lines.join('\n').slice(0, 1600);
+}
+
+export async function planAdminWish({ config, wish, onlinePlayers = [], worldContext = '', worldState = null }) {
   const clean = String(wish || '').trim();
   if (!clean) {
     return {
@@ -666,6 +877,8 @@ export async function planAdminWish({ config, wish, onlinePlayers = [] }) {
     };
   }
 
+  const resolved = resolveWishPlayers(clean, onlinePlayers, worldState, config);
+
   // Cancelación inmediata sin esperar al LLM
   if (CANCEL_RE.test(clean)) {
     return deterministicFallbackPlan(clean);
@@ -673,83 +886,103 @@ export async function planAdminWish({ config, wish, onlinePlayers = [] }) {
 
   // Órdenes comunes (anuncio, título, fuegos artificiales) se resuelven sin IA: instantáneo y siempre igual
   const homer = homerIntents(clean, onlinePlayers);
-  if (homer.plan && !homer.complex) return normalizePlan(homer.plan, clean);
+  if (homer.plan && !homer.complex) return normalizePlan(homer.plan, clean, resolved.targets);
 
   const systemPrompt = [
-    'Eres el Genio Administrador del servidor Minecraft Java Edition 26.4-snapshot-10 (Miscolandia: MythStorm, Scadrial0523 y NotOutContext).',
-    'El dueño del servidor te da caprichos o instrucciones administrativas por consola y TÚ debes traducirlas a un plan JSON ejecutable con comandos 100% válidos de Minecraft Vanilla 26.4.',
-    'REGLAS DE SINTAXIS VANILLA 26.4 (MUY IMPORTANTE):',
-    '1. En "comando" NO pongas barra inicial "/". Ej: "time set day", NO "/time set day".',
-    '2. Es servidor Vanilla sin plugins (no existe /fly, /god, /home, /tpa, /broadcast, /countdown). Usa comandos nativos: time, weather, tp, give, effect, summon, title, tellraw, playsound, particle, gamerule, difficulty, gamemode, xp, clear, bossbar, save-all, stop, list, whitelist, ban, pardon, kick, scoreboard.',
-    '3. Si piden ítems con nombre personalizado o lore en 1.21+/26.4, usa componentes: give @a minecraft:cookie[minecraft:custom_name={text:"Galleta Real",color:"gold",bold:true,italic:false}] 3. NUNCA uses sintaxis vieja {display:{Name:...}}.',
-    '4. Para fuegos artificiales divertidos: execute as @a at @s run summon minecraft:firework_rocket ~ ~1 ~ {LifeTime:20,FireworksItem:{id:"minecraft:firework_rocket",count:1,components:{"minecraft:fireworks":{flight_duration:1,explosions:[{shape:"large_ball",colors:[I;16755200,5636095],flicker:true}]}}}}',
-    '4b. Para VARIOS fuegos artificiales no repitas el comando entero: máximo 4 comandos, cada uno con un offset distinto (~3 ~1 ~3, ~-3 ~1 ~3, ~3 ~1 ~-3, ~-3 ~1 ~-3).',
-    '5. Para sonidos: execute as @a at @s run playsound minecraft:entity.player.levelup master @s ~ ~ ~ 0.9 1',
-    '6. SI PIDEN CUENTA REGRESIVA, CONTADOR O QUE ALGO PASE EN N SEGUNDOS CON CONTEO (ej. cerrar/apagar/explotar/celebrar en 10s con contador): USA SIEMPRE UN SOLO PASO tipo:"countdown" (con segundos, titulo, subtitulo con "{s}", color, bossbar:true, mensaje_final, y comandos_finales como ["save-all","stop"] si cierra el servidor). NO generes 10 comandos title sueltos.',
-    '7. Si piden cancelar un contador o cierre: usa tipo:"cancel_countdown".',
-    '8. Si solo es un mensaje o anuncio al chat/pantalla: usa tipo:"broadcast" (pantalla:true si es título grande).',
-    '9. Cumple exactamente el capricho pedido; no inventes castigos o explosiones si no los pidieron.',
-    '10. Devuelve JSON válido con resumen, respuesta_consola, anuncio_chat y pasos.'
+    'Eres el Genio Administrador omnipotente del servidor Minecraft Java Edition 26.4-snapshot-10 (Miscolandia).',
+    'Traduce las órdenes libres del dueño a un plan JSON con comandos 100% válidos de Minecraft Vanilla 26.4 y total libertad creativa.',
+    'CONTEXTO Y ALIAS: Usa SIEMPRE los nicks exactos del jugador indicado en <contexto_miscolandia> o <alias_detectados> (ej. "noc"/"archivista" -> NotOutContext, "luthadel"/"scad" -> Scadrial0523, "alejandria"/"myth" -> MythStorm).',
+    'ÓRDENES ABIERTAS Y CREATIVIDAD ("castiga a X", "trollea a X", "hazle una broma", "premia a X", "haz un show", "haz lo que se te dé la gana"):',
+    '- NO te limites a un simple mensaje de texto: ejecuta 3 a 6 pasos espectaculares combinando comandos nativos 26.4.',
+    '- Para CASTIGOS / BROMAS creativas sobre un jugador J: combina título/subtítulo dramático (title J title ...), sonidos tensos (execute at J run playsound minecraft:entity.elder_guardian.curse master @a ~ ~ ~ 1 0.6), partículas (execute at J run particle minecraft:witch ~ ~1 ~ 1 1 1 0.08 80), rayos teatrales (execute at J run summon minecraft:lightning_bolt ~ ~ ~), efectos temporales divertidos con ENTERO en segundos SIN letra "s" (ej: effect give J minecraft:levitation 4 1, effect give J minecraft:slow_falling 10 0, effect give J minecraft:nausea 10 0, effect give J minecraft:glowing 45 0, effect give J minecraft:blindness 5 0, effect give J minecraft:slowness 15 1), daño leve no letal (damage J 2 minecraft:magic), teletransporte vertical corto (execute as J at @s run tp @s ~ ~6 ~), o invocación cómica de mobs inofensivos con nombre SNBT (execute at J run summon minecraft:chicken ~1 ~ ~ {CustomName:{text:"Inspector de Aduana",color:"gold"}}) y objetos broma (give J minecraft:rotten_flesh[minecraft:custom_name={text:"Multa Divina",color:"red",italic:false}] 1) con delay_sec escalonado (0, 1.5, 3...).',
+    '- Para PREMIOS / CELEBRACIONES: combina fuegos artificiales, title, xp add, efectos positivos cortos (luck, speed, regeneration, haste) y regalos temáticos con minecraft:custom_name y minecraft:lore en SNBT.',
+    'REGLAS DE SINTAXIS VANILLA 26.4:',
+    '1. Sin "/" inicial en "comando" (ej: "time set day", nunca "/time set day").',
+    '2. Servidor 100% Vanilla sin plugins (NO existen /fly, /god, /home, /tpa, /broadcast, /countdown, /mute, /jail). Usa comandos reales: time, weather, tp, give, effect, summon, damage, attribute, title, tellraw, playsound, particle, gamerule, difficulty, gamemode, xp, clear, bossbar, setblock, save-all, stop, whitelist, ban, pardon, kick. Recuerda: en effect give el tiempo es un entero SIN "s" (ej. 15 0, nunca 15s).',
+    '3. Componentes y nombres en 26.4 usan SNBT compuesto sin comillas simples alrededor (CustomName:{text:"...",color:"gold"}, minecraft:custom_name={text:"...",color:"gold",italic:false}). NUNCA uses CustomName:\'{...}\' ni {display:{Name:...}}.',
+    '4. Fuegos artificiales en 26.4 (usa has_twinkle:true,has_trail:true, nunca "flicker"): execute as @a at @s run summon minecraft:firework_rocket ~ ~1 ~ {LifeTime:20,FireworksItem:{id:"minecraft:firework_rocket",count:1,components:{"minecraft:fireworks":{flight_duration:1,explosions:[{shape:"large_ball",colors:[I;16755200,5636095],has_twinkle:true,has_trail:true}]}}}}',
+    '5. Cuentas regresivas ("en N segundos con contador"): usa UN SOLO paso tipo:"countdown" con segundos, titulo, subtitulo con "{s}", color, bossbar:true, mensaje_final y comandos_finales (["save-all","stop"] si cierra el servidor).',
+    '6. Cancelar contador: tipo:"cancel_countdown". Anuncio solo chat/pantalla: tipo:"broadcast" (pantalla:true para título grande).',
+    '7. LÍMITES ANTI-GRIEF: salvo que el admin lo pida con esas palabras exactas, NUNCA uses ban/kick/op/stop/whitelist/clear completo ni invoques wither/ender_dragon/warden/tnt/lava.',
+    '8. Devuelve JSON válido con resumen, respuesta_consola, anuncio_chat y entre 3 y 8 pasos concisos como máximo (no repitas comandos ni llenes campos opcionales vacíos).'
   ].join('\n');
 
   const userPrompt = [
-    `Jugadores conectados actualmente: ${onlinePlayers.length ? onlinePlayers.join(', ') : 'ninguno (usa @a si aplica a todos)'}`,
+    worldContext ? `<contexto_miscolandia>\n${worldContext}\n</contexto_miscolandia>` : `Jugadores conectados: ${onlinePlayers.length ? onlinePlayers.join(', ') : 'desconocidos'}`,
+    resolved.aliasNotes.length ? `<alias_detectados>\n${resolved.aliasNotes.join(', ')}\n</alias_detectados>` : '',
     `Petición del administrador: ${clean}`
-  ].join('\n');
+  ].filter(Boolean).join('\n\n');
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 45000);
+  const temps = [0.25, 0.1];
   try {
-    const res = await fetch(`${config.ollamaUrl.replace(/\/+$/, '')}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      signal: controller.signal,
-      body: JSON.stringify({
-        model: config.adminModel || config.ollamaModel, // el genio puede usar un modelo más capaz (se usa poco y desde consola)
-        stream: false,
-        think: false,
-        keep_alive: config.adminModel ? '2m' : (config.ollamaKeepAlive || '10m'),
-        format: ADMIN_PLAN_SCHEMA,
-        options: {
-          temperature: 0.2,
-          num_predict: 2000, // con 600 los planes con varios fuegos artificiales salían cortados (JSON roto)
-          num_ctx: 8192
-        },
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ]
-      })
-    });
-    if (!res.ok) throw new Error(`Ollama HTTP ${res.status}`);
-    const data = await res.json();
-    const parsed = parseJsonSafe(data?.message?.content ?? '');
-    const normalized = patchForgotten(normalizePlan(parsed, clean), clean, onlinePlayers);
+    let parsed = null;
+    let lastParseErr = null;
+    for (const temperature of temps) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 60000);
+      let data;
+      try {
+        const res = await fetch(`${config.ollamaUrl.replace(/\/+$/, '')}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({
+            model: config.adminModel || config.ollamaModel, // el genio puede usar un modelo más capaz (se usa poco y desde consola)
+            stream: false,
+            think: false,
+            keep_alive: config.adminModel ? '2m' : (config.ollamaKeepAlive || '10m'),
+            format: ADMIN_PLAN_SCHEMA,
+            options: {
+              temperature,
+              num_predict: 2600,
+              num_ctx: 8192
+            },
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userPrompt }
+            ]
+          })
+        });
+        if (!res.ok) throw new Error(`Ollama HTTP ${res.status}`);
+        data = await res.json();
+      } finally {
+        clearTimeout(timer);
+      }
+      try {
+        parsed = parseJsonSafe(data?.message?.content ?? '');
+        break;
+      } catch (err) {
+        lastParseErr = err;
+      }
+    }
+    if (!parsed) throw lastParseErr || new Error('No se pudo parsear plan admin JSON');
+    const normalized = patchForgotten(normalizePlan(parsed, clean, resolved.targets), clean, onlinePlayers);
     if (!normalized.pasos.length) {
       const fb = deterministicFallbackPlan(clean);
-      if (fb) return normalizePlan(fb, clean);
+      if (fb) return normalizePlan(fb, clean, resolved.targets);
     }
     return normalized;
   } catch (err) {
     const fb = deterministicFallbackPlan(clean);
-    if (fb) return normalizePlan(fb, clean);
+    if (fb) return normalizePlan(fb, clean, resolved.targets);
     // Si la IA falló pero había partes que el intérprete sí entendió, al menos se hacen esas
-    if (homer.plan) return normalizePlan(homer.plan, clean);
+    if (homer.plan) return normalizePlan(homer.plan, clean, resolved.targets);
     throw err;
-  } finally {
-    clearTimeout(timer);
   }
 }
 
 export class AdminGenie {
-  constructor({ cfg, rcon, onLog = console.log, onBeforeStop = null, tickMs = 1000 } = {}) {
+  constructor({ cfg, rcon, bridge = null, memory = null, onLog = console.log, onBeforeStop = null, tickMs = 1000 } = {}) {
     this.cfg = cfg;
     this.rcon = rcon;
+    this.bridge = bridge;
+    this.memory = memory;
     this.onLog = onLog;
     this.onBeforeStop = onBeforeStop;
     this.tickMs = Math.max(10, Number(tickMs) || 1000);
     this.activeCountdown = null;
     this.pendingTimers = new Set();
+    this.currentTargets = null;
   }
 
   hasActiveCountdown() {
@@ -1006,7 +1239,7 @@ export class AdminGenie {
         this.onLog(`[Admin] No se pudo pedir corrección: ${err.message}`);
         break;
       }
-      const why = fixed.comando ? riskyReason(fixed.comando, this.currentWish) : 'sin arreglo';
+      const why = fixed.comando ? riskyReason(fixed.comando, this.currentWish, this.currentTargets) : 'sin arreglo';
       if (why || fixed.comando === current) {
         this.onLog(`[Admin] Corrección descartada (${why || 'igual al anterior'}).`);
         break;
@@ -1018,7 +1251,7 @@ export class AdminGenie {
     return '';
   }
 
-  async fulfill(wish, { dryRun = false, onlinePlayers = null } = {}) {
+  async fulfill(wish, { dryRun = false, onlinePlayers = null, worldContext = null, worldState = null } = {}) {
     this.currentWish = wish;
     let players = Array.isArray(onlinePlayers) ? onlinePlayers : [];
     if (!onlinePlayers && !dryRun) {
@@ -1031,7 +1264,20 @@ export class AdminGenie {
       } catch {}
     }
 
-    const plan = await planAdminWish({ config: this.cfg, wish, onlinePlayers: players });
+    let state = worldState;
+    if (!state && this.bridge) {
+      try {
+        const res = await this.bridge.fetchWorld(false);
+        state = res?.state || null;
+      } catch {}
+    }
+
+    this.currentTargets = resolveWishPlayers(wish, players, state, this.cfg).targets;
+    const contextStr = worldContext !== null
+      ? String(worldContext || '')
+      : await buildAdminWorldContext({ bridge: this.bridge, memory: this.memory, cfg: this.cfg, onlinePlayers: players, worldState: state });
+
+    const plan = await planAdminWish({ config: this.cfg, wish, onlinePlayers: players, worldContext: contextStr, worldState: state });
     this.onLog(`[Admin] Plan: ${plan.resumen} (${plan.pasos.length} paso(s))`);
 
     if (dryRun) {

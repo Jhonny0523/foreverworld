@@ -10,9 +10,9 @@ import { askModerator, askNpc, npcOfflineReply, generateRoast, generateSocialMes
 import { RuleEnforcer } from './enforcer.mjs';
 import { SessionMemory, PERMIT_SCOPES } from './memory.mjs';
 import { WorldEvents } from './events.mjs';
-import { Deity } from './deity.mjs';
+import { Deity, SMITES } from './deity.mjs';
 import { WebSyncAnnouncer, snapshotWorld, diffWorldSnapshots } from './web-sync.mjs';
-import { AdminGenie, extractAdminWish, planAdminWish, sanitizeRconCommand, setWikiCachePath } from './admin-genie.mjs';
+import { AdminGenie, extractAdminWish, planAdminWish, resolveWishPlayers, riskyReason, sanitizeRconCommand, setWikiCachePath } from './admin-genie.mjs';
 import {
   COLOR_PALETTE_LIST,
   parseFormattedText,
@@ -1861,7 +1861,7 @@ async function tellDeathCoords(player, ctx) {
   await ctx.rcon.tellraw(player, ['', { text: '[Cartógrafo] ', color: 'dark_aqua', bold: true }, { text: `Caíste en X ${d.x}, Y ${d.y}, Z ${d.z} (${d.dim}). Tus cosas duran 5 minutos en el suelo.`, color: 'white' }]);
 }
 
-// La deidad: solo existe si alguna fe le dio nombre en la web. Casi nunca contesta (ver deity.mjs).
+// La deidad: solo existe si alguna fe le dio nombre en la web. Casi nunca contesta, salvo burlas/blasfemias (ver deity.mjs).
 async function maybeHandleDeity(player, clean, ctx) {
   const { deity, bridge, enforcer } = ctx;
   if (!deity) return false;
@@ -1873,16 +1873,45 @@ async function maybeHandleDeity(player, clean, ctx) {
   }
   const role = enforcer.getPlayerRole(player, state);
   const pid = deity.playerPid(player, role, state);
+  const dev = bridge.getDevotion(state, pid);
+
+  const describeDevotionFor = relPid => {
+    if (dev.path === 'fe' && dev.creed === relPid) {
+      return `es fiel de esta fe (${dev.level}/${dev.total} hitos de fe cumplidos)`;
+    }
+    if (dev.path === 'fe') {
+      const ownRel = (bridge.getReligions(state) || []).find(x => x.pid === dev.creed);
+      return `profesa otra fe (${ownRel?.faith || ownRel?.names?.[0] || dev.creed})`;
+    }
+    if (dev.path === 'razon') return 'no cree en ningún dios: sigue la Razón';
+    return 'no tiene convicción declarada';
+  };
+
+  // Burla o blasfemia contra cualquier fe nombrada (La Razón nunca castiga ni responde por blasfemia)
+  const mock = deity.detectMockery(clean, state, pid);
+  if (mock) {
+    ctx.memory?.recordEvent('event', `${player} se burló de ${mock.name} (${mock.religion.faith || mock.religion.people})`);
+    const outcome = deity.rollSmite(player, Math.random);
+    if (outcome === 'omen') {
+      await deity.sign(player);
+      return true;
+    }
+    if (outcome !== 'smite') return true;
+    const identity = `${buildPlayerIdentity(player, role, state, bridge)} — ${describeDevotionFor(mock.religion.pid)}`;
+    const job = queueAi(() => deity.punish({ inv: mock, player, playerIdentity: identity, message: clean, state }));
+    job?.catch(err => console.error('[Deidad castigo]', err.message));
+    return true;
+  }
+
   const inv = deity.findInvocation(clean, state, pid);
   if (!inv) return false;
   // Fiel = quien declaró esa fe en la web (Convicción) o la fundó; los hitos cumplidos suben la probabilidad
-  const dev = bridge.getDevotion(state, pid);
   const believer = dev.path === 'fe' && dev.creed === inv.religion.pid;
   ctx.memory?.recordEvent('event', `${player} invocó a ${inv.name}`);
   const outcome = deity.roll(player, believer, Math.random, believer ? dev.level : 0);
   if (outcome === 'sign') await deity.sign(player);
   if (outcome !== 'answer') return true; // silencio: el mensaje tampoco lo contestan los otros NPCs
-  const identity = `${buildPlayerIdentity(player, role, state, bridge)} — ${believer ? `es fiel de esta fe (${dev.level}/${dev.total} hitos de fe cumplidos)` : dev.path === 'razon' ? 'no cree en ningún dios: sigue la Razón' : `no es fiel de esta fe (la profesan ${inv.religion.people})`}`;
+  const identity = `${buildPlayerIdentity(player, role, state, bridge)} — ${describeDevotionFor(inv.religion.pid)}`;
   const job = queueAi(() => deity.speak({ inv, player, playerIdentity: identity, message: clean, state }));
   job?.catch(err => console.error('[Deidad]', err.message));
   return true;
@@ -2556,7 +2585,7 @@ async function runSmokeTest(cfg) {
     contextText: arqNpc.buildContext(state, blindArqQuery, { bridge }).join('\n\n---\n\n')
   });
   console.log(`9d) NPC Arquitecto (sin ojos) reply:`, blindArqRes);
-  if (!blindArqRes.respuesta_corta || !/(?:no\s+tengo\s+ojos|sin\s+ojos|no\s+(?:puedo|logro)\s+ver|no\s+veo|ciego|no\s+tengo\s+c[aá]mara)/i.test(blindArqRes.respuesta_corta)) {
+  if (!blindArqRes.respuesta_corta || !/(?:no|ni)\s+(?:tengo|poseo)\s+ojos|sin\s+ojos|(?:no|ni)\s+(?:te\s+)?(?:puedo|logro)\s+ver|no\s+veo|ciego|(?:no|ni)\s+(?:tengo|poseo)\s+c[aá]mara/i.test(blindArqRes.respuesta_corta)) {
     throw new Error(`Se esperaba rechazo por falta de ojos (Arquitecto): ${blindArqRes.respuesta_corta}`);
   }
   const blindSocial = await generateSocialMessage({
@@ -2570,7 +2599,7 @@ async function runSmokeTest(cfg) {
     triggerMessage: 'pregonero como ves mi casa y mi granja?'
   });
   console.log(`9e) Pregonero (sin ojos) reply:`, blindSocial);
-  if (!blindSocial || !/(?:no\s+tengo\s+ojos|sin\s+ojos|no\s+(?:puedo|te\s+puedo|logro)\s+ver|no\s+veo|ciego|no\s+tengo\s+c[aá]mara)/i.test(blindSocial)) {
+  if (!blindSocial || !/(?:no|ni)\s+(?:tengo|poseo)\s+ojos|sin\s+ojos|(?:no|ni)\s+(?:te\s+)?(?:puedo|logro)\s+ver|no\s+veo|ciego|(?:no|ni)\s+(?:tengo|poseo)\s+c[aá]mara/i.test(blindSocial)) {
     throw new Error(`Se esperaba rechazo por falta de ojos (Pregonero): ${blindSocial}`);
   }
   const archNpc = NPC_CAST.find(n => n.id === 'archivista');
@@ -2761,6 +2790,85 @@ async function runSmokeTest(cfg) {
     throw new Error(`diffWorldSnapshots no detectó todos los eventos: ${JSON.stringify(changedDiff)}`);
   }
   console.log(`13) WebSync Diff & !hitos/!obras test: PASS`);
+
+  // 14. Deity Blasphemy Detection & La Razón Exclusion
+  const tmpDeityPath = path.join(os.tmpdir(), `miscolandia-smoke-deity-${Date.now()}.json`);
+  try {
+    const deitySent = [];
+    const deityMockRcon = {
+      async send(c) { deitySent.push(c); return 'OK'; },
+      async tellraw(t, comps) { deitySent.push(`tellraw ${t} ${JSON.stringify(comps)}`); return 'OK'; }
+    };
+    const mockState = JSON.parse(JSON.stringify(state));
+    mockState.guests = Array.isArray(mockState.guests) && mockState.guests.length
+      ? mockState.guests
+      : [{ id: 'guest_noc', nick: 'NotOutContext', name: 'Archivista' }];
+    const nocGuestId = (mockState.guests.find(g => /notout/i.test(String(g.nick || ''))) || mockState.guests[0]).id;
+    mockState.religions = {
+      myth: { faith: 'Iglesia del Sol', names: 'Solari', nature: 'Severo pero justo' },
+      scad: { faith: 'Culto de la Bruma', names: 'Bruma', nature: 'Silenciosa e implacable' }
+    };
+    mockState.devotion = {
+      myth: { creed: 'myth', marks: {} },
+      scad: { creed: 'scad', marks: {} },
+      [nocGuestId]: { creed: 'razon', marks: {} }
+    };
+    const testDeity = new Deity({ cfg, bridge, rcon: deityMockRcon, statePath: tmpDeityPath });
+    const mAtheist = testDeity.detectMockery('jaja Solari es una basura inútil', mockState, nocGuestId);
+    const mCross = testDeity.detectMockery('el culto de la bruma es ridículo', mockState, 'myth');
+    const mReason = testDeity.detectMockery('la razón es una tontería jajaja', mockState, 'myth');
+    const mPrayer = testDeity.detectMockery('oh Solari, dame fuerzas por favor', mockState, 'myth');
+    if (
+      mAtheist?.name !== 'Solari' ||
+      mCross?.name !== 'Bruma' ||
+      mReason !== null ||
+      mPrayer !== null ||
+      Object.keys(SMITES).length < 5
+    ) {
+      throw new Error(`detectMockery falló: ${JSON.stringify({ mAtheist: mAtheist?.name, mCross: mCross?.name, mReason, mPrayer })}`);
+    }
+    testDeity.askSmite = async () => ({ mensaje: '¡Silencio, mortal insolente!', castigo: 'marca' });
+    const smiteRes = await testDeity.punish({
+      inv: mAtheist,
+      player: 'NotOutContext',
+      playerIdentity: 'NotOutContext — sigue la Razón',
+      message: 'jaja Solari es una basura inútil',
+      state: mockState
+    });
+    if (
+      smiteRes.smiteId !== 'marca' ||
+      !deitySent.some(c => c.includes('effect give NotOutContext minecraft:glowing')) ||
+      !deitySent.some(c => c.includes('[Solari]')) ||
+      !(testDeity.saved.smites || []).some(s => s.player === 'NotOutContext' && s.smiteId === 'marca')
+    ) {
+      throw new Error(`deity.punish no ejecutó ni guardó castigo: ${JSON.stringify({ smiteRes, smites: testDeity.saved.smites })}`);
+    }
+  } finally {
+    try { fs.unlinkSync(tmpDeityPath); } catch {}
+  }
+  console.log(`14) Deity Blasphemy & La Razón Exclusion test: PASS`);
+
+  // 15. AdminGenie Alias Resolution, Creative Safety & 26.4 Sanitizer
+  const resNoc = resolveWishPlayers('castiga a noc', ['NotOutContext'], state, cfg);
+  const resArch = resolveWishPlayers('premia al archivista', [], state, cfg);
+  const resLuth = resolveWishPlayers('castiga al de luthadel', [], state, cfg);
+  const effFixed = sanitizeRconCommand('effect give NotOutContext minecraft:levitation 4s');
+  const mobFixed = sanitizeRconCommand('execute at NotOutContext run summon minecraft:chicken ~1 ~ ~ {CustomName:\'{"text":"Inspector","color":"gold"}\'}');
+  if (
+    !resNoc.targets.has('notoutcontext') ||
+    !resArch.targets.has('notoutcontext') ||
+    !resLuth.targets.has('scadrial0523') ||
+    effFixed !== 'effect give NotOutContext minecraft:levitation 4' ||
+    !mobFixed.includes('CustomName:{text:"Inspector",color:"gold"}') ||
+    riskyReason('effect give NotOutContext minecraft:levitation 5 1', 'castiga a noc', resNoc.targets) !== null ||
+    riskyReason('execute at NotOutContext run summon minecraft:lightning_bolt ~ ~ ~', 'castiga al archivista', resArch.targets) !== null ||
+    riskyReason('ban NotOutContext', 'castiga a noc', resNoc.targets) === null ||
+    riskyReason('effect give MythStorm minecraft:blindness 10 0', 'castiga a noc', resNoc.targets) === null ||
+    riskyReason('execute at NotOutContext run summon minecraft:wither ~ ~ ~', 'castiga a noc', resNoc.targets) === null
+  ) {
+    throw new Error(`Alias resolution, SNBT sanitizer o riskyReason falló: ${JSON.stringify({ noc: [...resNoc.targets], arch: [...resArch.targets], luth: [...resLuth.targets], effFixed, mobFixed })}`);
+  }
+  console.log(`15) AdminGenie Alias Resolution & Creative Safety test: PASS`);
   console.log('=== TODOS LOS TESTS PASARON ===');
 }
 
@@ -2786,6 +2894,8 @@ async function main() {
   const adminGenie = new AdminGenie({
     cfg,
     rcon,
+    bridge,
+    memory,
     onBeforeStop: () => handleServerStopCompaction(ctx)
   });
   ctx.adminGenie = adminGenie;

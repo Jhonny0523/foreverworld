@@ -70,6 +70,73 @@ export const FAVORS = {
 };
 export const WISHES = FAVORS; // nombre anterior
 
+// Catálogo de escarmientos por burla o blasfemia: dramáticos e inocuos para el mundo (sin borrar inventario ni romper bloques).
+export const SMITES = {
+  trueno: {
+    label: 'fulminarle con un rayo y entumecerle',
+    cmds: p => [
+      `execute at ${p} run summon minecraft:lightning_bolt ~ ~ ~`,
+      `effect give ${p} minecraft:weakness 30 0 true`,
+      `effect give ${p} minecraft:slowness 15 1 true`
+    ]
+  },
+  oscuridad: {
+    label: 'envolverle en tinieblas',
+    cmds: p => [
+      `effect give ${p} minecraft:darkness 25 0 true`,
+      `effect give ${p} minecraft:blindness 10 0 true`,
+      `execute at ${p} run playsound minecraft:entity.warden.heartbeat master @a ~ ~ ~ 0.9 0.6`,
+      `execute at ${p} run particle minecraft:large_smoke ~ ~1 ~ 1.5 1.5 1.5 0.02 90`
+    ]
+  },
+  hambre: {
+    label: 'dejarle con hambre voraz y mareo',
+    cmds: p => [
+      `effect give ${p} minecraft:hunger 35 2 true`,
+      `effect give ${p} minecraft:nausea 12 0 true`,
+      `execute at ${p} run playsound minecraft:entity.elder_guardian.curse master ${p} ~ ~ ~ 0.8 0.7`
+    ]
+  },
+  levitacion: {
+    label: 'alzarle por los aires en vergüenza',
+    cmds: p => [
+      `effect give ${p} minecraft:levitation 5 1 true`,
+      `effect give ${p} minecraft:slow_falling 14 0 true`,
+      `effect give ${p} minecraft:glowing 30 0 true`,
+      `execute at ${p} run playsound minecraft:entity.shulker.shoot master @a ~ ~ ~ 0.9 0.7`,
+      `execute at ${p} run particle minecraft:witch ~ ~1 ~ 1 1 1 0.1 80`
+    ]
+  },
+  plomo: {
+    label: 'cargarle los pasos como plomo',
+    cmds: p => [
+      `effect give ${p} minecraft:slowness 35 2 true`,
+      `effect give ${p} minecraft:mining_fatigue 35 1 true`,
+      `effect give ${p} minecraft:weakness 35 1 true`,
+      `execute at ${p} run playsound minecraft:block.anvil.land master @a ~ ~ ~ 0.6 0.5`
+    ]
+  },
+  marca: {
+    label: 'marcarle como blasfemo con mala fortuna',
+    cmds: p => [
+      `effect give ${p} minecraft:glowing 90 0 true`,
+      `effect give ${p} minecraft:unluck 180 1 true`,
+      `effect give ${p} minecraft:nausea 8 0 true`,
+      `execute at ${p} run playsound minecraft:block.bell.resonate master @a ~ ~ ~ 0.9 0.5`,
+      `execute at ${p} run particle minecraft:soul_fire_flame ~ ~1 ~ 1 1.5 1 0.03 80`
+    ]
+  },
+  escarmiento: {
+    label: 'darle un escarmiento fugaz',
+    cmds: p => [
+      `execute at ${p} run playsound minecraft:entity.lightning_bolt.thunder master @a ~ ~ ~ 1 0.7`,
+      `effect give ${p} minecraft:wither 6 0 true`,
+      `effect give ${p} minecraft:darkness 10 0 true`,
+      `execute at ${p} run particle minecraft:angry_villager ~ ~1.5 ~ 1 1 1 0.1 40`
+    ]
+  }
+};
+
 // Qué favores existen ahora: Era alcanzada, gracia que queda y (si aplica) que sea de noche
 export function favorsFor({ era, budgetLeft, night = false, spontOnly = false }) {
   return Object.entries(FAVORS)
@@ -96,7 +163,11 @@ const DEFAULTS = {
   // Bendiciones (fieles) y hallazgos (Razón) espontáneos, sin pedirlos:
   findIntervalMinutes: 10,  // una tirada cada 10 min conectado
   findBase: 0.01,           // 1 % por tirada…
-  findPerLevel: 0.005       // …+0,5 % por hito cumplido
+  findPerLevel: 0.005,      // …+0,5 % por hito cumplido
+  // Castigos por burla o blasfemia contra una deidad con nombre (La Razón nunca castiga):
+  smiteChance: 0.75,
+  smiteCooldownMinutes: 5,
+  smiteGlobalGapMinutes: 1
 };
 
 // Lo que cada apuro pide, en efectos cortos
@@ -106,13 +177,29 @@ const RESCUES = {
   golpes: { cmds: p => [`effect give ${p} minecraft:regeneration 6 1 true`, `effect give ${p} minecraft:resistance 6 1 true`], what: 'de la muerte' }
 };
 
+const MOCKERY_RE = /\b(?:burl\w*|ridicul\w*|estupid\w*|idiot\w*|imbecil\w*|pendej\w*|bob[oa]s?|tont[oa]s?|basura|porqueria|mierd\w*|put[oa]s?|maldit[oa]s?|inutil\w*|patetic[oa]s?|fals[oa]s?|mentira\w*|invento\w*|cuento\w*|payas\w*|chiste\w*|mediocre\w*|debil\w*|cobarde\w*|fraude\w*|estafa\w*|no\s+existe\w*|no\s+sirve\w*|vale\s+(?:huevo|verga|nada|monda)|me\s+cago|me\s+rio|ja{2,}|je{2,}|xd+|lmao|que\s+asco|asco\s+de|horrible\w*|perdedor\w*|fracasad\w*|blasfemi\w*|herej\w*|malparid\w*|gonorre\w*|hpta|\bhp\b|vendehumo\w*|sobrevalorad\w*|da\s+risa|que\s+risa|puro\s+humo|no\s+hace\s+nada)\b/i;
+const REASON_ONLY_RE = /\b(?:la\s+razon|razonamiento|ateo|ateos|ateismo|ciencia)\b/i;
+const GENERIC_GOD_RE = /\b(?:dios|dioses|deidad|deidades|religion|religiones|fe|iglesia|culto|templo|profeta)\b/i;
+
 export function normalizeName(s) {
-  return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
 
 function nameRegex(name) {
   const n = normalizeName(name).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
   return new RegExp(`(?:^|[^a-z0-9])${n}(?:$|[^a-z0-9])`, 'i');
+}
+
+function describeReligion(x) {
+  return [
+    `Fe: ${x.faith || '(sin nombre)'} — la profesan ${x.people} (escrita por ${x.believer})`,
+    `Nombres con que la invocan: ${x.names.join(', ')}`,
+    x.nature && `Cómo es: ${x.nature}`,
+    x.pleases && `Qué le agrada: ${x.pleases}`,
+    x.angers && `Qué la ofende: ${x.angers}`,
+    x.prayer && `Cómo se le reza: ${x.prayer}`,
+    x.rites && `Ritos, templos y fiestas: ${x.rites}`
+  ].filter(Boolean).join('\n');
 }
 
 export class Deity {
@@ -125,6 +212,8 @@ export class Deity {
     this.opts = { ...DEFAULTS, ...(cfg.deity || {}) };
     this.saved = this.load();
     this.rolls = new Map(); // jugador -> última tirada
+    this.smiteOmenRolls = new Map(); // jugador -> último augurio por enfriamiento de castigo
+    this.pendingSmiteAt = 0;
   }
 
   load() {
@@ -136,13 +225,14 @@ export class Deity {
           wishes: Array.isArray(p.wishes) ? p.wishes : [],
           log: Array.isArray(p.log) ? p.log : [],
           rescues: Array.isArray(p.rescues) ? p.rescues : [],
-          finds: Array.isArray(p.finds) ? p.finds : []
+          finds: Array.isArray(p.finds) ? p.finds : [],
+          smites: Array.isArray(p.smites) ? p.smites : []
         };
       }
     } catch (err) {
       console.warn('[Deidad] Error leyendo estado:', err.message);
     }
-    return { lastAnswerAt: 0, wishes: [], log: [], rescues: [], finds: [] };
+    return { lastAnswerAt: 0, wishes: [], log: [], rescues: [], finds: [], smites: [] };
   }
 
   save() {
@@ -178,6 +268,62 @@ export class Deity {
     if (!hits.length) return null;
     const main = hits.find(h => h.religion.pid === playerPid) || hits[0];
     return { ...main, religions, alsoNamedBy: hits.filter(h => h !== main).map(h => h.religion) };
+  }
+
+  // Detecta burla/blasfemia contra cualquier fe con deidad nombrada; burlarse de La Razón/ateísmo NUNCA dispara castigo divino.
+  detectMockery(text, state, playerPid = null) {
+    if (!this.opts.enabled) return null;
+    const religions = this.bridge.getReligions(state);
+    if (!religions.length) return null;
+    const msg = normalizeName(text);
+    if (!MOCKERY_RE.test(msg)) return null;
+
+    const hits = [];
+    for (const r of religions) {
+      let matched = null;
+      for (const name of r.names) {
+        if (nameRegex(name).test(msg)) { matched = { religion: r, name, matchedBy: 'name' }; break; }
+      }
+      if (!matched) {
+        const faithNorm = normalizeName(r.faith).trim();
+        if (faithNorm.length >= 3 && nameRegex(r.faith).test(msg)) {
+          matched = { religion: r, name: r.names[0], matchedBy: 'faith' };
+        }
+      }
+      if (matched) hits.push(matched);
+    }
+
+    if (hits.length) {
+      const main = hits.find(h => h.religion.pid !== playerPid) || hits[0];
+      return { ...main, religions, alsoNamedBy: hits.filter(h => h !== main).map(h => h.religion) };
+    }
+
+    if (REASON_ONLY_RE.test(msg) && !GENERIC_GOD_RE.test(msg)) return null;
+    if (GENERIC_GOD_RE.test(msg)) {
+      const chosen = religions.find(r => r.pid !== playerPid) || religions[0];
+      return { religion: chosen, name: chosen.names[0], matchedBy: 'generic', religions, alsoNamedBy: [] };
+    }
+    return null;
+  }
+
+  rollSmite(player, rand = Math.random) {
+    const now = Date.now();
+    const low = String(player || '').toLowerCase();
+    const smites = this.saved.smites || [];
+    const lastGlobal = smites.reduce((mx, s) => Math.max(mx, Number(s.ts) || 0), this.pendingSmiteAt || 0);
+    const lastPlayer = smites.reduce((mx, s) => (String(s.player || '').toLowerCase() === low ? Math.max(mx, Number(s.ts) || 0) : mx), 0);
+    const onPlayerCooldown = now - lastPlayer < this.opts.smiteCooldownMinutes * 60_000;
+    const onGlobalCooldown = now - lastGlobal < this.opts.smiteGlobalGapMinutes * 60_000;
+
+    if (!onPlayerCooldown && !onGlobalCooldown && rand() < this.opts.smiteChance) {
+      this.pendingSmiteAt = now;
+      return 'smite';
+    }
+    if (now - (this.smiteOmenRolls.get(low) || 0) >= 60_000) {
+      this.smiteOmenRolls.set(low, now);
+      return 'omen';
+    }
+    return 'silence';
   }
 
   // Gracia que queda esta semana en un camino ('fe' = favores divinos, 'razon' = hallazgos)
@@ -245,15 +391,6 @@ export class Deity {
 
   buildPrompt({ inv, player, playerIdentity, message, wishIds, recentLog, state }) {
     const r = inv.religion;
-    const describe = x => [
-      `Fe: ${x.faith || '(sin nombre)'} — la profesan ${x.people} (escrita por ${x.believer})`,
-      `Nombres con que la invocan: ${x.names.join(', ')}`,
-      x.nature && `Cómo es: ${x.nature}`,
-      x.pleases && `Qué le agrada: ${x.pleases}`,
-      x.angers && `Qué la ofende: ${x.angers}`,
-      x.prayer && `Cómo se le reza: ${x.prayer}`,
-      x.rites && `Ritos, templos y fiestas: ${x.rites}`
-    ].filter(Boolean).join('\n');
     const others = inv.religions.filter(x => x !== r);
     const sacred = this.bridge.getSacredTexts(state || {}, 4);
     const systemPrompt = [
@@ -264,14 +401,14 @@ export class Deity {
       '2. JAMÁS inventes mandamientos, profecías concretas, nombres de dioses, lugares, personajes, milagros pasados ni historia nueva. El lore lo escriben los jugadores, no tú.',
       '3. Un solo mensaje en español, solemne y breve (máximo 180 caracteres). Háblale al jugador por su nombre. Puedes ser críptica, tierna, severa o burlona según tu naturaleza escrita.',
       '4. Si otras fes te conocen con otros nombres (ver <otras_fes>), puedes darte cuenta, pero responde como la fe con la que te llamaron.',
-      '5. Si el jugador hace algo que según <escrituras> te ofende, muestra desagrado con palabras; nunca castigues.',
+      '5. Si el jugador te reza con respeto pero hace algo que te desagrada según <escrituras>, adviértele con palabras (los castigos se reservan para burlas y blasfemias).',
       '6. DESEOS: casi nunca concedes. Solo pon un deseo distinto de "ninguno" si el jugador pidió EXPLÍCITAMENTE algo y encaja con lo que te agrada según <escrituras>. Elige de <deseos_posibles> el favor MÁS PEQUEÑO que responda a lo pedido (si pide algo enorme, como un stack de netherite, niégalo o dale algo mucho menor y simbólico). Si la lista dice "ninguno", deseo="ninguno". Ante la duda, "ninguno".',
       '7. No tienes ojos en el mundo: no describas lo que el jugador está viendo o construyendo.',
       '8. JAMÁS menciones a Colombia, IA, modelos, tokens ni algoritmos. Devuelve JSON {"mensaje": "...", "deseo": "..."}.'
     ].join('\n');
     const userPrompt = [
-      `<escrituras>\n${describe(r)}${sacred.length ? `\n\nTextos sagrados y mitos registrados:\n${sacred.join('\n')}` : ''}\n</escrituras>`,
-      others.length ? `<otras_fes>\n${others.map(describe).join('\n\n')}\n</otras_fes>` : '',
+      `<escrituras>\n${describeReligion(r)}${sacred.length ? `\n\nTextos sagrados y mitos registrados:\n${sacred.join('\n')}` : ''}\n</escrituras>`,
+      others.length ? `<otras_fes>\n${others.map(describeReligion).join('\n\n')}\n</otras_fes>` : '',
       recentLog.length ? `<lo_que_ya_dijiste>\n${recentLog.map(l => `- A ${l.player} (como ${l.name}): ${l.msg}`).join('\n')}\n</lo_que_ya_dijiste>` : '',
       `<deseos_posibles>\n${wishIds.length ? wishIds.map(id => `${id}: ${FAVORS[id].label} (${FAVORS[id].kind}, valor ${FAVORS[id].cost})`).join('\n') : 'ninguno'}\n</deseos_posibles>`,
       `<quien_te_invoca>\n${playerIdentity}\n</quien_te_invoca>`,
@@ -280,7 +417,29 @@ export class Deity {
     return { systemPrompt, userPrompt };
   }
 
-  async ask({ systemPrompt, userPrompt, wishIds }) {
+  buildSmitePrompt({ inv, player, playerIdentity, message, state }) {
+    const r = inv.religion;
+    const sacred = this.bridge.getSacredTexts(state || {}, 4);
+    const smiteList = Object.entries(SMITES).map(([id, s]) => `${id}: ${s.label}`).join('\n');
+    const systemPrompt = [
+      `Eres la deidad invocada como «${inv.name}» (fe: ${r.faith || r.names[0]}). Un mortal acaba de burlarse de ti o blasfemar contra tu nombre o tu fe.`,
+      'NO inventes lore, historia ni nombres nuevos fuera de <escrituras>.',
+      'REGLAS ESTRICTAS:',
+      '1. Reprueba la burla en español con autoridad o ironía acorde a <escrituras> (máximo 180 caracteres), llamando al jugador por su nombre.',
+      '2. Funciona igual sin importar si quien se burla es fiel tuyo, fiel de otra religión o no cree en dioses (seguidor de La Razón).',
+      '3. Elige el id exacto de <castigos_posibles> que mejor cuadre con la ofensa.',
+      '4. JAMÁS menciones a Colombia, IA, modelos, tokens ni algoritmos. Devuelve JSON {"mensaje": "...", "castigo": "..."}.'
+    ].join('\n');
+    const userPrompt = [
+      `<escrituras>\n${describeReligion(r)}${sacred.length ? `\n\nTextos sagrados:\n${sacred.join('\n')}` : ''}\n</escrituras>`,
+      `<castigos_posibles>\n${smiteList}\n</castigos_posibles>`,
+      `<quien_se_burlo>\n${playerIdentity}\n</quien_se_burlo>`,
+      `<blasfemia>\n${String(message).slice(0, 400)}\n</blasfemia>`
+    ].filter(Boolean).join('\n\n');
+    return { systemPrompt, userPrompt };
+  }
+
+  async _askJson({ systemPrompt, userPrompt, format, temperature = 0.8, numPredict = 180 }) {
     const res = await fetch(`${this.cfg.ollamaUrl.replace(/\/+$/, '')}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -290,12 +449,8 @@ export class Deity {
         stream: false,
         think: false,
         keep_alive: this.cfg.ollamaKeepAlive || '10m',
-        format: {
-          type: 'object',
-          properties: { mensaje: { type: 'string' }, deseo: { type: 'string', enum: ['ninguno', ...wishIds] } },
-          required: ['mensaje', 'deseo']
-        },
-        options: { temperature: 0.8, num_predict: 180, num_ctx: 8192 },
+        format,
+        options: { temperature, num_predict: numPredict, num_ctx: 8192 },
         messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }]
       })
     });
@@ -305,6 +460,74 @@ export class Deity {
     const first = raw.indexOf('{');
     const last = raw.lastIndexOf('}');
     return JSON.parse(first >= 0 && last > first ? raw.slice(first, last + 1) : raw);
+  }
+
+  async ask({ systemPrompt, userPrompt, wishIds }) {
+    return this._askJson({
+      systemPrompt,
+      userPrompt,
+      temperature: 0.8,
+      numPredict: 180,
+      format: {
+        type: 'object',
+        properties: { mensaje: { type: 'string' }, deseo: { type: 'string', enum: ['ninguno', ...wishIds] } },
+        required: ['mensaje', 'deseo']
+      }
+    });
+  }
+
+  async askSmite({ systemPrompt, userPrompt }) {
+    return this._askJson({
+      systemPrompt,
+      userPrompt,
+      temperature: 0.75,
+      numPredict: 180,
+      format: {
+        type: 'object',
+        properties: { mensaje: { type: 'string' }, castigo: { type: 'string', enum: Object.keys(SMITES) } },
+        required: ['mensaje', 'castigo']
+      }
+    });
+  }
+
+  // Escarmiento divino por burla o blasfemia (si la IA falla, cae un castigo determinista: la burla no queda impune)
+  async punish({ inv, player, playerIdentity, message, state }) {
+    let reply = null;
+    try {
+      reply = await this.askSmite(this.buildSmitePrompt({ inv, player, playerIdentity, message, state }));
+    } catch (err) {
+      console.warn('[Deidad castigo] La IA no respondió; usando escarmiento directo:', err.message);
+    }
+    let msg = sanitizeChatText(reply?.mensaje);
+    msg = smartTruncate(msg, 220);
+    if (!msg || BANNED_TERM_RE.test(msg)) {
+      msg = `${player}, la lengua ligera siempre encuentra el trueno.`;
+    }
+    const smiteId = SMITES[reply?.castigo] ? reply.castigo : 'trueno';
+    const smite = SMITES[smiteId];
+    const now = Date.now();
+    this.pendingSmiteAt = 0;
+
+    if (SAFE_PLAYER_RE.test(player)) {
+      for (const c of smite.cmds(player)) await this.rcon.send(c).catch(() => {});
+      await this.rcon.send(`title ${player} actionbar ${JSON.stringify({ text: `⚡ Ira de ${inv.name}`, color: 'red', bold: true })}`).catch(() => {});
+    }
+    await this.rcon.tellraw('@a', [
+      '',
+      { text: `[${inv.name}] `, color: 'dark_purple', bold: true },
+      { text: msg, color: 'red', italic: true }
+    ]).catch(() => {});
+    await this.rcon.tellraw('@a', [
+      '',
+      { text: '⚡ ', color: 'red' },
+      { text: `${inv.name} castigó a ${player} por burlarse: ${smite.label}.`, color: 'gold', italic: true }
+    ]).catch(() => {});
+
+    this.saved.smites = [...(this.saved.smites || []), { ts: now, player, name: inv.name, smiteId }].slice(-60);
+    this.saved.log = [...(this.saved.log || []), { ts: now, player, name: inv.name, msg, smiteId }].slice(-30);
+    this.save();
+    this.memory?.recordEvent('event', `${inv.name} castigó a ${player} por burlarse (${smite.label}): "${msg}"`);
+    return { msg, smiteId };
   }
 
   // La deidad habla (ya pasó la tirada). Si la IA falla, guarda silencio: los dioses no piden disculpas.

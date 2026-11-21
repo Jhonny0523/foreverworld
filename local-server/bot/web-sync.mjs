@@ -143,7 +143,7 @@ export class WebSyncAnnouncer {
           await this.rcon.send(`title @a subtitle ${JSON.stringify({ text: diff.eraUnlocked.name, color: 'green' })}`).catch(() => {});
           await this.rcon.send(`title @a title ${JSON.stringify({ text: `¡${diff.eraUnlocked.code} DESBLOQUEADA!`, color: 'gold', bold: true })}`).catch(() => {});
           await this.rcon.send('execute as @a at @s run playsound minecraft:entity.player.levelup master @s ~ ~ ~ 0.9 1').catch(() => {});
-          await this.rcon.send('execute as @a at @s run summon minecraft:firework_rocket ~ ~1 ~ {LifeTime:18,FireworksItem:{id:"minecraft:firework_rocket",count:1,components:{"minecraft:fireworks":{flight_duration:1,explosions:[{shape:"large_ball",colors:[I;16755200,5636095],flicker:true}]}}}}').catch(() => {});
+          await this.rcon.send('execute as @a at @s run summon minecraft:firework_rocket ~ ~1 ~ {LifeTime:18,FireworksItem:{id:"minecraft:firework_rocket",count:1,components:{"minecraft:fireworks":{flight_duration:1,explosions:[{shape:"large_ball",colors:[I;16755200,5636095],has_twinkle:true,has_trail:true}]}}}}').catch(() => {});
           await this._sendLine('Roadmap', 'gold', [
             { text: `¡Nueva Era alcanzada desde la web! `, color: 'yellow', bold: true },
             { text: `${diff.eraUnlocked.code}: ${diff.eraUnlocked.name}. Usa !era para ver qué se desbloqueó.`, color: 'white' }
