@@ -55,7 +55,12 @@ export class SessionMemory {
   constructor(filePath) {
     this.filePath = path.resolve(filePath);
     this.compacting = false;
+    this.eventHook = null;
     this.data = this.load();
+  }
+
+  setEventHook(fn) {
+    this.eventHook = typeof fn === 'function' ? fn : null;
   }
 
   load() {
@@ -122,6 +127,7 @@ export class SessionMemory {
   recordEvent(type, text) {
     this._pushPending(type || 'event', text);
     this.save();
+    try { this.eventHook?.(type || 'event', text); } catch {}
   }
 
   /* ---------- Expediente de infracciones (persiste entre sesiones, para !expediente y el Juez) ---------- */

@@ -68,6 +68,9 @@
       railBlocks: 0,
       seasons: { current: 0, checks: {}, roll: null, history: [] },
       mega: { name: '', stages: [] },
+      holidays: {},
+      contracts: [],
+      live: { at: 0, online: [], activeEvent: null, holiday: null, feed: [], infractions: [] },
       ui: { tab: 'roadmap', ecoTab: 'overview', stateTab: 'laws', advanced: true, filter: 'all', track: '', open: {}, ledgerQ: '' }
     };
   }
@@ -312,6 +315,99 @@
       badge.textContent = String(revAlerts);
     }
     renderCloudPill();
+    renderLivePill();
+  }
+
+  function renderLivePill() {
+    const label = $('hud-live-label');
+    const sub = $('hud-live-sub');
+    if (!label || !sub) return;
+    const live = state.live || {};
+    const at = Number(live.at) || 0;
+    const ageMin = at ? Math.floor((Date.now() - at) / 60_000) : Infinity;
+    const fresh = at > 0 && ageMin <= 15;
+    const online = Array.isArray(live.online) ? live.online : [];
+    const ev = live.activeEvent;
+
+    if (!at) {
+      label.className = 'font-mono text-muted';
+      label.innerHTML = '<span class="live-dot"></span>Servidor';
+      sub.textContent = 'Sin pulso aún';
+      return;
+    }
+    if (online.length > 0 && fresh) {
+      label.className = 'font-mono text-emerald';
+      label.innerHTML = `<span class="live-dot online"></span>${online.length} en MC`;
+      sub.textContent = ev ? `⚡ ${ev.name}` : online.slice(0, 2).join(', ') + (online.length > 2 ? ` +${online.length - 2}` : '');
+    } else if (fresh) {
+      label.className = 'font-mono text-aqua';
+      label.innerHTML = '<span class="live-dot online"></span>Bot activo';
+      sub.textContent = '0 jugadores · listo';
+    } else {
+      label.className = 'font-mono text-muted';
+      label.innerHTML = '<span class="live-dot"></span>En pausa';
+      sub.textContent = `Último pulso: ${when(at)}`;
+    }
+  }
+
+  function renderLiveModal() {
+    const body = $('live-modal-body');
+    if (!body) return;
+    const live = state.live || {};
+    const at = Number(live.at) || 0;
+    const online = Array.isArray(live.online) ? live.online : [];
+    const ev = live.activeEvent;
+    const hol = live.holiday;
+    const feed = Array.isArray(live.feed) ? live.feed : [];
+    const infr = Array.isArray(live.infractions) ? live.infractions : [];
+
+    body.innerHTML = `
+      <div class="grid-3" style="gap:8px;">
+        <div class="mc-slot p-sm">
+          <div class="text-xs font-mono text-muted">Jugadores en el servidor</div>
+          <div class="text-sm text-white" style="margin-top:4px;font-weight:700;">
+            ${online.length ? online.map(n => `<span class="mc-tag tag-emerald">${esc(n)}</span>`).join(' ') : '<span class="text-dim">Nadie conectado ahora</span>'}
+          </div>
+        </div>
+        <div class="mc-slot p-sm">
+          <div class="text-xs font-mono text-muted">Evento del mundo</div>
+          <div class="text-sm ${ev ? 'text-gold' : 'text-dim'}" style="margin-top:4px;font-weight:700;">
+            ${ev ? `⚡ ${esc(ev.name)}${ev.minsLeft ? ` (~${ev.minsLeft} min)` : ''}` : 'Sin evento en curso'}
+          </div>
+        </div>
+        <div class="mc-slot p-sm">
+          <div class="text-xs font-mono text-muted">Calendario festivo</div>
+          <div class="text-sm text-white" style="margin-top:4px;font-weight:700;">
+            ${hol ? `${esc(hol.emoji || '🎉')} ${esc(hol.name)} ${hol.active ? '<span class="mc-tag tag-gold">HOY</span>' : `<span class="text-dim">(en ${hol.daysLeft}d)</span>`}` : '—'}
+          </div>
+        </div>
+      </div>
+
+      <div class="mc-panel-dark p-md">
+        <div class="flex-between" style="margin-bottom:8px;">
+          <strong class="font-pixel text-aqua text-xs">PULSO DE ACTIVIDAD EN JUEGO</strong>
+          <span class="text-xs font-mono text-dim">${at ? `Actualizado: ${when(at)}` : 'Esperando primer pulso del bot'}</span>
+        </div>
+        <div class="live-feed-list">
+          ${feed.length ? feed.map(it => `<div class="live-feed-item">
+            <div><span class="mc-tag tag-slate" style="font-size:10px;margin-right:6px;">${esc(it.kind || 'evento')}</span><span class="text-white">${esc(it.text)}</span></div>
+            <span class="font-mono text-xs text-dim" style="white-space:nowrap;">${when(it.t)}</span>
+          </div>`).join('') : '<div class="text-xs text-dim">Cuando ocurran eventos, muertes, pagos o decretos en Minecraft aparecerán aquí en vivo.</div>'}
+        </div>
+      </div>
+
+      <div class="mc-panel-dark p-md">
+        <div class="flex-between" style="margin-bottom:8px;">
+          <strong class="font-pixel text-redstone text-xs">EXPEDIENTE DE ADUANA (ÚLTIMAS INFRACCIONES)</strong>
+          <span class="text-xs text-dim">Visible también para el Juez y con !expediente</span>
+        </div>
+        ${infr.length ? `<div class="section-stack" style="gap:5px;max-height:175px;overflow-y:auto;">
+          ${infr.map(e => `<div class="mc-slot p-sm flex-between" style="gap:8px;">
+            <div class="text-xs"><strong class="text-gold">${esc(e.player)}</strong> — <span class="text-white">${esc(e.text)}</span>${e.seized ? ` <span class="text-redstone">(${esc(e.seized)})</span>` : ''}</div>
+            <span class="font-mono text-xs text-dim" style="white-space:nowrap;">${when(e.ts)}</span>
+          </div>`).join('')}
+        </div>` : '<div class="text-xs text-emerald">✔ Expediente limpio: sin infracciones recientes de Aduana.</div>'}
+      </div>`;
   }
 
   function renderCloudPill() {
@@ -343,6 +439,76 @@
   }
 
   /* ======================== Vista: Roadmap ======================== */
+
+  function devotionAnnouncerLabel(pid) {
+    if (!pid) return 'Según tu Convicción (elige "Soy:")';
+    const d = (state.devotion || {})[pid] || {};
+    const rel = state.religions || {};
+    let creed = d.creed || '';
+    if (!creed && String(rel[pid]?.names || '').trim()) creed = pid;
+    if (creed === 'razon') return 'Academia de Miscolandia (La Razón)';
+    const deityNames = String(rel[creed]?.names || '').trim();
+    if (creed && deityNames) return `${deityNames.split(',')[0].trim()} (tu deidad)`;
+    return 'Espíritu Festivo de Miscolandia';
+  }
+
+  function renderHolidaysSection() {
+    if (!D.getHolidayCalendar) return '';
+    const cal = D.getHolidayCalendar(Date.now());
+    const showAll = Boolean(state.ui.holidaysAllOpen);
+    const active = cal.active || [];
+    const next = cal.upcoming;
+    const renderHolidayCard = h => {
+      const node = (((state.holidays || {})[h.seasonYear] || {})[h.id]) || {};
+      const claimed = Boolean(me && node.claimed && node.claimed[me]);
+      const doneCount = me ? h.tasks.filter(t => node[t.id] && node[t.id][me] === true).length : 0;
+      return `<div class="holiday-card ${h.active ? 'active' : ''}">
+        <div class="flex-between" style="gap:8px;margin-bottom:6px;">
+          <div class="flex-row-wrap" style="gap:6px;">
+            <span style="font-size:1.15rem;">${esc(h.emoji)}</span>
+            <strong class="text-white text-sm">${esc(h.name)}</strong>
+            <span class="mc-tag tag-${esc(h.accent || 'gold')}">${esc(h.dateLabel)}</span>
+            ${h.active ? '<span class="mc-tag tag-emerald">ACTIVA HOY</span>' : `<span class="mc-tag tag-slate">en ${h.daysLeft}d</span>`}
+          </div>
+          ${claimed ? '<span class="mc-tag tag-emerald">✔ Premio entregado</span>' : (me ? `<span class="font-mono text-xs text-muted">${doneCount}/${h.tasks.length}</span>` : '')}
+        </div>
+        <p class="text-xs text-muted" style="margin:0 0 8px 0;line-height:1.45;">${esc(h.desc)}</p>
+        <div class="section-stack" style="gap:6px;margin-bottom:8px;">
+          ${h.tasks.map(t => {
+            const checked = Boolean(me && node[t.id] && node[t.id][me] === true);
+            return `<label class="holiday-task-row">
+              <input type="checkbox" data-action="holiday-check" data-year="${h.seasonYear}" data-hid="${esc(h.id)}" data-tid="${esc(t.id)}" ${checked ? 'checked' : ''} />
+              <div style="min-width:0;flex:1;">
+                <div class="text-xs ${checked ? 'text-emerald' : 'text-white'}" style="font-weight:700;">${esc(t.title)}</div>
+                <div class="text-xs text-dim">${esc(t.desc)} · <span class="text-muted">${esc(t.proof)}</span></div>
+              </div>
+            </label>`;
+          }).join('')}
+        </div>
+        <div class="text-xs font-mono text-gold" style="border-top:1px dashed #2e2c3a;padding-top:6px;">
+          🎁 Premio (${esc(devotionAnnouncerLabel(me))}): <span class="text-white">${esc(h.reward?.label || '')}</span>
+        </div>
+      </div>`;
+    };
+
+    const headline = active.length
+      ? `${active.map(h => `${h.emoji} ${h.name}`).join(' · ')} — ¡Activa hoy en Miscolandia!`
+      : (next ? `Próxima festividad: ${next.emoji} ${next.name} (${next.dateLabel} · faltan ${next.daysLeft} día(s))` : 'Calendario festivo anual');
+    const featured = active.length ? active : (next ? [next] : []);
+
+    return `<div class="mc-panel holiday-banner p-lg" style="margin-bottom:14px;">
+      <div class="flex-between" style="gap:10px;margin-bottom:${featured.length || showAll ? '10px' : '0'};">
+        <div>
+          <span class="mc-tag tag-gold">FESTIVIDADES DE TEMPORADA · HORA COLOMBIA</span>
+          <h3 class="font-pixel text-white text-sm" style="margin:6px 0 2px 0;">${esc(headline)}</h3>
+          <div class="text-xs text-muted">Completa las tareas festivas con tu identidad <strong>Soy:</strong> y recibirás el premio temático en Minecraft (por tu Deidad si tienes fe, o de La Razón si elegiste método). También puedes consultarlas con <span class="font-mono text-aqua">!fiesta</span>.</div>
+        </div>
+        <button class="mc-btn" data-action="holiday-toggle-all" style="white-space:nowrap;">${showAll ? 'Ocultar calendario' : `📅 Ver las ${cal.all.length} festividades`}</button>
+      </div>
+      ${(!showAll && featured.length) ? `<div class="${featured.length > 1 ? 'grid-2' : ''}" style="gap:10px;">${featured.map(renderHolidayCard).join('')}</div>` : ''}
+      ${showAll ? `<div class="grid-2" style="gap:10px;margin-top:8px;">${cal.all.map(renderHolidayCard).join('')}</div>` : ''}
+    </div>`;
+  }
 
   function whoTag(who) {
     if (who === 'ambos') return `<span class="mc-tag tag-neutral">Ambos</span>`;
@@ -497,7 +663,7 @@
       </details>`;
     }).join('');
 
-    $('view-roadmap').innerHTML = intro + eras + renderGuestQuests(curIdx) + renderSeasons(curIdx);
+    $('view-roadmap').innerHTML = intro + renderHolidaysSection() + eras + renderGuestQuests(curIdx) + renderSeasons(curIdx);
   }
 
   function taskCard(t, locked) {
@@ -1221,6 +1387,61 @@
         </div>
       </div>`);
 
+    // Tablón de Encargos / Contratos entre jugadores
+    const contractsList = Array.isArray(state.contracts) ? state.contracts : [];
+    const statusOrder = { en_curso: 0, entregado: 1, abierto: 2, pagado: 3 };
+    const sortedContracts = contractsList.slice().sort((a, b) => (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9) || (b.t || 0) - (a.t || 0));
+    const openContracts = contractsList.filter(c => c && c.status !== 'pagado').length;
+    const statusMeta = {
+      abierto: ['Abierto', 'emerald'],
+      en_curso: ['En curso', 'gold'],
+      entregado: ['Entregado', 'cyan'],
+      pagado: ['Pagado ✔', 'slate']
+    };
+    const contractsPanel = panel(`
+      ${head('ECONOMÍA · CONTRATOS', 'gold', 'TABLÓN DE ENCARGOS ENTRE JUGADORES',
+        'Publica trabajos o suministros (ej. stacks de obsidiana, vías o construcción). Al aprobar la entrega el pago se ejecuta automáticamente en <span class="font-mono">TRD 130-01</span>. También puedes gestionarlos desde el chat con <span class="font-mono text-aqua">!contratos</span>.')}
+      <details class="mc-panel-dark p-md" style="margin-bottom:14px;" ${sortedContracts.length ? '' : 'open'}>
+        <summary class="font-mono text-sm text-gold" style="cursor:pointer;font-weight:700;">+ Publicar nuevo encargo</summary>
+        ${identified ? `
+        <div class="grid-4" style="gap:8px;margin-top:10px;align-items:end;">
+          ${field('Encargo', '<input id="ct-title" class="mc-input" placeholder="Ej. 3 stacks de obsidiana"/>')}
+          ${field('Recompensa', '<input id="ct-reward" type="number" step="0.1" min="0.1" value="10" class="mc-input font-mono"/>')}
+          ${field('Moneda', `<select id="ct-cur" class="mc-select">${curOpts(E.isState(me) ? curOf(me) : 'M', true)}</select>`)}
+          ${field('Solicita', `<div class="mc-slot p-sm text-xs font-mono text-white">${esc(pname(me))}</div>`)}
+        </div>
+        <div class="flex-row-wrap" style="gap:8px;margin-top:8px;">
+          <input id="ct-desc" class="mc-input" style="flex:1;" placeholder="Condiciones, punto de entrega o plazo (opcional)"/>
+          <button class="mc-btn mc-btn-gold" data-action="contract-add">📋 Publicar encargo</button>
+        </div>` : '<div class="text-xs text-dim" style="margin-top:8px;">Elige "Soy:" arriba para publicar un encargo.</div>'}
+      </details>
+      <div class="grid-2" style="gap:10px;">
+        ${sortedContracts.length ? sortedContracts.map(c => {
+          const [stLbl, stTag] = statusMeta[c.status] || ['Abierto', 'slate'];
+          const canAccept = identified && c.status === 'abierto' && me !== c.author;
+          const canDeliver = identified && c.status === 'en_curso' && me === c.assignee;
+          const canPay = identified && (c.status === 'en_curso' || c.status === 'entregado') && me === c.author;
+          const canDel = identified && c.status !== 'pagado' && me === c.author;
+          return `<div class="contract-card" style="${c.status === 'pagado' ? 'opacity:.68;' : ''}">
+            <div class="flex-between" style="gap:8px;margin-bottom:6px;">
+              <strong class="text-white text-sm">${esc(c.title)}</strong>
+              <span class="mc-tag tag-${stTag}">${stLbl}</span>
+            </div>
+            ${c.desc ? `<div class="text-xs text-muted" style="margin-bottom:8px;line-height:1.45;">${esc(c.desc)}</div>` : ''}
+            <div class="flex-between text-xs font-mono" style="margin-bottom:8px;">
+              <span class="text-gold" style="font-weight:700;">💰 ${money(c.reward, c.cur)}</span>
+              <span class="text-muted">De: ${ptag(c.author)}${c.assignee ? ` → ${ptag(c.assignee)}` : ''}</span>
+            </div>
+            <div class="flex-row-wrap" style="gap:6px;">
+              ${canAccept ? `<button class="mc-btn mc-btn-emerald" style="padding:3px 9px;" data-action="contract-accept" data-id="${c.id}">🤝 Aceptar</button>` : ''}
+              ${canDeliver ? `<button class="mc-btn mc-btn-diamond" style="padding:3px 9px;" data-action="contract-deliver" data-id="${c.id}">📦 Marcar entregado</button>` : ''}
+              ${canPay ? `<button class="mc-btn mc-btn-gold" style="padding:3px 9px;" data-action="contract-pay" data-id="${c.id}">✔ Aprobar y Pagar</button>` : ''}
+              ${canDel ? `<button class="mc-btn mc-btn-redstone" style="padding:3px 8px;margin-left:auto;" data-action="contract-del" data-id="${c.id}">✕ Cancelar</button>` : ''}
+            </div>
+          </div>`;
+        }).join('') : empty('No hay encargos publicados todavía.')}
+      </div>`);
+
     const ecoTab = state.ui.ecoTab || 'overview';
     const pendingWorks = eco.works.filter(w => w.status === 'pendiente').length;
     const activeLoans = eco.loans.filter(l => l.status !== 'pagado').length;
@@ -1256,6 +1477,7 @@
         <button class="subnav-btn ${ecoTab === 'overview' ? 'active' : ''}" data-action="eco-tab" data-v="overview">📊 Tesoros, Cambio &amp; Comercio</button>
         <button class="subnav-btn ${ecoTab === 'shops' ? 'active' : ''}" data-action="eco-tab" data-v="shops">🏪 Tiendas &amp; Oferta Sellada</button>
         <button class="subnav-btn ${ecoTab === 'works' ? 'active' : ''}" data-action="eco-tab" data-v="works">🏗️ Obras &amp; Auditoría ${pendingWorks ? `<span class="mc-tag tag-gold">${pendingWorks}</span>` : ''}</button>
+        <button class="subnav-btn ${ecoTab === 'contracts' ? 'active' : ''}" data-action="eco-tab" data-v="contracts">📋 Encargos ${openContracts ? `<span class="mc-tag tag-emerald">${openContracts}</span>` : ''}</button>
         <button class="subnav-btn ${ecoTab === 'finance' ? 'active' : ''}" data-action="eco-tab" data-v="finance">🏦 Crédito, Acciones &amp; Libro Mayor ${activeLoans ? `<span class="mc-tag tag-amethyst">${activeLoans}</span>` : ''}</button>
         <button class="subnav-btn ${ecoTab === 'manual' ? 'active' : ''}" data-action="eco-tab" data-v="manual">📘 Manual Económico <span class="mc-tag tag-cyan">TRD 130-01</span></button>
       </div>`;
@@ -1264,6 +1486,7 @@
       overview: top + trade + overviewFooter,
       shops: prices + sealedPanel + guide,
       works: worksPanel,
+      contracts: contractsPanel,
       finance: `<div class="grid-2">${loansPanel}${sharesPanel}</div>` + ledgerPanel,
       manual: ecoManualPanel
     };
@@ -1906,6 +2129,360 @@
     ].join('\n');
   }
 
+  const mapUi = {
+    dim: 'ow',
+    zoom: 1,
+    cx: 0,
+    cz: 0,
+    showStations: true,
+    showPortals: true,
+    showWorks: true,
+    ruleMode: false,
+    pickA: null,
+    pickB: null,
+    centeredOnce: false
+  };
+  let mapDrawFn = null;
+
+  function parseMapCoords(str) {
+    const nums = String(str || '').match(/-?\d+(?:[.,]\d+)?/g);
+    if (!nums || nums.length < 2) return null;
+    const toN = s => Math.round(Number(String(s).replace(',', '.')));
+    return nums.length >= 3 ? { x: toN(nums[0]), z: toN(nums[2]) } : { x: toN(nums[0]), z: toN(nums[1]) };
+  }
+
+  function collectMapPins() {
+    const div = mapUi.dim === 'nh' ? 8 : 1;
+    const pins = [];
+    if (mapUi.showStations) {
+      (state.stations || []).forEach(s => {
+        const c = parseMapCoords(s.coords);
+        if (!c) return;
+        pins.push({
+          id: `st-${s.id}`,
+          kind: 'Estación',
+          name: s.name || 'Estación',
+          sub: `${s.line ? s.line + ' · ' : ''}${s.owner === 'ambos' ? 'Conjunta' : nat(s.owner).nation}`,
+          x: Math.round(c.x / div),
+          z: Math.round(c.z / div),
+          owX: c.x,
+          owZ: c.z,
+          color: '#ffaa00',
+          shape: 'diamond'
+        });
+      });
+    }
+    if (mapUi.showPortals) {
+      (state.portals || []).forEach(p => {
+        const cOw = parseMapCoords(p.ow);
+        const cNh = parseMapCoords(p.nh);
+        const x = mapUi.dim === 'nh' ? (cNh ? cNh.x : (cOw ? Math.floor(cOw.x / 8) : null)) : (cOw ? cOw.x : (cNh ? cNh.x * 8 : null));
+        const z = mapUi.dim === 'nh' ? (cNh ? cNh.z : (cOw ? Math.floor(cOw.z / 8) : null)) : (cOw ? cOw.z : (cNh ? cNh.z * 8 : null));
+        if (x === null || z === null) return;
+        pins.push({
+          id: `pt-${p.id}`,
+          kind: 'Portal',
+          name: p.label || 'Portal',
+          sub: `OW (${p.ow || '?'}) ↔ NE (${p.nh || '?'})`,
+          x,
+          z,
+          owX: cOw ? cOw.x : x * 8,
+          owZ: cOw ? cOw.z : z * 8,
+          color: '#d07cff',
+          shape: 'portal'
+        });
+      });
+    }
+    if (mapUi.showWorks) {
+      (state.economy.works || []).forEach(w => {
+        const c = parseMapCoords(w.coords);
+        if (!c) return;
+        pins.push({
+          id: `wk-${w.id}`,
+          kind: `Obra (${w.status || 'pendiente'})`,
+          name: w.name || 'Obra',
+          sub: `${pname(w.owner)} · ${w.coords}`,
+          x: Math.round(c.x / div),
+          z: Math.round(c.z / div),
+          owX: c.x,
+          owZ: c.z,
+          color: w.owner === 'myth' ? '#5c8dff' : (w.owner === 'scad' ? '#17dd62' : '#55ffff'),
+          shape: 'square'
+        });
+      });
+    }
+    return pins;
+  }
+
+  function centerMapOnPins(pins) {
+    if (!pins.length) { mapUi.cx = 0; mapUi.cz = 0; mapUi.zoom = 1; return; }
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    pins.forEach(p => {
+      if (p.x < minX) minX = p.x;
+      if (p.x > maxX) maxX = p.x;
+      if (p.z < minZ) minZ = p.z;
+      if (p.z > maxZ) maxZ = p.z;
+    });
+    mapUi.cx = Math.round((minX + maxX) / 2);
+    mapUi.cz = Math.round((minZ + maxZ) / 2);
+    const span = Math.max(120, maxX - minX, maxZ - minZ);
+    mapUi.zoom = Math.max(0.12, Math.min(6, 260 / span));
+  }
+
+  function renderTerritoryMapCard() {
+    const pins = collectMapPins();
+    return panel(`
+      ${head('CARTOGRAFÍA INTERACTIVA · XZ', 'cyan', 'MAPA 2D DE MISCOLANDIA',
+        'Dibuja automáticamente las <strong>estaciones</strong>, <strong>portales (Overworld ↔ Nether)</strong> y <strong>obras con coordenadas</strong>. Arrastra para moverte, usa la rueda para zoom o activa <strong>Modo Regla</strong> para medir bloques y tiempos.')}
+      <div class="mc-map-wrap">
+        <div class="mc-map-toolbar">
+          <div class="flex-row-wrap" style="gap:6px;">
+            <button class="filter-pill ${mapUi.dim === 'ow' ? 'active' : ''}" data-action="map-dim" data-v="ow">🌿 Overworld</button>
+            <button class="filter-pill ${mapUi.dim === 'nh' ? 'active' : ''}" data-action="map-dim" data-v="nh">🔥 Nether (÷8)</button>
+            <button class="filter-pill ${mapUi.showStations ? 'active' : ''}" data-action="map-layer" data-v="stations">◆ Estaciones</button>
+            <button class="filter-pill ${mapUi.showPortals ? 'active' : ''}" data-action="map-layer" data-v="portals">◎ Portales</button>
+            <button class="filter-pill ${mapUi.showWorks ? 'active' : ''}" data-action="map-layer" data-v="works">■ Obras</button>
+          </div>
+          <div class="flex-row-wrap" style="gap:6px;">
+            <button class="mc-btn ${mapUi.ruleMode ? 'mc-btn-gold' : ''}" style="padding:4px 9px;" data-action="map-rule">📏 ${mapUi.ruleMode ? 'Midiendo (clic 2 puntos)' : 'Regla'}</button>
+            <button class="mc-btn" style="padding:4px 8px;" data-action="map-zoom" data-d="1.35">＋</button>
+            <button class="mc-btn" style="padding:4px 8px;" data-action="map-zoom" data-d="0.74">－</button>
+            <button class="mc-btn" style="padding:4px 9px;" data-action="map-center">⌖ Centrar</button>
+          </div>
+        </div>
+        <canvas id="mc-map-canvas" class="mc-map-canvas ${mapUi.ruleMode ? 'rule-mode' : ''}"></canvas>
+        <div id="mc-map-tooltip" class="mc-map-tooltip"></div>
+        <div class="mc-map-legend font-mono">
+          <div class="flex-row-wrap" style="gap:10px;">
+            <span style="color:#ffaa00;">◆ Estaciones</span>
+            <span style="color:#d07cff;">◎ Portales</span>
+            <span style="color:#5c8dff;">■ ${esc(nat('myth').nation)}</span>
+            <span style="color:#17dd62;">■ ${esc(nat('scad').nation)}</span>
+            <span class="text-dim">(${pins.length} puntos en mapa)</span>
+          </div>
+          <div id="mc-map-measure" class="text-gold"></div>
+        </div>
+      </div>`);
+  }
+
+  function mountTerritoryMap() {
+    const canvas = $('mc-map-canvas');
+    const tipBox = $('mc-map-tooltip');
+    const measureBox = $('mc-map-measure');
+    if (!canvas) return;
+    const pins = collectMapPins();
+    if (!mapUi.centeredOnce) {
+      centerMapOnPins(pins);
+      mapUi.centeredOnce = true;
+    }
+
+    const updateMeasureText = () => {
+      if (!measureBox) return;
+      if (!mapUi.ruleMode && !mapUi.pickA) {
+        measureBox.textContent = pins.length ? 'Usa !gps <destino> en Minecraft o Regla para medir.' : 'Registra estaciones, portales o coords en obras para poblar el mapa.';
+        return;
+      }
+      if (mapUi.pickA && !mapUi.pickB) {
+        measureBox.textContent = `Origen: ${mapUi.pickA.name} (${mapUi.pickA.x}, ${mapUi.pickA.z}) — haz clic en el segundo punto…`;
+        return;
+      }
+      if (mapUi.pickA && mapUi.pickB) {
+        const dx = mapUi.pickB.owX - mapUi.pickA.owX;
+        const dz = mapUi.pickB.owZ - mapUi.pickA.owZ;
+        const owDist = Math.round(Math.hypot(dx, dz));
+        const nhDist = Math.round(owDist / 8);
+        const walkSec = Math.round(owDist / 4.3);
+        const railSec = Math.round(owDist / 8);
+        const fmtSec = s => s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`;
+        measureBox.textContent = `${mapUi.pickA.name} ↔ ${mapUi.pickB.name}: ${owDist}b OW (~${nhDist}b Nether) · a pie ~${fmtSec(walkSec)} · tren ~${fmtSec(railSec)}`;
+      }
+    };
+
+    const draw = () => {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      const w = Math.max(300, Math.round(rect.width || 680));
+      const h = Math.max(260, Math.round(rect.height || 360));
+      if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+        canvas.width = Math.round(w * dpr);
+        canvas.height = Math.round(h * dpr);
+      }
+      const ctx2d = canvas.getContext('2d');
+      ctx2d.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      // Fondo según dimensión
+      ctx2d.fillStyle = mapUi.dim === 'nh' ? '#170d11' : '#0f1116';
+      ctx2d.fillRect(0, 0, w, h);
+
+      const scale = Math.max(0.05, mapUi.zoom);
+      const toScreen = (wx, wz) => ({
+        sx: w / 2 + (wx - mapUi.cx) * scale,
+        sy: h / 2 + (wz - mapUi.cz) * scale
+      });
+
+      // Cuadrícula dinámica
+      const targetPx = 80;
+      const rawStep = targetPx / scale;
+      const steps = [25, 50, 100, 250, 500, 1000, 2500, 5000];
+      const step = steps.find(s => s >= rawStep) || 10000;
+      const minWx = mapUi.cx - w / (2 * scale);
+      const maxWx = mapUi.cx + w / (2 * scale);
+      const minWz = mapUi.cz - h / (2 * scale);
+      const maxWz = mapUi.cz + h / (2 * scale);
+
+      ctx2d.lineWidth = 1;
+      ctx2d.font = '10px "JetBrains Mono", monospace';
+      ctx2d.fillStyle = 'rgba(181,177,168,0.45)';
+      for (let gx = Math.floor(minWx / step) * step; gx <= maxWx; gx += step) {
+        const sx = w / 2 + (gx - mapUi.cx) * scale;
+        ctx2d.strokeStyle = gx === 0 ? 'rgba(255,170,0,0.35)' : 'rgba(255,255,255,0.06)';
+        ctx2d.beginPath(); ctx2d.moveTo(sx, 0); ctx2d.lineTo(sx, h); ctx2d.stroke();
+        ctx2d.fillText(`${gx}`, sx + 3, 12);
+      }
+      for (let gz = Math.floor(minWz / step) * step; gz <= maxWz; gz += step) {
+        const sy = h / 2 + (gz - mapUi.cz) * scale;
+        ctx2d.strokeStyle = gz === 0 ? 'rgba(85,255,255,0.3)' : 'rgba(255,255,255,0.06)';
+        ctx2d.beginPath(); ctx2d.moveTo(0, sy); ctx2d.lineTo(w, sy); ctx2d.stroke();
+        ctx2d.fillText(`${gz}`, 4, sy - 3);
+      }
+
+      // Vector regla
+      if (mapUi.pickA && mapUi.pickB) {
+        const aPt = mapUi.dim === 'nh' ? { x: Math.floor(mapUi.pickA.owX / 8), z: Math.floor(mapUi.pickA.owZ / 8) } : { x: mapUi.pickA.owX, z: mapUi.pickA.owZ };
+        const bPt = mapUi.dim === 'nh' ? { x: Math.floor(mapUi.pickB.owX / 8), z: Math.floor(mapUi.pickB.owZ / 8) } : { x: mapUi.pickB.owX, z: mapUi.pickB.owZ };
+        const p1 = toScreen(aPt.x, aPt.z);
+        const p2 = toScreen(bPt.x, bPt.z);
+        ctx2d.save();
+        ctx2d.setLineDash([6, 4]);
+        ctx2d.strokeStyle = '#ffaa00';
+        ctx2d.lineWidth = 2;
+        ctx2d.beginPath(); ctx2d.moveTo(p1.sx, p1.sy); ctx2d.lineTo(p2.sx, p2.sy); ctx2d.stroke();
+        ctx2d.restore();
+      }
+
+      // Pines
+      pins.forEach(p => {
+        const { sx, sy } = toScreen(p.x, p.z);
+        if (sx < -40 || sx > w + 40 || sy < -40 || sy > h + 40) return;
+        const selected = (mapUi.pickA && mapUi.pickA.id === p.id) || (mapUi.pickB && mapUi.pickB.id === p.id);
+        ctx2d.save();
+        if (selected) {
+          ctx2d.strokeStyle = '#ffff55';
+          ctx2d.lineWidth = 2;
+          ctx2d.beginPath(); ctx2d.arc(sx, sy, 11, 0, Math.PI * 2); ctx2d.stroke();
+        }
+        ctx2d.fillStyle = p.color;
+        ctx2d.strokeStyle = '#09080c';
+        ctx2d.lineWidth = 2;
+        if (p.shape === 'diamond') {
+          ctx2d.beginPath();
+          ctx2d.moveTo(sx, sy - 7); ctx2d.lineTo(sx + 7, sy); ctx2d.lineTo(sx, sy + 7); ctx2d.lineTo(sx - 7, sy);
+          ctx2d.closePath(); ctx2d.fill(); ctx2d.stroke();
+        } else if (p.shape === 'portal') {
+          ctx2d.beginPath(); ctx2d.arc(sx, sy, 6.5, 0, Math.PI * 2); ctx2d.fill(); ctx2d.stroke();
+          ctx2d.fillStyle = '#09080c';
+          ctx2d.beginPath(); ctx2d.arc(sx, sy, 2.5, 0, Math.PI * 2); ctx2d.fill();
+        } else {
+          ctx2d.fillRect(sx - 5.5, sy - 5.5, 11, 11);
+          ctx2d.strokeRect(sx - 5.5, sy - 5.5, 11, 11);
+        }
+        const label = p.name.length > 22 ? p.name.slice(0, 20) + '…' : p.name;
+        ctx2d.font = '600 11px "Plus Jakarta Sans", sans-serif';
+        const tw = ctx2d.measureText(label).width;
+        ctx2d.fillStyle = 'rgba(15,14,20,0.82)';
+        ctx2d.fillRect(sx + 9, sy - 8, tw + 8, 16);
+        ctx2d.fillStyle = '#f4f3ee';
+        ctx2d.fillText(label, sx + 13, sy + 4);
+        ctx2d.restore();
+      });
+
+      // Brújula (-Z arriba = N)
+      ctx2d.fillStyle = 'rgba(15,14,20,0.85)';
+      ctx2d.fillRect(w - 64, 8, 56, 22);
+      ctx2d.strokeStyle = '#2d2b38';
+      ctx2d.strokeRect(w - 64, 8, 56, 22);
+      ctx2d.fillStyle = '#55ffff';
+      ctx2d.font = '700 11px "JetBrains Mono", monospace';
+      ctx2d.fillText('N ↑ -Z', w - 58, 23);
+
+      updateMeasureText();
+    };
+
+    mapDrawFn = draw;
+    draw();
+
+    const hitPin = (mx, my) => {
+      const rect = canvas.getBoundingClientRect();
+      const w = Math.max(300, rect.width || 680);
+      const h = Math.max(260, rect.height || 360);
+      const scale = Math.max(0.05, mapUi.zoom);
+      let best = null, bestD = 16;
+      for (const p of pins) {
+        const sx = w / 2 + (p.x - mapUi.cx) * scale;
+        const sy = h / 2 + (p.z - mapUi.cz) * scale;
+        const d = Math.hypot(mx - sx, my - sy);
+        if (d < bestD) { best = p; bestD = d; }
+      }
+      return best;
+    };
+
+    let dragging = false, moved = false, startX = 0, startY = 0, origCx = 0, origCz = 0;
+    canvas.onmousedown = e => {
+      dragging = true; moved = false;
+      startX = e.clientX; startY = e.clientY;
+      origCx = mapUi.cx; origCz = mapUi.cz;
+    };
+    canvas.onmousemove = e => {
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      if (dragging) {
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        if (Math.hypot(dx, dy) > 4) moved = true;
+        mapUi.cx = origCx - dx / Math.max(0.05, mapUi.zoom);
+        mapUi.cz = origCz - dy / Math.max(0.05, mapUi.zoom);
+        draw();
+        if (tipBox) tipBox.style.display = 'none';
+        return;
+      }
+      const hit = hitPin(mx, my);
+      if (tipBox) {
+        if (hit) {
+          tipBox.style.display = 'block';
+          tipBox.style.left = `${Math.min(rect.width - 180, Math.max(8, mx + 12))}px`;
+          tipBox.style.top = `${Math.max(46, my - 12)}px`;
+          tipBox.innerHTML = `<strong style="color:${hit.color}">${esc(hit.name)}</strong><br><span class="text-xs text-muted">${esc(hit.kind)} · X:${hit.x}, Z:${hit.z}</span><br><span class="text-xs text-dim">${esc(hit.sub)}</span>`;
+        } else {
+          tipBox.style.display = 'none';
+        }
+      }
+    };
+    canvas.onmouseup = e => {
+      const wasMoved = moved;
+      dragging = false;
+      if (wasMoved) return;
+      const rect = canvas.getBoundingClientRect();
+      const hit = hitPin(e.clientX - rect.left, e.clientY - rect.top);
+      if (!hit) return;
+      if (mapUi.ruleMode) {
+        if (!mapUi.pickA || mapUi.pickB) { mapUi.pickA = hit; mapUi.pickB = null; }
+        else mapUi.pickB = hit;
+        draw();
+      } else {
+        mapUi.pickA = hit; mapUi.pickB = null;
+        draw();
+      }
+    };
+    canvas.onmouseleave = () => { dragging = false; if (tipBox) tipBox.style.display = 'none'; };
+    canvas.onwheel = e => {
+      e.preventDefault();
+      const factor = e.deltaY < 0 ? 1.18 : 0.85;
+      mapUi.zoom = Math.max(0.05, Math.min(8, mapUi.zoom * factor));
+      draw();
+    };
+  }
+
   function renderTerritory() {
     const goal = railGoal();
     const pct = Math.min(100, Math.round((state.railBlocks / goal) * 100));
@@ -2028,7 +2605,8 @@
           }).join('')}</tbody></table>` : empty(state.villagers.length ? 'Sin registros en este filtro.' : 'Sin cédulas expedidas todavía (se activan desde la ERA V o antes con papel + pepita).')}
       </div>`);
 
-    $('view-territory').innerHTML = rail + census + fold('portals', '🔥 Calculadora de portales del Nether (÷8)', portals);
+    $('view-territory').innerHTML = renderTerritoryMapCard() + rail + census + fold('portals', '🔥 Calculadora de portales del Nether (÷8)', portals);
+    mountTerritoryMap();
   }
 
   /* ======================== Bot Guía, Probador &colores y Buscador Ctrl+K ======================== */
@@ -2055,7 +2633,15 @@
     { cat: 'Consola Admin', cmd: 'say !admin castiga a notoutcontext / cierra el servidor en 10s', desc: 'Orden libre desde consola del servidor o consola-admin.bat; entiende contexto, alias (noc, luthadel, alejandria) y comandos Vanilla 26.4.' },
     { cat: 'NPCs en Chat', cmd: 'Su Majestad / Su Excelencia <consulta>', desc: 'Juez, Fiscal, Arquitecto, Banquero, Archivista, Cartógrafo o Pregonero (el Juez solo se indigna si lo insultan).' },
     { cat: 'NPCs en Chat', cmd: '<nombre de su dios>, escúchame…', desc: 'Si una fe (Lore → Religiones y fe) le dio nombre, escucha muy rara vez y puede dar favores… o castigar en seco a quien se burle de cualquier dios (La Razón nunca castiga).' },
-    { cat: 'NPCs en Chat', cmd: 'cartógrafo dónde queda el portal de la fortaleza?', desc: 'Cartógrafo: portales, estaciones y obras con coordenadas registradas aquí en Territorio; convierte Overworld↔Nether.' }
+    { cat: 'NPCs en Chat', cmd: 'cartógrafo dónde queda el portal de la fortaleza?', desc: 'Cartógrafo: portales, estaciones y obras con coordenadas registradas aquí en Territorio; convierte Overworld↔Nether.' },
+    { cat: 'Puente Web & Mundo', cmd: '!pagar Scadrial0523 15 DR', desc: 'Transfiere dinero real desde el juego registrando en Supabase y Libro Mayor (TRD 130-01).' },
+    { cat: 'Puente Web & Mundo', cmd: '!cronica Título | Texto…', desc: 'Publica una crónica oficial en la web (Lore → Crónicas) sin salir de Minecraft.' },
+    { cat: 'Puente Web & Mundo', cmd: '!portal guardar Fortaleza | !estacion guardar Centro | Línea Norte', desc: 'Lee tus coordenadas reales por RCON, calcula Overworld↔Nether (÷8) y lo guarda en el mapa web.' },
+    { cat: 'Puente Web & Mundo', cmd: '!gps <destino>', desc: 'Distancia exacta en bloques, dirección cardinal y ruta por el Nether hacia cualquier punto del mapa web.' },
+    { cat: 'Puente Web & Mundo', cmd: '!contratos / !contrato aceptar 1 / !contrato entregar 1 / !contrato pagar 1', desc: 'Consulta, acepta, entrega y liquida encargos publicados en Economía → Encargos.' },
+    { cat: 'Puente Web & Mundo', cmd: '!ofrenda / !estudio', desc: 'Entrega 1 ítem ceremonial en mano acorde a tu Fe o a La Razón.' },
+    { cat: 'Puente Web & Mundo', cmd: '!fiesta', desc: 'Muestra la festividad colombiana/internacional activa o próxima y reclama premios pendientes.' },
+    { cat: 'Puente Web & Mundo', cmd: '!resumen [publicar]', desc: 'Compila el diario de eventos de la sesión actual (o lo publica como Crónica en la web).' }
   ];
 
   const MC_SWATCHES = [
@@ -2144,7 +2730,11 @@
       items.push({ kind: 'OBRA', tag: w.status === 'auditada' ? 'emerald' : 'gold', title: w.name, sub: `${pname(w.owner)} · ${w.status}${w.coords ? ` · ${w.coords}` : ''}`, q: `${w.name} ${w.product || ''} ${w.coords || ''} ${pname(w.owner)}`, go: { tab: 'economy', ecoTab: 'works' } });
     });
     (state.villagers || []).forEach(v => {
-      items.push({ kind: v.kind === 'animal' ? 'ANIMAL' : 'CÉDULA', tag: 'copper', title: `${v.name}${v.code ? ` (${v.code})` : ''}`, sub: `${v.home || 'Sin morada'}${v.offer ? ` · ${v.offer}` : ''}`, q: `${v.name} ${v.code || ''} ${v.home || ''} ${v.offer || ''}`, go: { tab: 'territory' } });
+      const ced = v.cedula || v.code || '';
+      items.push({ kind: v.kind === 'animal' ? 'ANIMAL' : 'CÉDULA', tag: 'copper', title: `${v.name}${ced ? ` (${ced})` : ''}`, sub: `${v.home || 'Sin morada'}${v.offer ? ` · ${v.offer}` : ''}`, q: `${v.name} ${ced} ${v.home || ''} ${v.offer || ''}`, go: { tab: 'territory' } });
+    });
+    (D.HOLIDAYS || []).forEach(h => {
+      items.push({ kind: 'FESTIVIDAD', tag: h.accent || 'gold', title: `${h.emoji} ${h.name}`, sub: `${h.dateLabel} · ${h.reward?.label || ''}`, q: `${h.name} ${h.dateLabel} ${h.desc}`, go: { tab: 'roadmap' } });
     });
     BOT_CHEATSHEET.forEach(c => {
       items.push({ kind: 'BOT', tag: 'gold', title: c.cmd, sub: `${c.cat} · ${c.desc}`, q: `${c.cmd} ${c.cat} ${c.desc}`, copy: c.cmd });
@@ -3406,6 +3996,132 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       renderCloudPanel(true);
       $('modal-backup').classList.add('open');
     },
+    'open-live': () => {
+      renderLiveModal();
+      $('modal-live')?.classList.add('open');
+    },
+    'holiday-toggle-all': () => {
+      state.ui.holidaysAllOpen = !state.ui.holidaysAllOpen;
+      save(true);
+      renderRoadmap();
+    },
+    'holiday-check': el => {
+      if (!requireIdentified('marcar un hito festivo')) return;
+      const year = String(el.dataset.year || '');
+      const hid = String(el.dataset.hid || '');
+      const tid = String(el.dataset.tid || '');
+      if (!year || !hid || !tid) return;
+      if (!state.holidays || typeof state.holidays !== 'object') state.holidays = {};
+      if (!state.holidays[year]) state.holidays[year] = {};
+      if (!state.holidays[year][hid]) state.holidays[year][hid] = {};
+      if (!state.holidays[year][hid][tid]) state.holidays[year][hid][tid] = {};
+      const nextVal = !(state.holidays[year][hid][tid][me] === true);
+      if (nextVal) state.holidays[year][hid][tid][me] = true;
+      else delete state.holidays[year][hid][tid][me];
+      commit('roadmap');
+      if (nextVal) {
+        window.FW_FX?.burstAtLastClick?.('gold');
+        window.FW_FX?.playSound?.('xp');
+        const hol = (D.HOLIDAYS || []).find(h => h.id === hid);
+        const allDone = hol && hol.tasks.every(t => state.holidays?.[year]?.[hid]?.[t.id]?.[me] === true);
+        toast(hol ? hol.name : 'Festividad', allDone ? '¡Completaste la festividad! El bot entregará tu premio en Minecraft.' : 'Tarea festiva registrada.', 'gold');
+      }
+    },
+    'contract-add': () => {
+      if (!requireIdentified('publicar un encargo')) return;
+      const title = val('ct-title');
+      if (!title) return fail('El encargo necesita un título.');
+      const reward = E.r4(num(val('ct-reward')));
+      if (!(reward > 0)) return fail('La recompensa debe ser mayor a 0.');
+      const cur = val('ct-cur') || (E.isState(me) ? curOf(me) : 'M');
+      if (!Array.isArray(state.contracts)) state.contracts = [];
+      state.contracts.unshift({
+        id: uid('ctr'),
+        t: Date.now(),
+        author: me,
+        title,
+        desc: val('ct-desc'),
+        reward,
+        cur,
+        status: 'abierto',
+        assignee: ''
+      });
+      commit('economy');
+      toast('Encargo publicado', `${title} · ${money(reward, cur)}`, 'gold');
+    },
+    'contract-accept': el => {
+      if (!requireIdentified('aceptar un encargo')) return;
+      const c = (state.contracts || []).find(x => x.id === el.dataset.id);
+      if (!c) return;
+      if (c.author === me) return fail('No puedes aceptar tu propio encargo.');
+      if (c.status !== 'abierto') return fail('Ese encargo ya fue aceptado.');
+      c.status = 'en_curso';
+      c.assignee = me;
+      c.acceptedAt = Date.now();
+      commit('economy');
+      toast('Encargo aceptado', `${pname(me)} tomó "${c.title}".`, 'emerald');
+    },
+    'contract-deliver': el => {
+      if (!requireIdentified('marcar entrega')) return;
+      const c = (state.contracts || []).find(x => x.id === el.dataset.id);
+      if (!c || c.assignee !== me) return fail('Solo quien aceptó el encargo puede marcarlo como entregado.');
+      if (c.status !== 'en_curso') return;
+      c.status = 'entregado';
+      c.deliveredAt = Date.now();
+      commit('economy');
+      toast('Entrega reportada', `Espera a que ${pname(c.author)} apruebe el pago.`, 'diamond');
+    },
+    'contract-pay': el => {
+      if (!requireIdentified('aprobar y pagar el encargo')) return;
+      const c = (state.contracts || []).find(x => x.id === el.dataset.id);
+      if (!c || c.author !== me) return fail('Solo quien publicó el encargo puede aprobar el pago.');
+      if (!c.assignee || c.status === 'abierto' || c.status === 'pagado') return fail('Este encargo no está listo para pago.');
+      const res = E.pay(state, c.author, c.assignee, c.cur, c.reward, false);
+      if (!res.ok) return fail(res.msg);
+      c.status = 'pagado';
+      c.paidAt = Date.now();
+      log('Encargo pagado', `${pname(c.author)} → ${pname(c.assignee)}: ${money(c.reward, c.cur)} por "${c.title}"${res.short > 0 ? ` (conv. ${money(res.cost, res.costCur)})` : ''}.`);
+      if (res.short > 0) recordFx();
+      commit('economy');
+      window.FW_FX?.burstAtLastClick?.('emerald');
+      toast('Encargo pagado', `${money(c.reward, c.cur)} a ${pname(c.assignee)}.`, 'emerald');
+    },
+    'contract-del': async el => {
+      const c = (state.contracts || []).find(x => x.id === el.dataset.id);
+      if (!c) return;
+      if (c.author !== me) return fail('Solo quien creó el encargo puede cancelarlo.');
+      if (c.status === 'pagado') return fail('No puedes borrar un encargo ya pagado.');
+      if (!await askConfirm(`¿Cancelar el encargo "${c.title}"?`)) return;
+      state.contracts = state.contracts.filter(x => x.id !== c.id);
+      commit('economy');
+    },
+    'map-dim': el => {
+      mapUi.dim = el.dataset.v === 'nh' ? 'nh' : 'ow';
+      mapUi.centeredOnce = false;
+      renderTerritory();
+    },
+    'map-layer': el => {
+      const k = el.dataset.v;
+      if (k === 'stations') mapUi.showStations = !mapUi.showStations;
+      if (k === 'portals') mapUi.showPortals = !mapUi.showPortals;
+      if (k === 'works') mapUi.showWorks = !mapUi.showWorks;
+      renderTerritory();
+    },
+    'map-zoom': el => {
+      const factor = Number(el.dataset.d) || 1;
+      mapUi.zoom = Math.max(0.05, Math.min(8, mapUi.zoom * factor));
+      if (mapDrawFn) mapDrawFn();
+    },
+    'map-center': () => {
+      centerMapOnPins(collectMapPins());
+      if (mapDrawFn) mapDrawFn();
+    },
+    'map-rule': () => {
+      mapUi.ruleMode = !mapUi.ruleMode;
+      mapUi.pickA = null;
+      mapUi.pickB = null;
+      renderTerritory();
+    },
     'cloud-pull': async () => {
       if (!CLOUD) return;
       const info = CLOUD.getInfo();
@@ -3650,12 +4366,14 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
   /* ---------- Deshacer (guarda copias del estado antes de cada acción) ---------- */
   let editingLawId = null;
   const UNDO_KEY = 'forever_world_undo';
-  const NO_UNDO = new Set(['form', 'shop-edit', 'mode-simple', 'mode-advanced', 'eco-tab', 'mint-fill', 'ledger-filter', 'eco-manual-copy', 'state-tab', 'jump-era', 'law-template', 'law-edit', 'tip', 'filter', 'works-filter', 'law-doc-filter', 'law-rev-filter', 'law-book', 'vg-filter', 'vg-kind-btn', 'vg-copy-tag', 'vg-card', 'price-buy', 'price-challenge', 'open-reset', 'confirm-reset', 'open-backup',
+  const NO_UNDO = new Set(['form', 'shop-edit', 'mode-simple', 'mode-advanced', 'eco-tab', 'mint-fill', 'ledger-filter', 'eco-manual-copy', 'state-tab', 'jump-era', 'law-template', 'law-edit', 'tip', 'filter', 'works-filter', 'law-doc-filter', 'law-rev-filter', 'law-book', 'vg-filter', 'vg-kind-btn', 'vg-copy-tag', 'vg-card', 'price-buy', 'price-challenge', 'open-reset', 'confirm-reset', 'open-backup', 'open-live', 'holiday-toggle-all', 'map-dim', 'map-layer', 'map-zoom', 'map-center', 'map-rule',
     'open-report', 'copy-report', 'close-modal', 'undo', 'open-search', 'search-pick', 'copy-text', 'color-insert', 'color-copy-cert', 'color-copy-papel',
     'law-approve-rev', 'law-return', 'law-submit', 'law-sign', 'law-repeal', 'law-upgrade-pack', 'law-defaults',
     'work-approve', 'work-reject', 'work-reopen', 'work-lost', 'guest-del',
     'cloud-pull', 'cloud-push-force', 'cloud-snapshot', 'cloud-restore-snap', 'cloud-save-cfg', 'cloud-reset-cfg', 'cloud-copy-link', 'cloud-copy-snippet']);
   const UNDO_LABELS = {
+    'holiday-check': 'Tarea festiva',
+    'contract-add': 'Nuevo encargo', 'contract-accept': 'Aceptar encargo', 'contract-deliver': 'Entregar encargo', 'contract-pay': 'Pagar encargo', 'contract-del': 'Cancelar encargo',
     'law-add': 'Nueva norma', 'law-edit': 'Editar norma', 'law-edit-save': 'Editar acto', 'law-submit': 'Enviar a revisión', 'law-return': 'Devolver norma', 'law-approve-rev': 'Avalar norma', 'law-sign': 'Firma de norma', 'law-repeal': 'Derogar norma', 'law-del': 'Borrar norma', 'law-defaults': 'Normas sugeridas', 'law-upgrade-pack': 'Actualización archivística', 'law-move': 'Mover norma',
     'trd-add': 'Nueva serie TRD', 'trd-del': 'Borrar serie TRD',
     'chron-add': 'Nueva crónica', 'chron-del': 'Borrar crónica', 'guest-add': 'Nuevo invitado', 'guest-del': 'Borrar invitado',
@@ -3845,8 +4563,23 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
     return Boolean(el && ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName) && el.closest('#view-roadmap, #view-economy, #view-state, #view-lore, #view-territory'));
   }
 
+  function nonLiveSignature(st) {
+    if (!st || typeof st !== 'object') return '';
+    const { ui, live, updatedAt, updatedBy, _appVer, ...rest } = st;
+    return JSON.stringify(rest);
+  }
+
   function applyRemoteRow(row, meta = {}) {
     if (!row || !row.state) return;
+    if (String(row.updated_by || '').includes('(pulso)') && nonLiveSignature(merge(defaultState(), row.state)) === nonLiveSignature(state)) {
+      state.live = merge(defaultState().live, row.state.live || {});
+      state.updatedAt = Number(row.updated_at) || state.updatedAt || Date.now();
+      state.updatedBy = row.updated_by || state.updatedBy || '';
+      safeSet(STORAGE_KEY, JSON.stringify(state));
+      renderLivePill();
+      if ($('modal-live') && $('modal-live').classList.contains('open')) renderLiveModal();
+      return;
+    }
     if (meta.fromRealtime && isEditingField()) {
       pendingRemoteRow = { row, meta };
       return;

@@ -191,12 +191,17 @@ function computePregoneroStance(state, bridge) {
   return `POSTURA ACTUAL: ORGULLOSAMENTE INDEPENDIENTE EN MISCOLANDIA. ${b.mythNat} y ${b.scadNat} van parejos (1 DR = ${rate.toFixed(3)} CU). ${earlyHint} Te mantienes neutral con humor callejero y, si cualquiera pregunta cuál Estado es mejor, dices que ninguno saca ventaja clara todavía y que prefieres ser libre en Miscolandia.`;
 }
 
-async function handleJoin(player, { cfg, bridge, rcon, enforcer, memory }) {
+async function handleJoin(player, ctx) {
+  const { cfg, bridge, rcon, enforcer, memory, deity, webSync } = ctx;
   try {
     memory?.recordEvent('event', `${player} se conectó al servidor`);
+    webSync?.scheduleLiveSync?.(1500);
     await new Promise(r => setTimeout(r, 1800));
     const { state } = await bridge.fetchWorld(true);
     const b = bridge.getBriefing(state);
+    if (deity) {
+      await deity.deliverPendingHolidayRewards(player, state).catch(e => console.warn('[Join holiday]', e.message));
+    }
     if (cfg.social?.joinAi !== false) {
       const role = enforcer.getPlayerRole(player, state);
       const greeting = await generateSocialMessage({
@@ -235,9 +240,10 @@ async function handleJoin(player, { cfg, bridge, rcon, enforcer, memory }) {
   }
 }
 
-async function handleLeave(player, { cfg, bridge, rcon, enforcer, memory }) {
+async function handleLeave(player, { cfg, bridge, rcon, enforcer, memory, webSync }) {
   try {
     memory?.recordEvent('event', `${player} se desconectó del servidor`);
+    webSync?.scheduleLiveSync?.(1000);
     if (cfg.social?.leaveAi === false) return;
     if (!enforcer.onlinePlayers.size) return;
     const { state } = await bridge.fetchWorld(false);
@@ -312,7 +318,17 @@ const COMMAND_DOCS = {
   colores: 'Muestra la paleta de códigos &0-&f, &l/&o/&n/&m/&r y &#RRGGBB para !certificado y !papel.',
   evento: 'Eventos del mundo: qué está pasando y cuándo podría tocar el próximo. Uso: !evento · !evento lista · fundadores: !evento lanzar <id> | !evento on|off.',
   yo: 'Tu ficha: rol, permisos y prohibiciones vigentes, infracciones recientes y, si eres fundador, el tesoro y la mercancía en custodia de tu Estado. Uso: !yo.',
-  expediente: 'Expediente de la Fiscalía: últimas infracciones registradas por la Aduana (persisten entre sesiones). Uso: !expediente [jugador].'
+  expediente: 'Expediente de la Fiscalía: últimas infracciones registradas por la Aduana (persisten entre sesiones). Uso: !expediente [jugador].',
+  pagar: 'Transfiere dinero real al instante en Supabase y el Libro Mayor (TRD 130-01). Uso: !pagar <jugador> <monto> [DR|CU|OE].',
+  cronica: 'Publica una crónica oficial en la web (Lore -> Crónicas). Uso: !cronica [Título |] <texto>.',
+  portal: 'Guarda un portal usando tus coordenadas reales y calcula su par Nether (/8). Uso: !portal guardar <nombre>.',
+  estacion: 'Guarda una estación ferroviaria con tus coordenadas exactas en Territorio. Uso: !estacion guardar <nombre> [| línea].',
+  gps: 'Calcula distancia exacta, dirección cardinal y ruta por Nether hacia cualquier portal, estación u obra de la web. Uso: !gps <destino>.',
+  contrato: 'Tablón de encargos de Economía: lista, acepta, entrega o liquida contratos. Uso: !contratos · !contrato aceptar <n> · !contrato entregar <n> · !contrato pagar <n>.',
+  ofrenda: 'Presenta 1 ítem sagrado en mano ante tu dios (oro, diamante, flor, vela...). Uso: !ofrenda.',
+  estudio: 'Para el camino de La Razón: entrega 1 libro, papel, mapa, brújula o catalejo en mano al estudio. Uso: !estudio.',
+  fiesta: 'Muestra la festividad colombiana/internacional activa o próxima y tus tareas/premios pendientes. Uso: !fiesta.',
+  resumen: 'Compila el diario de eventos de esta sesión. Usa !resumen publicar para guardarlo en Lore -> Crónicas.'
 };
 
 const COMMAND_ALIASES = {
@@ -360,7 +376,22 @@ const COMMAND_ALIASES = {
   ficha: 'yo',
   multas: 'expediente',
   historial: 'expediente',
-  infracciones: 'expediente'
+  infracciones: 'expediente',
+  transferir: 'pagar',
+  enviar: 'pagar',
+  pay: 'pagar',
+  'crónica': 'cronica',
+  'estación': 'estacion',
+  donde: 'gps',
+  'dónde': 'gps',
+  ruta: 'gps',
+  contratos: 'contrato',
+  encargo: 'contrato',
+  encargos: 'contrato',
+  festividad: 'fiesta',
+  festividades: 'fiesta',
+  temporada: 'fiesta',
+  diario: 'resumen'
 };
 
 const BOT_COMMANDS_DOC = [
@@ -373,7 +404,7 @@ const BOT_COMMANDS_DOC = [
   '  * Archivista / Auditor / Cronista / Bibliotecario: auditoría oficial de obras (Manual 003, TRD 120-01), lore del mundo, crónicas (TRD 140-01), cédulas (TRD 150-01) y recuerdos pasados.',
   '  * Cartógrafo / Topógrafo: estaciones, portales (con su equivalencia Overworld↔Nether), obras con coordenadas y moradas del censo registradas en la web.',
   '  * Pregonero: chismes de la plaza, opinión económica y libreta permanente ("pregonero recuerda que...").',
-  '- Utilidades operativas que ejecutan permisos/control del servidor: !hitos (pendientes de Era), !obras (auditorías), !duelo [min|fin] (PvP consensuado), !trato [min|fin] (intercambio libre), !pase <jug|todos>, !mod [on|off], !chat [on|off], !evento (eventos del mundo), !yo (tu ficha), !expediente [jugador] (infracciones), !memoria y !ayuda.',
+  '- Utilidades operativas que ejecutan acciones/permisos/registros reales en juego y web: !hitos, !obras, !duelo, !trato, !pase, !mod, !chat, !evento, !yo, !expediente, !memoria, !pagar, !cronica, !portal guardar, !estacion guardar, !gps, !contratos, !ofrenda, !estudio, !fiesta, !resumen y !ayuda.',
   '- Certificados y sellos oficiales (EXCLUSIVO Archivista NotOutContext): !certificado <Título> (sella en colores el Libro y Pluma en mano consumiéndolo, o !certificado <Título> | <Texto> / aval / obra / residencia / paz con 1 writable_book en inventario; admite autor: <Autor1 y Autor2> para coautoría), !papel <Nombre> [| <Lore>] (consume 1 papel real) y !colores.',
   '- Lo divino: si una fe de la web (Lore → Religiones y fe) le dio nombre a su dios, invocarlo en el chat puede, casi nunca, tener respuesta. NINGÚN NPC habla en nombre de los dioses ni inventa religión, dogmas o milagros.',
   '- Acuerdos en chat: "vamos a hacer un trato" o "pvp consensuado / vamos a hacer un duelo" pausan automáticamente al aduanero.',
@@ -618,6 +649,473 @@ async function runSmartAi({ player, q, mode, badgeOverride, badgeColorOverride, 
   }
 }
 
+const SACRED_OFFERING_RE = /^minecraft:(?:gold_ingot|gold_nugget|diamond|emerald|amethyst_shard|lapis_lazuli|glowstone_dust|quartz|lantern|soul_lantern|apple|golden_apple|lily_of_the_valley|rose_bush|oxeye_daisy|poppy|dandelion|cornflower|blue_orchid|allium|azure_bluet|pink_petals|candle|[a-z_]+_candle)$/;
+const STUDY_OFFERING_RE = /^minecraft:(?:book|writable_book|written_book|paper|compass|filled_map|map|spyglass|ink_sac|glow_ink_sac|feather|clock|amethyst_shard)$/;
+
+function resolveCurrencyCode(state, raw, fallback = 'M') {
+  const clean = String(raw || '').trim().toLowerCase();
+  if (!clean) return fallback;
+  const m = state?.settings?.nations?.myth || {};
+  const s = state?.settings?.nations?.scad || {};
+  const b = state?.settings?.basket || {};
+  if ([clean].some(x => x === 'm' || x === 'dr' || x === String(m.symbol || '').toLowerCase() || x === String(m.currency || '').toLowerCase())) return 'M';
+  if ([clean].some(x => x === 's' || x === 'cu' || x === String(s.symbol || '').toLowerCase() || x === String(s.currency || '').toLowerCase())) return 'S';
+  if ([clean].some(x => x === 'u' || x === 'oe' || x === String(b.symbol || '').toLowerCase() || x === String(b.name || '').toLowerCase())) return 'U';
+  return null;
+}
+
+function computeGpsBearing(dx, dz) {
+  const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'];
+  const deg = (Math.atan2(dx, -dz) * 180 / Math.PI + 360) % 360;
+  return dirs[Math.round(deg / 45) % 8];
+}
+
+async function readSelectedItem(player, rcon) {
+  const res = String(await rcon.send(`data get entity ${player} SelectedItem`));
+  const idMatch = res.match(/\bid:\s*"([a-z0-9_:.-]+)"/i);
+  if (!idMatch) return null;
+  const countMatch = res.match(/\bcount:\s*(\d+)/i);
+  return { id: idMatch[1], count: countMatch ? Number(countMatch[1]) : 1 };
+}
+
+async function handlePayCommand({ player, arg, bridge, rcon, memory }) {
+  const parts = String(arg || '').split(/\s+/).filter(Boolean);
+  if (parts.length < 2) {
+    await sendLine(rcon, player, 'Pago', 'gold', [{ text: COMMAND_DOCS.pagar, color: 'yellow' }]);
+    return;
+  }
+  const [targetRaw, amtRaw, curRaw] = parts;
+  const amount = Number(String(amtRaw).replace(',', '.'));
+  if (!(amount > 0 && Number.isFinite(amount))) {
+    await sendLine(rcon, player, 'Pago', 'red', [{ text: `Monto inválido: "${amtRaw}".`, color: 'yellow' }]);
+    return;
+  }
+
+  let curState;
+  try {
+    ({ state: curState } = await bridge.fetchWorld(false));
+  } catch (err) {
+    await sendLine(rcon, player, 'Pago', 'red', [{ text: `No pude leer Supabase: ${err.message}`, color: 'yellow' }]);
+    return;
+  }
+  const fromId = bridge.resolveParticipantId(curState, player);
+  const toId = bridge.resolveParticipantId(curState, targetRaw);
+  if (!fromId || fromId === 'bank') {
+    await sendLine(rcon, player, 'Pago', 'red', [{ text: 'No apareces como participante en la web (regístrate primero).', color: 'yellow' }]);
+    return;
+  }
+  if (!toId || toId === 'bank') {
+    await sendLine(rcon, player, 'Pago', 'red', [{ text: `No encontré al destinatario "${targetRaw}" en la web.`, color: 'yellow' }]);
+    return;
+  }
+  const defaultCur = bridge.E.isState(fromId) ? bridge.E.curOfState(fromId) : (bridge.E.isState(toId) ? bridge.E.curOfState(toId) : 'M');
+  const curCode = resolveCurrencyCode(curState, curRaw, defaultCur);
+  if (!curCode) {
+    await sendLine(rcon, player, 'Pago', 'red', [{ text: `Moneda desconocida "${curRaw}". Usa DR, CU o OE.`, color: 'yellow' }]);
+    return;
+  }
+
+  const wr = await bridge.mutateWorld(draft => {
+    const res = bridge.E.pay(draft, fromId, toId, curCode, amount, false);
+    if (!res.ok) return res;
+    const pFrom = bridge.pname(draft, fromId);
+    const pTo = bridge.pname(draft, toId);
+    const convTxt = res.short > 0 ? ` (conversión ${bridge.money(draft, res.cost, res.costCur)})` : '';
+    if (!Array.isArray(draft.economy.ledger)) draft.economy.ledger = [];
+    draft.economy.ledger.unshift({
+      id: bridge.E.uid('led'),
+      t: Date.now(),
+      type: 'Transferencia (MC)',
+      text: `${pFrom} -> ${pTo}: ${bridge.money(draft, amount, curCode)}${convTxt}`,
+      by: pFrom
+    });
+    if (res.short > 0) {
+      if (!Array.isArray(draft.economy.fxHistory)) draft.economy.fxHistory = [];
+      draft.economy.fxHistory.push({ t: Date.now(), r: Number(bridge.E.rate(draft).toFixed(4)) });
+      if (draft.economy.fxHistory.length > 300) draft.economy.fxHistory = draft.economy.fxHistory.slice(-300);
+    }
+    return {
+      ok: true,
+      pFrom,
+      pTo,
+      amtLabel: bridge.money(draft, amount, curCode),
+      convTxt
+    };
+  }, `${player} (!pagar)`);
+
+  if (!wr.ok) {
+    await sendLine(rcon, player, 'Pago', 'red', [{ text: wr.msg || 'No se pudo completar el pago.', color: 'yellow' }]);
+    return;
+  }
+  const { pFrom, pTo, amtLabel, convTxt } = wr.meta;
+  memory?.recordEvent('event', `Pago en MC: ${pFrom} -> ${pTo} (${amtLabel})`);
+  await rcon.send('execute as @a at @s run playsound minecraft:entity.experience_orb.pickup master @s ~ ~ ~ 0.7 1.2').catch(() => {});
+  await sendLine(rcon, '@a', 'Libro Mayor', 'gold', [
+    { text: `${pFrom}`, color: 'aqua', bold: true },
+    { text: ' transfirió ', color: 'white' },
+    { text: amtLabel, color: 'gold', bold: true },
+    { text: ` a ${pTo}${convTxt} · TRD 130-01.`, color: 'gray' }
+  ]);
+}
+
+async function handleCronicaCommand({ player, arg, bridge, rcon, memory }) {
+  if (!arg || isHelpQuestion(arg)) {
+    await sendLine(rcon, player, 'Ayuda !cronica', 'aqua', [{ text: COMMAND_DOCS.cronica, color: 'white' }]);
+    return;
+  }
+  const bar = arg.indexOf('|');
+  const title = bar >= 0
+    ? (arg.slice(0, bar).trim() || 'Crónica de Miscolandia').slice(0, 90)
+    : (arg.length > 46 ? `${arg.slice(0, 42).trim()}…` : 'Crónica desde el juego');
+  const body = (bar >= 0 ? arg.slice(bar + 1).trim() : arg).slice(0, 1200);
+  if (!body) {
+    await sendLine(rcon, player, 'Archivo', 'red', [{ text: 'Falta el texto de la crónica.', color: 'yellow' }]);
+    return;
+  }
+
+  const wr = await bridge.mutateWorld(draft => {
+    const pid = bridge.resolveParticipantId(draft, player) || player;
+    const era = bridge.getCurrentEra(draft);
+    if (!Array.isArray(draft.chronicles)) draft.chronicles = [];
+    draft.chronicles.unshift({
+      id: bridge.E.uid('cro'),
+      era: era.code,
+      type: 'Crónica',
+      author: pid,
+      title,
+      body,
+      t: Date.now()
+    });
+    return { ok: true, eraCode: era.code, authorName: bridge.pname(draft, pid) };
+  }, `${player} (!cronica)`);
+
+  if (!wr.ok) {
+    await sendLine(rcon, player, 'Archivo', 'red', [{ text: wr.msg || 'No pude guardar la crónica.', color: 'yellow' }]);
+    return;
+  }
+  memory?.recordEvent('event', `Nueva crónica de ${player}: "${title}"`);
+  await sendLine(rcon, '@a', 'TRD 140-01', 'aqua', [
+    { text: `${wr.meta.authorName} archivó crónica (${wr.meta.eraCode}): `, color: 'white' },
+    { text: `"${title}"`, color: 'gold', bold: true }
+  ]);
+}
+
+async function handleGeoSaveCommand({ kind, player, arg, bridge, rcon, memory }) {
+  const parts = String(arg || '').trim().split(/\s+/);
+  const sub = (parts[0] || '').toLowerCase();
+  const rest = sub === 'guardar' || sub === 'agregar' || sub === 'crear' ? parts.slice(1).join(' ').trim() : String(arg || '').trim();
+  if (!rest || isHelpQuestion(rest)) {
+    await sendLine(rcon, player, 'Cartógrafo', 'dark_aqua', [{ text: COMMAND_DOCS[kind === 'portal' ? 'portal' : 'estacion'], color: 'white' }]);
+    return;
+  }
+  const pos = await readPlayerPos(player, rcon).catch(() => null);
+  if (!pos || pos.dim === 'End') {
+    await sendLine(rcon, player, 'Cartógrafo', 'red', [{ text: 'Solo puedo registrar coordenadas en el Overworld o el Nether.', color: 'yellow' }]);
+    return;
+  }
+  const owX = pos.dim === 'Nether' ? pos.x * 8 : pos.x;
+  const owZ = pos.dim === 'Nether' ? pos.z * 8 : pos.z;
+  const nhX = pos.dim === 'Nether' ? pos.x : Math.floor(pos.x / 8);
+  const nhZ = pos.dim === 'Nether' ? pos.z : Math.floor(pos.z / 8);
+
+  if (kind === 'portal') {
+    const label = rest.slice(0, 60);
+    const wr = await bridge.mutateWorld(draft => {
+      if (!Array.isArray(draft.portals)) draft.portals = [];
+      draft.portals.unshift({ id: bridge.E.uid('prt'), label, ow: `${owX}, ${owZ}`, nh: `${nhX}, ${nhZ}` });
+      return { ok: true };
+    }, `${player} (!portal)`);
+    if (!wr.ok) {
+      await sendLine(rcon, player, 'Cartógrafo', 'red', [{ text: wr.msg, color: 'yellow' }]);
+      return;
+    }
+    memory?.recordEvent('event', `${player} registró portal "${label}" (OW ${owX},${owZ} ↔ NE ${nhX},${nhZ})`);
+    await sendLine(rcon, '@a', 'Cartógrafo', 'dark_aqua', [
+      { text: `Portal "${label}" guardado: `, color: 'white' },
+      { text: `OW (${owX}, ${owZ})`, color: 'green' },
+      { text: ' ↔ ', color: 'gray' },
+      { text: `NE (${nhX}, ${nhZ})`, color: 'red' }
+    ]);
+    return;
+  }
+
+  const bar = rest.indexOf('|');
+  const name = (bar >= 0 ? rest.slice(0, bar) : rest).trim().slice(0, 60);
+  const line = bar >= 0 ? rest.slice(bar + 1).trim().slice(0, 40) : '';
+  const wr = await bridge.mutateWorld(draft => {
+    const pid = bridge.resolveParticipantId(draft, player);
+    const owner = (pid === 'myth' || pid === 'scad') ? pid : 'ambos';
+    if (!Array.isArray(draft.stations)) draft.stations = [];
+    draft.stations.unshift({ id: bridge.E.uid('est'), name, line, coords: `${owX}, ${owZ}`, owner });
+    return { ok: true };
+  }, `${player} (!estacion)`);
+  if (!wr.ok) {
+    await sendLine(rcon, player, 'Cartógrafo', 'red', [{ text: wr.msg, color: 'yellow' }]);
+    return;
+  }
+  memory?.recordEvent('event', `${player} registró estación "${name}" en (${owX}, ${owZ})`);
+  await sendLine(rcon, '@a', 'Cartógrafo', 'dark_aqua', [
+    { text: `Estación "${name}"${line ? ` (${line})` : ''} guardada en OW (${owX}, ${owZ}).`, color: 'white' }
+  ]);
+}
+
+async function handleGpsCommand({ player, arg, bridge, rcon }) {
+  const pos = await readPlayerPos(player, rcon).catch(() => null);
+  if (!pos || pos.dim === 'End') {
+    await sendLine(rcon, player, 'GPS', 'red', [{ text: 'El GPS funciona en Overworld y Nether (no tengo tu posición aquí).', color: 'yellow' }]);
+    return;
+  }
+  const { state } = await bridge.fetchWorld(false);
+  const points = [];
+  for (const s of (state.stations || [])) {
+    const c = bridge.parseCoords(s.coords);
+    if (c) points.push({ kind: 'Estación', name: s.name, x: c.x, z: c.z, dim: 'Overworld' });
+  }
+  for (const p of (state.portals || [])) {
+    const c = bridge.parseCoords(p.ow);
+    if (c) points.push({ kind: 'Portal', name: p.label || 'Portal', x: c.x, z: c.z, dim: 'Overworld', nh: p.nh });
+  }
+  for (const w of (state.economy?.works || [])) {
+    const c = bridge.parseCoords(w.coords);
+    if (c) points.push({ kind: 'Obra', name: w.name, x: c.x, z: c.z, dim: 'Overworld' });
+  }
+  if (!points.length) {
+    await sendLine(rcon, player, 'GPS', 'gold', [{ text: 'No hay portales, estaciones u obras con coordenadas guardadas en Territorio aún.', color: 'yellow' }]);
+    return;
+  }
+  const myOwX = pos.dim === 'Nether' ? pos.x * 8 : pos.x;
+  const myOwZ = pos.dim === 'Nether' ? pos.z * 8 : pos.z;
+  const qNorm = String(arg || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const withDist = points.map(pt => {
+    const dx = pt.x - myOwX;
+    const dz = pt.z - myOwZ;
+    const dist = Math.round(Math.hypot(dx, dz));
+    const nMatch = qNorm ? pt.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes(qNorm) : true;
+    return { ...pt, dist, bearing: computeGpsBearing(dx, dz), match: nMatch };
+  });
+  const list = (qNorm ? withDist.filter(p => p.match) : withDist).sort((a, b) => a.dist - b.dist).slice(0, 3);
+  if (!list.length) {
+    await sendLine(rcon, player, 'GPS', 'gold', [{ text: `No hallé ningún destino con "${arg}" en el mapa web.`, color: 'yellow' }]);
+    return;
+  }
+  const lines = list.map(p => {
+    const nhDist = Math.round(p.dist / 8);
+    return `• [${p.kind}] ${p.name}: ${p.dist}b al ${p.bearing} -> OW (${p.x}, ${p.z}) · Nether ~${nhDist}b (${Math.floor(p.x / 8)}, ${Math.floor(p.z / 8)})`;
+  }).join('\n');
+  await sendLine(rcon, player, 'GPS', 'dark_aqua', [{ text: lines, color: 'white' }]);
+}
+
+async function handleContractCommand({ player, arg, bridge, rcon, memory }) {
+  const parts = String(arg || '').trim().split(/\s+/).filter(Boolean);
+  const sub = (parts[0] || '').toLowerCase();
+  const { state } = await bridge.fetchWorld(true);
+  const active = (state.contracts || []).filter(c => c && c.status !== 'pagado');
+
+  if (!sub || sub === 'lista' || sub === 'ver') {
+    if (!active.length) {
+      await sendLine(rcon, player, 'Encargos', 'gold', [{ text: 'No hay encargos abiertos ahorita. Publica uno en Economía -> Encargos.', color: 'gray' }]);
+      return;
+    }
+    const text = active.slice(0, 6).map((c, i) => {
+      const a = bridge.pname(state, c.author);
+      const who = c.assignee ? ` -> toma ${bridge.pname(state, c.assignee)}` : '';
+      return `[${i + 1}] ${c.title} (${bridge.money(state, c.reward, c.cur)} · ${a} · ${c.status}${who})`;
+    }).join('\n');
+    await sendLine(rcon, player, 'Encargos', 'gold', [
+      { text: `${text}\n`, color: 'white' },
+      { text: 'Usa !contrato aceptar <n> | entregar <n> | pagar <n>', color: 'gray' }
+    ]);
+    return;
+  }
+
+  const idx = Number(parts[1]) - 1;
+  const target = Number.isInteger(idx) && idx >= 0 && idx < active.length ? active[idx] : null;
+  if (!target) {
+    await sendLine(rcon, player, 'Encargos', 'red', [{ text: 'Indica el número válido del encargo (mira con !contratos).', color: 'yellow' }]);
+    return;
+  }
+
+  if (sub === 'aceptar' || sub === 'tomar') {
+    const wr = await bridge.mutateWorld(draft => {
+      const c = (draft.contracts || []).find(x => x.id === target.id);
+      const pid = bridge.resolveParticipantId(draft, player);
+      if (!c) return { ok: false, msg: 'Ese encargo ya no existe.' };
+      if (!pid) return { ok: false, msg: 'No estás registrado en la web.' };
+      if (c.author === pid) return { ok: false, msg: 'No puedes aceptar tu propio encargo.' };
+      if (c.status !== 'abierto') return { ok: false, msg: `Ese encargo ya está ${c.status}.` };
+      c.status = 'en_curso';
+      c.assignee = pid;
+      c.acceptedAt = Date.now();
+      return { ok: true, title: c.title, who: bridge.pname(draft, pid) };
+    }, `${player} (!contrato)`);
+    if (!wr.ok) return sendLine(rcon, player, 'Encargos', 'red', [{ text: wr.msg, color: 'yellow' }]);
+    memory?.recordEvent('event', `${wr.meta.who} aceptó el encargo "${wr.meta.title}"`);
+    return sendLine(rcon, '@a', 'Encargos', 'gold', [{ text: `${wr.meta.who} aceptó el encargo "${wr.meta.title}".`, color: 'white' }]);
+  }
+
+  if (sub === 'entregar' || sub === 'listo') {
+    const wr = await bridge.mutateWorld(draft => {
+      const c = (draft.contracts || []).find(x => x.id === target.id);
+      const pid = bridge.resolveParticipantId(draft, player);
+      if (!c) return { ok: false, msg: 'Ese encargo ya no existe.' };
+      if (c.assignee !== pid) return { ok: false, msg: 'Solo quien aceptó el encargo puede marcarlo como entregado.' };
+      if (c.status !== 'en_curso') return { ok: false, msg: `El encargo está en estado "${c.status}".` };
+      c.status = 'entregado';
+      c.deliveredAt = Date.now();
+      return { ok: true, title: c.title, author: bridge.pname(draft, c.author), who: bridge.pname(draft, pid) };
+    }, `${player} (!contrato)`);
+    if (!wr.ok) return sendLine(rcon, player, 'Encargos', 'red', [{ text: wr.msg, color: 'yellow' }]);
+    memory?.recordEvent('event', `${wr.meta.who} entregó el encargo "${wr.meta.title}"`);
+    return sendLine(rcon, '@a', 'Encargos', 'aqua', [{ text: `${wr.meta.who} entregó "${wr.meta.title}". ${wr.meta.author} puede aprobarlo con !contrato pagar ${idx + 1}.`, color: 'white' }]);
+  }
+
+  if (sub === 'pagar' || sub === 'aprobar') {
+    const wr = await bridge.mutateWorld(draft => {
+      const c = (draft.contracts || []).find(x => x.id === target.id);
+      const pid = bridge.resolveParticipantId(draft, player);
+      if (!c) return { ok: false, msg: 'Ese encargo ya no existe.' };
+      if (c.author !== pid) return { ok: false, msg: 'Solo quien publicó el encargo puede aprobar y pagar.' };
+      if (!c.assignee || c.status === 'abierto') return { ok: false, msg: 'Nadie lo ha aceptado todavía.' };
+      const payRes = bridge.E.pay(draft, c.author, c.assignee, c.cur, c.reward, false);
+      if (!payRes.ok) return payRes;
+      c.status = 'pagado';
+      c.paidAt = Date.now();
+      if (!Array.isArray(draft.economy.ledger)) draft.economy.ledger = [];
+      draft.economy.ledger.unshift({
+        id: bridge.E.uid('led'),
+        t: Date.now(),
+        type: 'Encargo pagado',
+        text: `${bridge.pname(draft, c.author)} -> ${bridge.pname(draft, c.assignee)}: ${bridge.money(draft, c.reward, c.cur)} por "${c.title}"`,
+        by: bridge.pname(draft, c.author)
+      });
+      return { ok: true, title: c.title, to: bridge.pname(draft, c.assignee), amt: bridge.money(draft, c.reward, c.cur) };
+    }, `${player} (!contrato pagar)`);
+    if (!wr.ok) return sendLine(rcon, player, 'Encargos', 'red', [{ text: wr.msg, color: 'yellow' }]);
+    memory?.recordEvent('event', `Encargo "${wr.meta.title}" pagado a ${wr.meta.to} (${wr.meta.amt})`);
+    return sendLine(rcon, '@a', 'Encargos', 'green', [{ text: `¡Encargo "${wr.meta.title}" aprobado! Pagado ${wr.meta.amt} a ${wr.meta.to}.`, color: 'white' }]);
+  }
+
+  await sendLine(rcon, player, 'Encargos', 'gold', [{ text: COMMAND_DOCS.contrato, color: 'yellow' }]);
+}
+
+async function handleOfferingCommand({ kind, player, bridge, rcon, enforcer, deity }) {
+  if (!deity) {
+    return sendLine(rcon, player, 'Aviso', 'gold', [{ text: 'El sistema de convicción aún se está iniciando.', color: 'gray' }]);
+  }
+  const { state } = await bridge.fetchWorld(false);
+  const role = enforcer.getPlayerRole(player, state);
+  const pid = deity.playerPid(player, role, state);
+  if (!pid) {
+    return sendLine(rcon, player, 'Convicción', 'gold', [{ text: 'Primero regístrate o elige tu identidad en la web (Soy:).', color: 'yellow' }]);
+  }
+  const dev = bridge.getDevotion(state, pid);
+  if (kind === 'fe' && dev.path !== 'fe') {
+    const hint = dev.path === 'razon' ? 'Tu camino es La Razón: usa !estudio.' : 'Declara una fe con dios nombrado en la web (Lore -> Religiones y fe).';
+    return sendLine(rcon, player, 'Ofrenda', 'gold', [{ text: hint, color: 'yellow' }]);
+  }
+  if (kind === 'razon' && dev.path === 'fe') {
+    return sendLine(rcon, player, 'Academia', 'gold', [{ text: 'Tu convicción es religiosa: usa !ofrenda.', color: 'yellow' }]);
+  }
+
+  const leftMs = deity.offeringCooldownLeftMs(player, kind);
+  if (leftMs > 0) {
+    const mins = Math.ceil(leftMs / 60_000);
+    return sendLine(rcon, player, kind === 'fe' ? 'Ofrenda' : 'Estudio', 'gray', [
+      { text: `Aún es pronto para otro gesto tan seguido (espera ~${mins} min).`, color: 'gray' }
+    ]);
+  }
+
+  const item = await readSelectedItem(player, rcon).catch(() => null);
+  const rx = kind === 'fe' ? SACRED_OFFERING_RE : STUDY_OFFERING_RE;
+  if (!item || !rx.test(item.id)) {
+    const allowedHint = kind === 'fe'
+      ? 'Sostén en la mano 1 vela, flor, amatista, lapislázuli, cuarzo, oro, esmeralda, diamante o farol.'
+      : 'Sostén en la mano 1 libro, libro y pluma, papel, brújula, mapa, catalejo, pluma o tinta.';
+    return sendLine(rcon, player, kind === 'fe' ? 'Ofrenda' : 'Estudio', 'gold', [{ text: allowedHint, color: 'yellow' }]);
+  }
+
+  const clrRes = String(await rcon.send(`clear ${player} ${item.id} 1`));
+  if (/No items were found|nothing/i.test(clrRes) && !/Removed 1|Cleared 1/i.test(clrRes)) {
+    return sendLine(rcon, player, 'Aviso', 'red', [{ text: 'No pude recoger el ítem de tu mano.', color: 'yellow' }]);
+  }
+
+  const itemLabel = item.id.replace(/^minecraft:/, '').replace(/_/g, ' ');
+  await deity.processOffering({ player, pid, kind, itemId: item.id, itemLabel, state });
+
+  await bridge.mutateWorld(draft => {
+    if (!draft.devotion || typeof draft.devotion !== 'object') draft.devotion = {};
+    if (!draft.devotion[pid] || typeof draft.devotion[pid] !== 'object') draft.devotion[pid] = { creed: '', marks: {} };
+    const key = kind === 'fe' ? 'offerings' : 'studies';
+    draft.devotion[pid][key] = (Number(draft.devotion[pid][key]) || 0) + 1;
+    return { ok: true };
+  }, `${player} (!${kind === 'fe' ? 'ofrenda' : 'estudio'})`).catch(() => {});
+}
+
+async function handleHolidayCommand({ player, bridge, rcon, deity, enforcer }) {
+  const { state } = await bridge.fetchWorld(true);
+  const role = enforcer.getPlayerRole(player, state);
+  const pid = deity?.playerPid(player, role, state) || bridge.resolveParticipantId(state, player);
+  if (deity) {
+    await deity.deliverPendingHolidayRewards(player, state).catch(() => {});
+  }
+  const { cal } = bridge.getHolidaysContext(state);
+  if (cal.active.length) {
+    const parts = cal.active.map(h => {
+      const node = state?.holidays?.[h.seasonYear]?.[h.id] || {};
+      const tList = h.tasks.map(t => `${node?.[t.id]?.[pid] ? '✔' : '○'} ${t.title}`).join(' | ');
+      const claimed = Boolean(pid && node?.claimed?.[pid]);
+      return `${h.emoji} ${h.name} (${h.dateLabel}): ${tList}${claimed ? ' [Premio entregado ✔]' : ` -> Premio: ${h.reward.label}`}`;
+    }).join('\n');
+    return sendLine(rcon, player, 'Festividad activa', 'gold', [{ text: parts, color: 'white' }]);
+  }
+  if (cal.upcoming) {
+    const u = cal.upcoming;
+    return sendLine(rcon, player, 'Calendario festivo', 'gold', [
+      { text: `Hoy no hay festividad activa. La próxima es ${u.emoji} ${u.name} (${u.dateLabel}, en ${u.daysLeft} día(s)). Premio: ${u.reward.label}`, color: 'white' }
+    ]);
+  }
+}
+
+async function handleSummaryCommand({ player, arg, bridge, rcon, memory, enforcer }) {
+  const logs = memory?.data?.pendingSessionLog || [];
+  if (!logs.length) {
+    return sendLine(rcon, player, 'Diario', 'gray', [{ text: 'Aún no hay suficientes sucesos en esta sesión para resumir.', color: 'gray' }]);
+  }
+  const deaths = logs.filter(e => e.type === 'death').map(e => e.text);
+  const infr = logs.filter(e => e.type === 'infraction').map(e => e.text);
+  const evs = logs.filter(e => e.type === 'event').map(e => e.text);
+  const head = `Resumen sesión (${logs.length} sucesos): ${evs.length} eventos, ${deaths.length} bajas, ${infr.length} avisos Aduana.`;
+  const topLines = [...deaths.slice(-2), ...infr.slice(-2), ...evs.slice(-4)].map(s => `• ${s}`).join('\n');
+
+  if (/^(?:publicar|guardar|web)$/i.test(String(arg || '').trim())) {
+    const { state } = await bridge.fetchWorld(false);
+    if (enforcer.getPlayerRole(player, state) === 'guest') {
+      const pid = bridge.resolveParticipantId(state, player) || player;
+      if (!pid) return sendLine(rcon, player, 'Diario', 'red', [{ text: 'No te encontré en la web.', color: 'yellow' }]);
+    }
+    const today = new Date(Date.now() - 5 * 3600_000).toISOString().slice(0, 10);
+    const wr = await bridge.mutateWorld(draft => {
+      const pid = bridge.resolveParticipantId(draft, player) || player;
+      const era = bridge.getCurrentEra(draft);
+      if (!Array.isArray(draft.chronicles)) draft.chronicles = [];
+      draft.chronicles.unshift({
+        id: bridge.E.uid('cro'),
+        era: era.code,
+        type: 'Crónica',
+        author: pid,
+        title: `Diario de sesión (${today})`,
+        body: `${head}\n${topLines}`.slice(0, 1200),
+        t: Date.now()
+      });
+      return { ok: true };
+    }, `${player} (!resumen)`);
+    if (!wr.ok) return sendLine(rcon, player, 'Diario', 'red', [{ text: wr.msg, color: 'yellow' }]);
+    return sendLine(rcon, '@a', 'TRD 140-01', 'green', [{ text: `${player} publicó el Diario de sesión en Lore -> Crónicas.`, color: 'white' }]);
+  }
+
+  await sendLine(rcon, player, 'Resumen sesión', 'green', [{ text: `${head}\n${topLines}\n(Publicar en web: !resumen publicar)`, color: 'white' }]);
+}
+
 async function handleChatCommand(player, message, ctx) {
   const { cfg, bridge, rcon, enforcer } = ctx;
   const prefix = cfg.prefix || '!';
@@ -704,6 +1202,24 @@ async function handleChatCommand(player, message, ctx) {
       { text: '!yo', color: 'green', bold: true },
       { text: ' · ', color: 'gray' },
       { text: '!expediente', color: 'red', bold: true },
+      { text: '\nWeb & Mundo: ', color: 'gray' },
+      { text: '!pagar', color: 'gold', bold: true },
+      { text: ' · ', color: 'gray' },
+      { text: '!cronica', color: 'aqua', bold: true },
+      { text: ' · ', color: 'gray' },
+      { text: '!gps', color: 'dark_aqua', bold: true },
+      { text: ' · ', color: 'gray' },
+      { text: '!portal', color: 'dark_aqua', bold: true },
+      { text: ' · ', color: 'gray' },
+      { text: '!contratos', color: 'gold', bold: true },
+      { text: ' · ', color: 'gray' },
+      { text: '!fiesta', color: 'light_purple', bold: true },
+      { text: ' · ', color: 'gray' },
+      { text: '!ofrenda', color: 'light_purple', bold: true },
+      { text: '/', color: 'gray' },
+      { text: '!estudio', color: 'aqua', bold: true },
+      { text: ' · ', color: 'gray' },
+      { text: '!resumen', color: 'green', bold: true },
       { text: '\nArchivo: ', color: 'gray' },
       { text: '!certificado', color: 'gold', bold: true },
       { text: ' · ', color: 'gray' },
@@ -1469,6 +1985,56 @@ async function handleChatCommand(player, message, ctx) {
         color: list.length ? 'yellow' : 'green'
       }
     ]);
+    return;
+  }
+
+  if (cmd === 'pagar' || cmd === 'transferir' || cmd === 'enviar' || cmd === 'pay') {
+    await handlePayCommand({ player, arg, bridge, rcon, memory: ctx.memory });
+    return;
+  }
+
+  if (cmd === 'cronica' || cmd === 'crónica') {
+    await handleCronicaCommand({ player, arg, bridge, rcon, memory: ctx.memory });
+    return;
+  }
+
+  if (cmd === 'portal') {
+    await handleGeoSaveCommand({ kind: 'portal', player, arg, bridge, rcon, memory: ctx.memory });
+    return;
+  }
+
+  if (cmd === 'estacion' || cmd === 'estación') {
+    await handleGeoSaveCommand({ kind: 'station', player, arg, bridge, rcon, memory: ctx.memory });
+    return;
+  }
+
+  if (cmd === 'gps' || cmd === 'donde' || cmd === 'dónde' || cmd === 'ruta') {
+    await handleGpsCommand({ player, arg, bridge, rcon });
+    return;
+  }
+
+  if (cmd === 'contrato' || cmd === 'contratos' || cmd === 'encargo' || cmd === 'encargos') {
+    await handleContractCommand({ player, arg, bridge, rcon, memory: ctx.memory });
+    return;
+  }
+
+  if (cmd === 'ofrenda') {
+    await handleOfferingCommand({ kind: 'fe', player, bridge, rcon, enforcer, deity: ctx.deity });
+    return;
+  }
+
+  if (cmd === 'estudio') {
+    await handleOfferingCommand({ kind: 'razon', player, bridge, rcon, enforcer, deity: ctx.deity });
+    return;
+  }
+
+  if (cmd === 'fiesta' || cmd === 'festividad' || cmd === 'festividades' || cmd === 'temporada') {
+    await handleHolidayCommand({ player, bridge, rcon, deity: ctx.deity, enforcer });
+    return;
+  }
+
+  if (cmd === 'resumen' || cmd === 'diario') {
+    await handleSummaryCommand({ player, arg, bridge, rcon, memory: ctx.memory, enforcer });
     return;
   }
 
@@ -2874,6 +3440,52 @@ async function runSmokeTest(cfg) {
     throw new Error(`Alias resolution, SNBT sanitizer o riskyReason falló: ${JSON.stringify({ noc: [...resNoc.targets], arch: [...resArch.targets], luth: [...resLuth.targets], effFixed, mobFixed })}`);
   }
   console.log(`15) AdminGenie Alias Resolution & Creative Safety test: PASS`);
+
+  // 16. Holidays calendar (Colombia TZ), GPS bearing & Deity vs Razón holiday rewards
+  const velCal = bridge.D.getHolidayCalendar(Date.UTC(2026, 11, 7, 17, 0));
+  const halCal = bridge.D.getHolidayCalendar(Date.UTC(2026, 9, 31, 17, 0));
+  const sepCal = bridge.D.getHolidayCalendar(Date.UTC(2026, 8, 15, 17, 0));
+  const novCal = bridge.D.getHolidayCalendar(Date.UTC(2026, 10, 21, 22, 0));
+  const nyDecCal = bridge.D.getHolidayCalendar(Date.UTC(2026, 11, 31, 23, 0));
+  const nyJanCal = bridge.D.getHolidayCalendar(Date.UTC(2027, 0, 1, 15, 0));
+  const parsedCoord = bridge.parseCoords('120, 64, -240');
+  const brNorth = computeGpsBearing(0, -100);
+  const brSouthEast = computeGpsBearing(50, 50);
+
+  const hTestDeityPath = path.join(os.tmpdir(), `miscolandia-smoke-holiday-${Date.now()}.json`);
+  const hDeitySent = [];
+  const hMockRcon = {
+    send: async cmd => { hDeitySent.push(cmd); return ''; },
+    tellraw: async (target, parts) => { hDeitySent.push(`tellraw ${target} ${JSON.stringify(parts)}`); return ''; }
+  };
+  const hState = JSON.parse(JSON.stringify(state));
+  hState.religions = { myth: { faith: 'Culto Solar', names: 'Solari' } };
+  hState.devotion = { myth: { creed: 'myth', marks: {} }, scad: { creed: 'razon', marks: {} } };
+  const hDeity = new Deity({ cfg, bridge, rcon: hMockRcon, memory: null, statePath: hTestDeityPath });
+  try {
+    const velHol = bridge.D.HOLIDAYS.find(h => h.id === 'velitas');
+    const mythRes = await hDeity.grantHolidayReward({ player: 'MythStorm', pid: 'myth', holiday: velHol, year: 2026, state: hState, isOnline: true });
+    const scadRes = await hDeity.grantHolidayReward({ player: 'Scadrial0523', pid: 'scad', holiday: velHol, year: 2026, state: hState, isOnline: true });
+    if (
+      !velCal.active.some(h => h.id === 'velitas') ||
+      !halCal.active.some(h => h.id === 'halloween') ||
+      !sepCal.active.some(h => h.id === 'amor_amistad') ||
+      novCal.upcoming?.id !== 'velitas' ||
+      nyDecCal.active.find(h => h.id === 'anio_nuevo')?.seasonYear !== 2026 ||
+      nyJanCal.active.find(h => h.id === 'anio_nuevo')?.seasonYear !== 2026 ||
+      parsedCoord?.x !== 120 || parsedCoord?.z !== -240 ||
+      brNorth !== 'N' || brSouthEast !== 'SE' ||
+      mythRes.badge !== 'Solari' ||
+      scadRes.badge === 'Solari' ||
+      hDeitySent.some(s => s.includes('Scadrial0523') && s.includes('Solari')) ||
+      !hDeitySent.some(s => s.includes('give MythStorm minecraft:yellow_candle 6'))
+    ) {
+      throw new Error(`Fallo Test 16 festividades/GPS/deidad: ${JSON.stringify({ novUpcoming: novCal.upcoming?.id, brNorth, brSouthEast, mythRes, scadRes })}`);
+    }
+  } finally {
+    try { fs.unlinkSync(hTestDeityPath); } catch {}
+  }
+  console.log(`16) Holidays Calendar (Colombia), GPS & Reward Routing test: PASS`);
   console.log('=== TODOS LOS TESTS PASARON ===');
 }
 
@@ -2904,8 +3516,11 @@ async function main() {
     onBeforeStop: () => handleServerStopCompaction(ctx)
   });
   ctx.adminGenie = adminGenie;
-  const webSync = new WebSyncAnnouncer({ bridge, rcon, enforcer, memory });
+  const webSync = new WebSyncAnnouncer({ bridge, rcon, enforcer, memory, deity: ctx.deity });
   ctx.webSync = webSync;
+  memory.setEventHook((type, text) => {
+    if (!webSync._suppressMemoryFeed) webSync.addFeed(type, text);
+  });
 
   const shutdown = () => {
     webSync.stop();
@@ -2935,6 +3550,7 @@ async function main() {
   ctx.deity.startGuardian(enforcer);
   const events = new WorldEvents({ cfg, bridge, rcon, enforcer, memory, statePath: path.join(SERVER_DIR, 'bot-events.json') });
   ctx.events = events;
+  webSync.events = events;
   events.start();
   await webSync.start().catch(err => console.warn('[WebSync init]', err.message));
   startLogWatcher(cfg, ctx);

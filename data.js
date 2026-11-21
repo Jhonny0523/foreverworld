@@ -969,9 +969,284 @@ window.FW_DATA = (() => {
     vigencia: 'Documento rector del módulo Económico (TRD 120-01 / TRD 130-01). No reemplaza las leyes de Estado; operacionaliza su registro contable y archivístico.'
   };
 
+  /* -------------------- Festividades de Miscolandia (colombianas e internacionales) -------------------- */
+  // Reglas de premios: estrictamente cosméticos/ambientales y compatibles con cualquier Era
+  // (sin comida ni ítems que salten monopolios del Día Cero o progresión).
+  const HOLIDAYS = [
+    {
+      id: 'reyes',
+      name: 'Día de Reyes Magos',
+      emoji: '👑',
+      accent: 'gold',
+      start: [1, 1],
+      end: [1, 8],
+      dateLabel: '1 – 8 ene',
+      desc: 'Tradición de regalos anónimos bajo la estrella de oriente antes de arrancar el año.',
+      tasks: [
+        { id: 'h-reyes-1', title: 'Estrella de Reyes en la capital', desc: 'Colgar o construir una estrella dorada e iluminada en lo alto de tu capital o plaza.', proof: 'Vista en el mundo.' },
+        { id: 'h-reyes-2', title: 'Regalo sorpresa en morada ajena', desc: 'Dejar un cofre o detalle decorativo con dedicatoria frente a la casa de otro jugador.', proof: 'Detalle entregado + firma.' }
+      ],
+      reward: {
+        label: '2 oro, 4 amatistas, 3 frascos de XP y suerte festiva',
+        deityMsg: 'Por tu generosidad bajo la estrella de Reyes, {DEITY} deja un presente ante tus pasos.',
+        reasonMsg: 'El Consejo Cívico de Miscolandia celebra la tradición de Reyes con un reconocimiento festivo.',
+        items: [{ id: 'minecraft:gold_ingot', count: 2 }, { id: 'minecraft:amethyst_shard', count: 4 }, { id: 'minecraft:experience_bottle', count: 3 }],
+        fx: ['luck:300:0']
+      }
+    },
+    {
+      id: 'san_valentin',
+      name: 'San Valentín',
+      emoji: '💐',
+      accent: 'amethyst',
+      start: [2, 10],
+      end: [2, 16],
+      dateLabel: '10 – 16 feb',
+      desc: 'Jardines floridos, cartas y pequeños detalles entre pueblos vecinos.',
+      tasks: [
+        { id: 'h-sv-1', title: 'Rincón de rosas y pétalos', desc: 'Decorar un jardín o plaza con rosales, flores rojas/rosadas y pétalos de cerezo.', proof: 'Jardín visible.' },
+        { id: 'h-sv-2', title: 'Carta o detalle dedicado', desc: 'Entregar una flor renombrada o una nota sellada (!papel) a alguien de Miscolandia.', proof: 'Entrega en juego o crónica.' }
+      ],
+      reward: {
+        label: '8 pétalos rosas, 2 rosales, 4 velas y regeneración breve',
+        deityMsg: '{DEITY} contempla las flores del reino y bendice tu gesto de aprecio.',
+        reasonMsg: 'La plaza florida recuerda el valor del aprecio mutuo: la Academia entrega flores y luz.',
+        items: [{ id: 'minecraft:pink_petals', count: 8 }, { id: 'minecraft:rose_bush', count: 2 }, { id: 'minecraft:candle', count: 4 }],
+        fx: ['regeneration:30:0']
+      }
+    },
+    {
+      id: 'semana_santa',
+      name: 'Semana Santa y Pascua',
+      emoji: '🥚',
+      accent: 'cyan',
+      start: [3, 22],
+      end: [4, 25],
+      dateLabel: '22 mar – 25 abr',
+      desc: 'Búsqueda de tesoros escondidos por el mapa y espacios de recogimiento y paz.',
+      tasks: [
+        { id: 'h-ss-1', title: 'Búsqueda de cofres de Pascua', desc: 'Esconder o encontrar al menos 3 cofres/huevos marcados con pistas entre vecinos.', proof: 'Pistas y hallazgo en chat.' },
+        { id: 'h-ss-2', title: 'Rincón de paz o santuario tranquilo', desc: 'Levantar un mirador, claustro o glorieta tranquila decorada con piedra lisa y faroles.', proof: 'Visita en el mundo.' }
+      ],
+      reward: {
+        label: '4 faroles, 4 amatistas y 4 frascos de XP',
+        deityMsg: 'Quien busca con paciencia halla luz: {DEITY} ilumina tu camino.',
+        reasonMsg: 'El espíritu de búsqueda y pausa deja frutos serenos en tu inventario.',
+        items: [{ id: 'minecraft:lantern', count: 4 }, { id: 'minecraft:amethyst_shard', count: 4 }, { id: 'minecraft:experience_bottle', count: 4 }],
+        fx: ['night_vision:240:0']
+      }
+    },
+    {
+      id: 'patria',
+      name: 'Fiestas Patrias (20 de Julio y 7 de Agosto)',
+      emoji: '🇨🇴',
+      accent: 'gold',
+      start: [7, 15],
+      end: [8, 10],
+      dateLabel: '15 jul – 10 ago',
+      desc: 'El tricolor amarillo, azul y rojo ondea en plazas, puentes y fronteras de Miscolandia.',
+      tasks: [
+        { id: 'h-pat-1', title: 'Izar el tricolor en la capital y frontera', desc: 'Colocar estandartes o alfombras amarillo, azul y rojo en lugares visibles de ambos pueblos.', proof: 'Estandartes visibles.' },
+        { id: 'h-pat-2', title: 'Arco o puente conmemorativo iluminado', desc: 'Construir o engalanar un puente/arco fronterizo con antorchas o faroles conmemorativos.', proof: 'Paso inaugurado.' }
+      ],
+      reward: {
+        label: 'Estandartes tricolor (amarillo/azul/rojo) y 4 cohetes',
+        deityMsg: '{DEITY} honra la memoria de la tierra compartida y enciende el cielo de fiesta.',
+        reasonMsg: 'Las naciones celebran su independencia cívica con estandartes y salvas al cielo.',
+        items: [
+          { id: 'minecraft:yellow_banner', count: 1 },
+          { id: 'minecraft:blue_banner', count: 1 },
+          { id: 'minecraft:red_banner', count: 1 },
+          { id: 'minecraft:firework_rocket', count: 4 }
+        ],
+        fx: ['speed:180:0']
+      }
+    },
+    {
+      id: 'amor_amistad',
+      name: 'Amor y Amistad',
+      emoji: '🎁',
+      accent: 'emerald',
+      start: [9, 1],
+      end: [9, 30],
+      dateLabel: '1 – 30 sep',
+      desc: 'Mes colombiano de la amistad: Amigo Secreto en yunque y endulzada fronteriza.',
+      tasks: [
+        { id: 'h-aa-1', title: 'Amigo Secreto con ítem renombrado', desc: 'Preparar un obsequio útil con nombre personalizado en el yunque para quien te tocó.', proof: 'Entrega frente a frente.' },
+        { id: 'h-aa-2', title: 'La Endulzada en la frontera', desc: 'Compartir mesa o plaza festiva entre naciones con música, flores y brindis.', proof: 'Crónica o celebración en chat.' }
+      ],
+      reward: {
+        label: '1 etiqueta de nombre, 4 velas rosadas y 3 frascos de XP',
+        deityMsg: 'Los lazos leales fortalecen todo reino: {DEITY} premia tu amistad sincera.',
+        reasonMsg: 'La Concordia de Miscolandia agradece el encuentro con útiles para futuros recuerdos.',
+        items: [{ id: 'minecraft:name_tag', count: 1 }, { id: 'minecraft:pink_candle', count: 4 }, { id: 'minecraft:experience_bottle', count: 3 }],
+        fx: ['luck:300:0']
+      }
+    },
+    {
+      id: 'halloween',
+      name: 'Halloween / Noche de Brujas',
+      emoji: '🎃',
+      accent: 'copper',
+      start: [10, 15],
+      end: [11, 1],
+      dateLabel: '15 oct – 1 nov',
+      desc: 'Calabazas talladas, faroles de almas y sombras festivas recorren Miscolandia.',
+      tasks: [
+        { id: 'h-hal-1', title: 'Decorar calles con calabazas y faroles de almas', desc: 'Poner al menos 8 calabazas iluminadas o soul lanterns adornando fachadas y senderos.', proof: 'Barrio decorado de noche.' },
+        { id: 'h-hal-2', title: 'Noche de sustos, disfraz o laberinto', desc: 'Ponerse una cabeza/calabaza o armar una pequeña casa del terror / ruta nocturna.', proof: 'Recorrido nocturno compartido.' }
+      ],
+      reward: {
+        label: '4 calabazas iluminadas, 4 faroles de almas y 4 tintas brillantes',
+        deityMsg: 'Entre sombras y risas nocturnas, {DEITY} prende llamas azules en tu honor.',
+        reasonMsg: 'El gremio nocturno de Miscolandia premia la mejor ambientación de Halloween.',
+        items: [{ id: 'minecraft:jack_o_lantern', count: 4 }, { id: 'minecraft:soul_lantern', count: 4 }, { id: 'minecraft:glow_ink_sac', count: 4 }],
+        fx: ['night_vision:300:0']
+      }
+    },
+    {
+      id: 'difuntos',
+      name: 'Día de la Memoria y Difuntos',
+      emoji: '🕯️',
+      accent: 'amethyst',
+      start: [11, 1],
+      end: [11, 4],
+      dateLabel: '1 – 4 nov',
+      desc: 'Altar de velas, flores y carteles en honor a los † Archivo y caídas históricas.',
+      tasks: [
+        { id: 'h-dif-1', title: 'Altar con velas y flores de recuerdo', desc: 'Montar un altar con velas blancas/moradas, flores y carteles recordando aldeanos, mascotas o batallas pasadas.', proof: 'Altar visible con placas.' }
+      ],
+      reward: {
+        label: '6 velas blancas, 4 velas moradas y 2 lirios del valle',
+        deityMsg: '{DEITY} acoge la memoria de quienes cayeron y bendice tu respeto.',
+        reasonMsg: 'El Archivo Histórico preserva cada nombre digno: luz y flores para el memorial.',
+        items: [{ id: 'minecraft:white_candle', count: 6 }, { id: 'minecraft:purple_candle', count: 4 }, { id: 'minecraft:lily_of_the_valley', count: 2 }],
+        fx: ['regeneration:30:0']
+      }
+    },
+    {
+      id: 'velitas',
+      name: 'Noche de las Velitas',
+      emoji: '🕯️',
+      accent: 'gold',
+      start: [12, 5],
+      end: [12, 9],
+      dateLabel: '5 – 9 dic',
+      desc: 'El 7 de diciembre se encienden calles, caminos y fronteras con velas de todos los colores y deseos para el reino.',
+      tasks: [
+        { id: 'h-vel-1', title: 'Camino iluminado con 24+ velas y faroles', desc: 'Encender senderos de velas de colores frente a tu casa, plaza y camino fronterizo.', proof: 'Velas encendidas al anochecer.' },
+        { id: 'h-vel-2', title: 'Deseo escrito en crónica o cartel', desc: 'Escribir en Lore → Crónicas (o con !cronica) un deseo para Miscolandia en el año que entra.', proof: 'Crónica publicada.' }
+      ],
+      reward: {
+        label: '18 velas tricolor festivas, 4 faroles y brillo amable',
+        deityMsg: 'Tus velas brillaron en la noche de Miscolandia; {DEITY} escucha tu deseo con favor.',
+        reasonMsg: 'La luz compartida del 7 de diciembre une ambas orillas: toma más velas y faroles para la plaza.',
+        items: [
+          { id: 'minecraft:yellow_candle', count: 6 },
+          { id: 'minecraft:light_blue_candle', count: 6 },
+          { id: 'minecraft:red_candle', count: 6 },
+          { id: 'minecraft:lantern', count: 4 }
+        ],
+        fx: ['luck:300:0']
+      }
+    },
+    {
+      id: 'navidad',
+      name: 'Novenas y Navidad',
+      emoji: '🎄',
+      accent: 'emerald',
+      start: [12, 15],
+      end: [12, 26],
+      dateLabel: '15 – 26 dic',
+      desc: 'Árbol monumental, nieve en las plazas, novenas en comunidad y aguinaldos del 24.',
+      tasks: [
+        { id: 'h-nav-1', title: 'Árbol de Navidad o pesebre en plaza', desc: 'Construir o decorar un árbol de abeto gigante con lana, cristales, estrellas/faroles y nieve alrededor.', proof: 'Plaza navideña terminada.' },
+        { id: 'h-nav-2', title: 'Aguinaldos de Nochebuena bajo el árbol', desc: 'Dejar cofres con regalos rotulados para cada participante bajo el árbol común.', proof: 'Regalos entregados.' }
+      ],
+      reward: {
+        label: '2 esmeraldas, 8 polvo de glowstone, 6 velas verdes y 4 cohetes',
+        deityMsg: '{DEITY} celebra la unión navideña de los pueblos y llena de destellos tu Nochebuena.',
+        reasonMsg: 'La Feria Invernal de Miscolandia reparte aguinaldos simbólicos por celebrar en comunidad.',
+        items: [
+          { id: 'minecraft:emerald', count: 2 },
+          { id: 'minecraft:glowstone_dust', count: 8 },
+          { id: 'minecraft:green_candle', count: 6 },
+          { id: 'minecraft:firework_rocket', count: 4 }
+        ],
+        fx: ['hero_of_the_village:300:0']
+      }
+    },
+    {
+      id: 'anio_nuevo',
+      name: 'Año Nuevo y Quema del Viejo',
+      emoji: '🎆',
+      accent: 'diamond',
+      start: [12, 28],
+      end: [1, 2],
+      dateLabel: '28 dic – 2 ene',
+      desc: 'Balance de fin de año, campanadas de medianoche y cielo lleno de pólvora festiva.',
+      tasks: [
+        { id: 'h-ny-1', title: 'Torre del reloj o espectáculo de pólvora', desc: 'Colocar una campana festiva y lanzar fuegos artificiales celebrando el año que termina.', proof: 'Campanada y cohetes.' },
+        { id: 'h-ny-2', title: 'Crónica de balance del año', desc: 'Registrar con !resumen publicar o en Crónicas el mejor recuerdo de esta etapa.', proof: 'Crónica en Archivo.' }
+      ],
+      reward: {
+        label: '8 fuegos artificiales, 1 campana ceremonial y 5 frascos de XP',
+        deityMsg: 'Suena la campana de un nuevo ciclo: {DEITY} abre el año contigo con buen augurio.',
+        reasonMsg: '¡Feliz año nuevo en Miscolandia! La Historia registra un ciclo más de progreso y amistad.',
+        items: [{ id: 'minecraft:firework_rocket', count: 8 }, { id: 'minecraft:bell', count: 1 }, { id: 'minecraft:experience_bottle', count: 5 }],
+        fx: ['speed:180:0', 'luck:300:0']
+      }
+    }
+  ];
+
+  // Calendario en hora de Colombia (UTC-5) para que navegador y servidor bot coincidan siempre.
+  function getHolidayCalendar(nowMs = Date.now()) {
+    const co = new Date(Number(nowMs) - 5 * 3600_000);
+    const year = co.getUTCFullYear();
+    const m = co.getUTCMonth() + 1;
+    const d = co.getUTCDate();
+    const todayUtc = Date.UTC(year, m - 1, d);
+    const md = m * 100 + d;
+
+    const isInRange = (sm, sd, em, ed) => {
+      const startMd = sm * 100 + sd;
+      const endMd = em * 100 + ed;
+      if (startMd <= endMd) return md >= startMd && md <= endMd;
+      return md >= startMd || md <= endMd; // cruza fin de año (ej. 28 dic -> 2 ene)
+    };
+
+    const seasonYearFor = h => {
+      const [sm, sd] = h.start;
+      const [em, ed] = h.end;
+      if (sm * 100 + sd > em * 100 + ed && md <= em * 100 + ed) return year - 1;
+      return year;
+    };
+
+    const daysUntil = h => {
+      const [sm, sd] = h.start;
+      let startUtc = Date.UTC(year, sm - 1, sd);
+      if (startUtc < todayUtc) startUtc = Date.UTC(year + 1, sm - 1, sd);
+      return Math.round((startUtc - todayUtc) / 86_400_000);
+    };
+
+    const enriched = HOLIDAYS.map(h => {
+      const active = isInRange(h.start[0], h.start[1], h.end[0], h.end[1]);
+      return {
+        ...h,
+        active,
+        seasonYear: seasonYearFor(h),
+        daysLeft: active ? 0 : daysUntil(h)
+      };
+    });
+
+    const active = enriched.filter(h => h.active);
+    const upcoming = enriched.filter(h => !h.active).sort((a, b) => a.daysLeft - b.daysLeft)[0] || null;
+    return { year, month: m, day: d, active, upcoming, all: enriched };
+  }
+
   return {
     DEFAULT_BANK_NAME, DEFAULT_BASKET, DEFAULT_NATIONS, MONOPOLIES, PACT_RULES, PROFESSIONS, ANIMAL_SPECIES, WORK_CATEGORIES,
-    TRACKS, ERAS, SEASON_CHECKLIST, SEASON_POOLS, MEGAPROJECTS,
+    TRACKS, ERAS, SEASON_CHECKLIST, SEASON_POOLS, MEGAPROJECTS, HOLIDAYS, getHolidayCalendar,
     WORLD_PROMPTS, NATION_PROMPTS, RELIGION_PROMPTS, FAITH_MILESTONES, REASON_MILESTONES, GUEST_QUESTS, DEFAULT_LAWS, DEFAULT_RP_LAWS,
     DOC_TYPES, DEFAULT_TRD, DEFAULT_PENAL_PACK, PRICE_GUIDE, RELICS, GLOSSARY, ECONOMY_MANUAL,
     FARM_LOCKS, farmLockForWork, activeFarmLocks, findFarmLock

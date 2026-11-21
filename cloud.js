@@ -9,7 +9,7 @@ window.FW_CLOUD = (() => {
   const REV_PREFIX = 'forever_world_cloud_rev_';
   const BASE_PREFIX = 'forever_world_cloud_base_';
   const WORLD_UI_KEYS = ['rpLawsSeeded', 'foodRuleV1', 'guestSeedV1', 'luthadelV1'];
-  const APP_VER = '20261121160000';
+  const APP_VER = '20261121173000';
   let warnedOutdated = false;
 
   let client = null;
@@ -257,6 +257,9 @@ window.FW_CLOUD = (() => {
     }
     if (path === 'updatedBy') {
       return local || remote || '';
+    }
+    if (path === 'live') {
+      return Number(remote?.at || 0) >= Number(local?.at || 0) ? cloneObj(remote) : cloneObj(local);
     }
 
     if (isAdditivePath(path) && typeof base === 'number' && typeof local === 'number' && typeof remote === 'number') {

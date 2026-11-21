@@ -76,10 +76,10 @@ window.FW_ERAS_DATA = (() => {
         ['e1-11', 'ambos', 'eco', 1, 'Fundar {BANK}', 'Edificio neutral en la frontera y aporte conjunto de reservas.', 'Reservas de la Cámara > 0.'],
         ['e1-12', 'ambos', 'haz', 1, 'Expedición minera y purga nocturna', 'Bajar juntos a capa profunda y volver con 20 diamantes entre los dos + 100 bajas combinadas en Estadísticas.', '20 diamantes + captura de Estadísticas.'],
         ['e1-13', 'ambos', 'cul', 1, 'Banderas nacionales', 'Estandarte de cada Estado colgado en la capital y en la frontera.', 'Estandartes colgados.'],
-        ['e1-14', 'myth', 'reto', 1, 'Reto cruzado: Mythstorm forja', 'Fundir 24 lingotes y forjar una armadura de hierro completa.', 'Armadura puesta.'],
-        ['e1-15', 'scad', 'reto', 1, 'Reto cruzado: Scadrial encanta', 'Montar una mesa de encantamientos y encantar 3 piezas de equipo.', '3 piezas encantadas.'],
-        ['e1-16', 'myth', 'reto', 1, 'Reto cruzado: Mythstorm abre una cantera', 'Abrir una cantera ordenada y fundir 2 stacks de piedra lisa.', '2 stacks de piedra lisa.'],
-        ['e1-17', 'scad', 'reto', 1, 'Reto cruzado: Scadrial cablea', 'Puerta oculta con pistones y palanca, sin cuarzo.', 'Puerta funcionando.']
+        ['e1-14', 'myth', 'reto', 1, 'Reto cruzado: {MYTH} forja', 'Fundir 24 lingotes y forjar una armadura de hierro completa.', 'Armadura puesta.'],
+        ['e1-15', 'scad', 'reto', 1, 'Reto cruzado: {SCAD} encanta', 'Montar una mesa de encantamientos y encantar 3 piezas de equipo.', '3 piezas encantadas.'],
+        ['e1-16', 'myth', 'reto', 1, 'Reto cruzado: {MYTH} abre una cantera', 'Abrir una cantera ordenada y fundir 2 stacks de piedra lisa.', '2 stacks de piedra lisa.'],
+        ['e1-17', 'scad', 'reto', 1, 'Reto cruzado: {SCAD} cablea', 'Puerta oculta con pistones y palanca, sin cuarzo.', 'Puerta funcionando.']
       ])
     },
     /* ------------------------------------------------------------------ II */
@@ -98,7 +98,7 @@ window.FW_ERAS_DATA = (() => {
         ['e2-01', 'myth', 'ing', 1, 'Granja de caña con pistones', 'Caña cosechada por pistones con un reloj o palanca, recogida con tolvas.', '1 stack de caña sin romper a mano.'],
         ['e2-02', 'scad', 'ing', 1, 'Granja de huevos y pollos', 'Gallinas encerradas, huevos a tolva y un sistema para criar y cocinar pollos.', '1 stack de pollo cocido.'],
         ['e2-03', 'myth', 'col', 1, 'Jardín de ocho plantas', 'Además de los 4 cultivos: sandía, calabaza, cacao y bayas dulces.', '8 plantas cultivadas.'],
-        ['e2-04', 'scad', 'col', 1, 'Variantes de clima', 'Vacas, cerdos y gallinas de clima templado, cálido y frío (si su versión las tiene) o 3 razas de caballo distintas.', 'Las variantes en corrales.'],
+        ['e2-04', 'scad', 'col', 1, 'Variantes de clima', 'Vacas, cerdos y gallinas de clima templado, cálido y frío o 3 razas de caballo distintas.', 'Las variantes en corrales.'],
         ['e2-05', 'myth', 'cul', 1, 'Sala de mapas', 'Cuarto con mapas en marcos que cubran el territorio conocido.', '4+ mapas en pared.'],
         ['e2-06', 'scad', 'ter', 1, 'Establo de cría selectiva', 'Criar caballos buscando velocidad y llevar un libro de linajes.', 'Caballo más rápido que el inicial.'],
         ['e2-07', 'ambos', 'eco', 1, 'Primera Sesión de Tarifas', 'Cada Estado publica 5+ productos en su tienda.', 'Tiendas con precios.'],
@@ -107,17 +107,17 @@ window.FW_ERAS_DATA = (() => {
         ['e2-10', 'ambos', 'ins', 1, 'Registro de tierras', 'Mapa mural de zonas reclamadas y ley de cómo se reclama tierra nueva.', 'Mapa mural + ley.'],
         ['e2-11', 'ambos', 'haz', 1, 'Templo del desierto y de la jungla', 'Saquear los dos sin morir.', 'Botín registrado.'],
         ['e2-12', 'ambos', 'haz', 0, 'Puesto de avanzada saqueador', 'Limpiar un puesto de avanzada y liberar al gólem si lo hay.', 'Estandarte de illager.'],
-        ['e2-13', 'myth', 'reto', 1, 'Reto cruzado: Mythstorm hornea ladrillos', 'Batería de 4 hornos con tolvas que produzca 1 stack de ladrillos.', '1 stack de ladrillos.'],
-        ['e2-14', 'scad', 'reto', 1, 'Reto cruzado: Scadrial cablea una trampa', 'Dispensador de flechas activado por placa de presión en la entrada de su base.', 'Trampa funcionando.'],
-        ['e2-15', 'myth', 'reto', 1, 'Reto cruzado: Mythstorm abre caminos', 'Tramo de camino de 200 bloques iluminado.', 'Recorrido.'],
-        ['e2-16', 'scad', 'reto', 1, 'Reto cruzado: Scadrial escribe', 'Una crónica larga (una página completa) de la historia de su Estado hasta ahora.', 'Crónica en la app y en libro.']
+        ['e2-13', 'myth', 'reto', 1, 'Reto cruzado: {MYTH} hornea ladrillos', 'Batería de 4 hornos con tolvas que produzca 1 stack de ladrillos.', '1 stack de ladrillos.'],
+        ['e2-14', 'scad', 'reto', 1, 'Reto cruzado: {SCAD} cablea una trampa', 'Dispensador de flechas activado por placa de presión en la entrada de su base.', 'Trampa funcionando.'],
+        ['e2-15', 'myth', 'reto', 1, 'Reto cruzado: {MYTH} abre caminos', 'Tramo de camino de 200 bloques iluminado.', 'Recorrido.'],
+        ['e2-16', 'scad', 'reto', 1, 'Reto cruzado: {SCAD} escribe', 'Una crónica larga (una página completa) de la historia de su Estado hasta ahora.', 'Crónica en la app y en libro.']
       ])
     },
     /* ------------------------------------------------------------------ III */
     {
       id: 'era3', code: 'ERA III', name: 'Cobre y rieles', icon: 'rail',
       focus: 'El primer tren, el cobre y las Trial Chambers.',
-      allowed: ['Rieles y rieles propulsados.', 'Cobre (las bombillas de cobre esperan al Nether: llevan vara de blaze).', 'Golems de cobre (si su versión los tiene).', 'Trial Chambers.'],
+      allowed: ['Rieles y rieles propulsados.', 'Cobre (las bombillas de cobre esperan al Nether: llevan vara de blaze).', 'Golems de cobre.', 'Trial Chambers.'],
       banned: ['Nether todavía sellado.', 'Aldeanos.'],
       economy: 'Primeros contratos de obra y primera Oferta Sellada.',
       lore: [
@@ -138,10 +138,10 @@ window.FW_ERAS_DATA = (() => {
         ['e3-10', 'ambos', 'eco', 1, 'Primera Oferta Sellada', 'Fijar un precio en desacuerdo con Oferta Sellada.', 'Resultado registrado.'],
         ['e3-11', 'ambos', 'haz', 1, 'Conquistar una Trial Chamber completa', 'Limpiar todas las cámaras de prueba y abrir al menos 4 bóvedas. El botín se reparte por acuerdo.', 'Crónica con el reparto.'],
         ['e3-12', 'ambos', 'haz', 1, 'Mina abandonada', 'Explorar una mina abandonada y llevarse sus rieles para la red.', 'Rieles recuperados.'],
-        ['e3-13', 'myth', 'reto', 1, 'Reto cruzado: Mythstorm tiende vía', 'Tramo de 200 bloques de vía con una estación pequeña.', 'Tramo funcionando.'],
-        ['e3-14', 'scad', 'reto', 1, 'Reto cruzado: Scadrial programa vagonetas', 'Su propio sistema de despacho y retorno de vagonetas en una estación.', 'Ida y vuelta automática.'],
-        ['e3-15', 'myth', 'reto', 1, 'Reto cruzado: Mythstorm fabrica rieles', 'Fundir hierro minado a mano y fabricar 64 rieles para la red.', '64 rieles entregados.'],
-        ['e3-16', 'scad', 'reto', 1, 'Reto cruzado: Scadrial organiza', 'Una sala de mapas propia con 4 mapas del territorio de {NSCAD}.', 'Sala terminada.']
+        ['e3-13', 'myth', 'reto', 1, 'Reto cruzado: {MYTH} tiende vía', 'Tramo de 200 bloques de vía con una estación pequeña.', 'Tramo funcionando.'],
+        ['e3-14', 'scad', 'reto', 1, 'Reto cruzado: {SCAD} programa vagonetas', 'Su propio sistema de despacho y retorno de vagonetas en una estación.', 'Ida y vuelta automática.'],
+        ['e3-15', 'myth', 'reto', 1, 'Reto cruzado: {MYTH} fabrica rieles', 'Fundir hierro minado a mano y fabricar 64 rieles para la red.', '64 rieles entregados.'],
+        ['e3-16', 'scad', 'reto', 1, 'Reto cruzado: {SCAD} organiza', 'Una sala de mapas propia con 4 mapas del territorio de {NSCAD}.', 'Sala terminada.']
       ])
     },
     /* ------------------------------------------------------------------ IV */
@@ -169,10 +169,10 @@ window.FW_ERAS_DATA = (() => {
         ['e4-10', 'ambos', 'eco', 1, 'Primer préstamo', 'Financiar una obra (el hub, por ejemplo) con un préstamo.', 'Préstamo en la app.'],
         ['e4-11', 'ambos', 'haz', 1, 'Fortaleza del Nether y 25 varas', 'Conquistar una Fortaleza del Nether en combate abierto y conseguir 25 varas de blaze + 6 cráneos o botín completo.', '25 varas de blaze.'],
         ['e4-12', 'ambos', 'haz', 1, 'Bastión del Tesoro sin morir', 'Saquear un bastión entero enfrentando a los piglins brutos (sin queso de lava) y sacar la plantilla de mejora.', 'Botín + plantilla sin bajas.'],
-        ['e4-13', 'myth', 'reto', 1, 'Reto cruzado: Mythstorm cava el Nether', 'Túnel seguro de 200 bloques en el Nether, iluminado y con rieles o hielo.', 'Recorrido completo.'],
-        ['e4-14', 'scad', 'reto', 1, 'Reto cruzado: Scadrial con observadores', 'Un circuito con observador y comparador (ej. indicador de cofre lleno).', 'Circuito funcionando.'],
-        ['e4-15', 'myth', 'reto', 1, 'Reto cruzado: Mythstorm destila', 'Producir 6 pociones distintas en un soporte propio.', '6 pociones.'],
-        ['e4-16', 'scad', 'reto', 1, 'Reto cruzado: Scadrial encanta en serio', 'Sala de encantamiento con 15 librerías decorada y un encantamiento de nivel 30.', 'Sala + pieza nivel 30.']
+        ['e4-13', 'myth', 'reto', 1, 'Reto cruzado: {MYTH} cava el Nether', 'Túnel seguro de 200 bloques en el Nether, iluminado y con rieles o hielo.', 'Recorrido completo.'],
+        ['e4-14', 'scad', 'reto', 1, 'Reto cruzado: {SCAD} con observadores', 'Un circuito con observador y comparador (ej. indicador de cofre lleno).', 'Circuito funcionando.'],
+        ['e4-15', 'myth', 'reto', 1, 'Reto cruzado: {MYTH} destila', 'Producir 6 pociones distintas en un soporte propio.', '6 pociones.'],
+        ['e4-16', 'scad', 'reto', 1, 'Reto cruzado: {SCAD} encanta en serio', 'Sala de encantamiento con 15 librerías decorada y un encantamiento de nivel 30.', 'Sala + pieza nivel 30.']
       ])
     },
     /* ------------------------------------------------------------------ V */
@@ -200,10 +200,10 @@ window.FW_ERAS_DATA = (() => {
         ['e5-10', 'scad', 'rol', 1, 'Guardia nacional', 'Gólems de hierro como guardia, cuartel y un desfile en la capital.', 'Cuartel + 2 gólems con nombre.'],
         ['e5-11', 'ambos', 'eco', 1, 'Tarifas de hierro y libros', 'Precio del stack de hierro y del Mending fijado (Oferta Sellada si no hay acuerdo).', 'Precios vigentes.'],
         ['e5-12', 'ambos', 'haz', 1, 'Defender una aldea en Raid III+', 'Sobrevivir juntos a una invasión de Mal Presagio III o superior en aldea abierta (sin encerrar aldeanos en huecos) y ganar Héroe de la aldea.', 'Logro + tótems.'],
-        ['e5-13', 'myth', 'reto', 1, 'Reto cruzado: Mythstorm construye talleres', 'Tres talleres para el barrio de herreros de {NSCAD}.', '3 talleres.'],
-        ['e5-14', 'scad', 'reto', 1, 'Reto cruzado: Scadrial construye la biblioteca', 'Tres casas de bibliotecario para {NMYTH}.', '3 casas.'],
-        ['e5-15', 'myth', 'reto', 1, 'Reto cruzado: Mythstorm transporta', 'Llevar 2 aldeanos en vagoneta por la red.', 'Aldeanos entregados.'],
-        ['e5-16', 'scad', 'reto', 1, 'Reto cruzado: Scadrial cura', 'Curar un aldeano zombi.', 'Aldeano curado censado.']
+        ['e5-13', 'myth', 'reto', 1, 'Reto cruzado: {MYTH} construye talleres', 'Tres talleres para el barrio de herreros de {NSCAD}.', '3 talleres.'],
+        ['e5-14', 'scad', 'reto', 1, 'Reto cruzado: {SCAD} construye la biblioteca', 'Tres casas de bibliotecario para {NMYTH}.', '3 casas.'],
+        ['e5-15', 'myth', 'reto', 1, 'Reto cruzado: {MYTH} transporta', 'Llevar 2 aldeanos en vagoneta por la red.', 'Aldeanos entregados.'],
+        ['e5-16', 'scad', 'reto', 1, 'Reto cruzado: {SCAD} cura', 'Curar un aldeano zombi.', 'Aldeano curado censado.']
       ])
     },
     /* ------------------------------------------------------------------ VI */
@@ -223,7 +223,7 @@ window.FW_ERAS_DATA = (() => {
         ['e6-02', 'scad', 'ing', 1, 'Granja de cuero y carne', 'Vacas criadas y procesadas automáticamente.', '1 stack de cuero.'],
         ['e6-03', 'myth', 'ing', 1, 'Granja de madera', 'Árboles cultivados y cosechados de forma semiautomática o automática.', '4 stacks de troncos.'],
         ['e6-04', 'scad', 'ing', 1, 'Hornos en batería', '8+ hornos alimentados con tolvas para vidrio, piedra lisa y ladrillo.', '4 stacks procesados.'],
-        ['e6-05', 'myth', 'col', 1, 'Arboreto', 'Un ejemplar de cada tipo de árbol (roble, abedul, abeto, jungla, acacia, roble oscuro, mangle, cerezo y pálido si existe).', 'Arboreto con carteles.'],
+        ['e6-05', 'myth', 'col', 1, 'Arboreto', 'Un ejemplar de cada tipo de árbol (roble, abedul, abeto, jungla, acacia, roble oscuro, mangle, cerezo y roble pálido).', 'Arboreto con carteles.'],
         ['e6-06', 'scad', 'col', 1, 'Medio Two by Two', 'Criar 12 especies de animales distintas.', 'Libro de registro.'],
         ['e6-07', 'myth', 'cul', 1, 'Museo de la Historia (sala 1)', 'Primera sala del museo con trofeos de las Eras I a V y placas.', 'Sala terminada.'],
         ['e6-08', 'scad', 'rol', 1, 'Gran Feria', 'Feria con puestos de ambos Estados, concurso (de construcción, de caballos o de pesca) y premio en dinero.', 'Crónica + premio pagado.'],
@@ -232,10 +232,10 @@ window.FW_ERAS_DATA = (() => {
         ['e6-11', 'ambos', 'eco', 1, 'Contrato de suministro', 'Entrega periódica a precio fijo (ej. hierro por libros cada sesión).', 'Contrato + pagos registrados.'],
         ['e6-12', 'ambos', 'ins', 1, 'Registro de patentes', 'Registrar el primer diseño propio y cobrar su licencia.', 'Ley de patente + pago.'],
         ['e6-13', 'ambos', 'haz', 1, 'Mansión del bosque', 'Encontrarla, conquistarla y conseguir un tótem.', 'Tótem + crónica.'],
-        ['e6-14', 'myth', 'reto', 1, 'Reto cruzado: Mythstorm forja en serie', 'Tres armaduras de hierro completas para la guardia de {NSCAD}.', '3 armaduras.'],
-        ['e6-15', 'scad', 'reto', 1, 'Reto cruzado: Scadrial encanta en serie', 'Aplicar libros en yunque a 3 piezas de equipo.', '3 piezas encantadas.'],
-        ['e6-16', 'myth', 'reto', 1, 'Reto cruzado: Mythstorm organiza un evento', 'Organizar una competencia deportiva (parkour, tiro con arco, laberinto).', 'Crónica del evento.'],
-        ['e6-17', 'scad', 'reto', 1, 'Reto cruzado: Scadrial cura una exposición', 'Montar una vitrina del museo sobre {NSCAD} con placas.', 'Vitrina terminada.']
+        ['e6-14', 'myth', 'reto', 1, 'Reto cruzado: {MYTH} forja en serie', 'Tres armaduras de hierro completas para la guardia de {NSCAD}.', '3 armaduras.'],
+        ['e6-15', 'scad', 'reto', 1, 'Reto cruzado: {SCAD} encanta en serie', 'Aplicar libros en yunque a 3 piezas de equipo.', '3 piezas encantadas.'],
+        ['e6-16', 'myth', 'reto', 1, 'Reto cruzado: {MYTH} organiza un evento', 'Organizar una competencia deportiva (parkour, tiro con arco, laberinto).', 'Crónica del evento.'],
+        ['e6-17', 'scad', 'reto', 1, 'Reto cruzado: {SCAD} cura una exposición', 'Montar una vitrina del museo sobre {NSCAD} con placas.', 'Vitrina terminada.']
       ])
     },
     /* ------------------------------------------------------------------ VII */
@@ -259,16 +259,16 @@ window.FW_ERAS_DATA = (() => {
         ['e7-06', 'myth', 'ing', 1, 'Granja de slime y miel', 'Bloques de slime y de miel a escala para máquinas y elevadores.', '1 stack de bloques de cada uno.'],
         ['e7-07', 'scad', 'ing', 1, 'Granja de creepers y pólvora', 'Contrato con {NMYTH}: {NSCAD} la construye, {NMYTH} la opera y vende el TNT.', '1 stack de pólvora.'],
         ['e7-08', 'myth', 'col', 1, 'Los dieciséis tintes vegetales', 'Obtener de plantas todos los tintes posibles (flores, cactus, cacao, remolacha…).', 'Cofre con todos.'],
-        ['e7-18', 'myth', 'col', 1, 'Colmenar', '3 colmenas con abejas; cosecha de miel y panal sin enojarlas.', 'Logro "Bee Our Guest".'],
+        ['e7-18', 'myth', 'ing', 1, 'Colmenar industrial', '6+ colmenas automatizadas con dispensadores y tolvas para producir miel y panal a escala sin enojar a las abejas.', 'Logro "Bee Our Guest" + producción automática.'],
         ['e7-09', 'scad', 'col', 1, 'Lobos del mundo', 'Domar 5 variantes de lobo distintas.', '5 lobos con nombre.'],
         ['e7-10', 'myth', 'cul', 1, 'Archivo Nacional', 'Edificio del Archivo con las crónicas en libros firmados.', 'Archivo con 10+ libros.'],
         ['e7-11', 'scad', 'rol', 1, 'Exposición industrial', 'Feria donde cada Estado muestra una máquina y el otro la vota.', 'Crónica + ganador.'],
         ['e7-12', 'ambos', 'ins', 1, 'Palacio de Justicia', 'Edificio con sala de audiencias y celda (Ley de Penas).', 'Primera sesión de juicio o simulacro.'],
         ['e7-13', 'ambos', 'haz', 1, 'El Wither en arena abierta', 'Invocar y derrotar al Wither en combate abierto (prohibido atraparlo en bedrock o techo del Nether) y encender el primer faro.', 'Faro encendido + crónica.'],
-        ['e7-14', 'myth', 'reto', 1, 'Reto cruzado: Mythstorm lleva carga', 'Línea de carga de 300 bloques con descarga automática.', 'Descarga completa.'],
-        ['e7-15', 'scad', 'reto', 1, 'Reto cruzado: Scadrial clasifica', 'Clasificador de 8 ítems con desborde.', 'Funciona.'],
-        ['e7-16', 'myth', 'reto', 1, 'Reto cruzado: Mythstorm funde', 'Batería de 8 hornos automática propia.', 'Funciona.'],
-        ['e7-17', 'scad', 'reto', 1, 'Reto cruzado: Scadrial autocrafta', 'Un crafter que produzca una receta de forma automática.', 'Funciona.']
+        ['e7-14', 'myth', 'reto', 1, 'Reto cruzado: {MYTH} lleva carga', 'Línea de carga de 300 bloques con descarga automática.', 'Descarga completa.'],
+        ['e7-15', 'scad', 'reto', 1, 'Reto cruzado: {SCAD} clasifica', 'Clasificador de 8 ítems con desborde.', 'Funciona.'],
+        ['e7-16', 'myth', 'reto', 1, 'Reto cruzado: {MYTH} funde', 'Batería de 8 hornos automática propia.', 'Funciona.'],
+        ['e7-17', 'scad', 'reto', 1, 'Reto cruzado: {SCAD} autocrafta', 'Un crafter que produzca una receta de forma automática.', 'Funciona.']
       ])
     },
     /* ------------------------------------------------------------------ VIII */
@@ -296,10 +296,10 @@ window.FW_ERAS_DATA = (() => {
         ['e8-10', 'scad', 'ter', 1, 'Puerto', 'Puerto con muelle, faro y barcos con cofre.', 'Puerto terminado.'],
         ['e8-11', 'scad', 'rol', 1, 'Regata', 'Carrera de barcos oficial con premio.', 'Crónica.'],
         ['e8-12', 'myth', 'rol', 1, 'Bautizo del puerto', 'Ceremonia de inauguración del puerto con nombre y placa.', 'Placa + crónica.'],
-        ['e8-13', 'myth', 'reto', 1, 'Reto cruzado: Mythstorm construye el muelle', 'Muelle con 3 amarres, barcos y faroles.', 'Muelle terminado.'],
-        ['e8-14', 'scad', 'reto', 1, 'Reto cruzado: Scadrial ilumina el puerto', 'Luces automáticas nocturnas en todo el puerto con sensores de luz.', 'Luces funcionando.'],
-        ['e8-15', 'myth', 'reto', 1, 'Reto cruzado: Mythstorm levanta el faro', 'Faro del puerto (arquitectura) de 25+ bloques de alto.', 'Faro terminado.'],
-        ['e8-16', 'scad', 'reto', 1, 'Reto cruzado: Scadrial busca tesoros', 'Encontrar un barco hundido y su tesoro sin ayuda.', 'Tesoro.']
+        ['e8-13', 'myth', 'reto', 1, 'Reto cruzado: {MYTH} construye el muelle', 'Muelle con 3 amarres, barcos y faroles.', 'Muelle terminado.'],
+        ['e8-14', 'scad', 'reto', 1, 'Reto cruzado: {SCAD} ilumina el puerto', 'Luces automáticas nocturnas en todo el puerto con sensores de luz.', 'Luces funcionando.'],
+        ['e8-15', 'myth', 'reto', 1, 'Reto cruzado: {MYTH} levanta el faro', 'Faro del puerto (arquitectura) de 25+ bloques de alto.', 'Faro terminado.'],
+        ['e8-16', 'scad', 'reto', 1, 'Reto cruzado: {SCAD} busca tesoros', 'Encontrar un barco hundido y su tesoro sin ayuda.', 'Tesoro.']
       ])
     },
     /* ------------------------------------------------------------------ IX */
@@ -327,10 +327,10 @@ window.FW_ERAS_DATA = (() => {
         ['e9-09', 'scad', 'ter', 1, 'Base subterránea', 'Estación o refugio en las profundidades conectado a la red.', 'Estación profunda.'],
         ['e9-10', 'scad', 'rol', 1, 'Expedición oficial', 'Antes de la Ciudad Antigua: equipamiento oficial, juramento de la expedición y diario de viaje.', 'Diario firmado.'],
         ['e9-11', 'ambos', 'eco', 1, 'Subasta del botín', 'Subastar un objeto de la expedición con oferta sellada.', 'Resultado en el Libro Mayor.'],
-        ['e9-12', 'myth', 'reto', 1, 'Reto cruzado: Mythstorm destila para la expedición', '4 pociones extendidas (+) distintas preparadas por él.', '4 pociones.'],
-        ['e9-13', 'scad', 'reto', 1, 'Reto cruzado: Scadrial excava', 'Conseguir 4 cerámicas propias.', '4 cerámicas.'],
-        ['e9-14', 'myth', 'reto', 1, 'Reto cruzado: Mythstorm forja con estilo', 'Aplicar 2 diseños de armadura (trims) a su equipo.', 'Equipo con trims.'],
-        ['e9-15', 'scad', 'reto', 1, 'Reto cruzado: Scadrial hace una bóveda', 'Puerta de bóveda con combinación de redstone.', 'Puerta funcionando.']
+        ['e9-12', 'myth', 'reto', 1, 'Reto cruzado: {MYTH} destila para la expedición', '4 pociones extendidas (+) distintas preparadas por él.', '4 pociones.'],
+        ['e9-13', 'scad', 'reto', 1, 'Reto cruzado: {SCAD} excava', 'Conseguir 4 cerámicas propias.', '4 cerámicas.'],
+        ['e9-14', 'myth', 'reto', 1, 'Reto cruzado: {MYTH} forja con estilo', 'Aplicar 2 diseños de armadura (trims) a su equipo.', 'Equipo con trims.'],
+        ['e9-15', 'scad', 'reto', 1, 'Reto cruzado: {SCAD} hace una bóveda', 'Puerta de bóveda con combinación de redstone.', 'Puerta funcionando.']
       ])
     },
     /* ------------------------------------------------------------------ X */
@@ -358,10 +358,10 @@ window.FW_ERAS_DATA = (() => {
         ['e10-10', 'scad', 'rol', 1, 'Embajadas', 'Cada Estado construye una embajada en la capital del otro, con bandera y embajador (aldeano con nombre).', '2 embajadas.'],
         ['e10-11', 'myth', 'rol', 1, 'Tratado de amistad (o de rivalidad)', 'Escribir y firmar un tratado formal entre los Estados.', 'Tratado en la app y en atril.'],
         ['e10-12', 'ambos', 'eco', 1, 'Revisión económica', 'Revisar precios, inercia, techo y monopolios; cambiar por ley lo necesario.', 'Ley de reforma.'],
-        ['e10-13', 'myth', 'reto', 1, 'Reto cruzado: Mythstorm y los blazes', 'Una granja de blazes propia (o mejorar la de {NSCAD}).', 'Varas producidas.'],
-        ['e10-14', 'scad', 'reto', 1, 'Reto cruzado: Scadrial cablea el centro', 'Un selector de 3 destinos propio.', 'Funciona.'],
-        ['e10-15', 'myth', 'reto', 1, 'Reto cruzado: Mythstorm construye la estación monumental', 'Estación terminal monumental para la red.', 'Estación terminada.'],
-        ['e10-16', 'scad', 'reto', 1, 'Reto cruzado: Scadrial reúne libros', 'Reunir 15 libros encantados distintos por su cuenta.', '15 libros.']
+        ['e10-13', 'myth', 'reto', 1, 'Reto cruzado: {MYTH} y los blazes', 'Una granja de blazes propia (o mejorar la de {NSCAD}).', 'Varas producidas.'],
+        ['e10-14', 'scad', 'reto', 1, 'Reto cruzado: {SCAD} cablea el centro', 'Un selector de 3 destinos propio.', 'Funciona.'],
+        ['e10-15', 'myth', 'reto', 1, 'Reto cruzado: {MYTH} construye la estación monumental', 'Estación terminal monumental para la red.', 'Estación terminada.'],
+        ['e10-16', 'scad', 'reto', 1, 'Reto cruzado: {SCAD} reúne libros', 'Reunir 15 libros encantados distintos por su cuenta.', '15 libros.']
       ])
     },
     /* ------------------------------------------------------------------ XI */
@@ -388,10 +388,10 @@ window.FW_ERAS_DATA = (() => {
         ['e11-09', 'scad', 'rol', 1, 'Desfile de la victoria', 'Desfile en ambas capitales celebrando al dragón.', 'Crónica.'],
         ['e11-10', 'ambos', 'ins', 1, 'Ley del espacio aéreo', 'Decidir dónde se puede volar y cómo se protege la red de tren.', 'Ley vigente.'],
         ['e11-11', 'ambos', 'eco', 1, 'Subasta del huevo', 'Si los dos lo quieren: el huevo se subasta con oferta sellada.', 'Resultado o acuerdo registrado.'],
-        ['e11-12', 'myth', 'reto', 1, 'Reto cruzado: Mythstorm abre autopista', 'Autopista de hielo azul de 500 bloques en el Nether.', 'Recorrido en barco.'],
-        ['e11-13', 'scad', 'reto', 1, 'Reto cruzado: Scadrial vuela', 'Máquina voladora de slime/miel que recorra 100 bloques.', 'Vuelo completo.'],
-        ['e11-14', 'myth', 'reto', 1, 'Reto cruzado: Mythstorm forja Netherite', 'Una herramienta de Netherite forjada por él mismo con sus materiales.', 'Herramienta.'],
-        ['e11-15', 'scad', 'reto', 1, 'Reto cruzado: Scadrial cartografía', 'Mapa mural de 3×3 mapas de {NSCAD}.', 'Mapa mural.']
+        ['e11-12', 'myth', 'reto', 1, 'Reto cruzado: {MYTH} abre autopista', 'Autopista de hielo azul de 500 bloques en el Nether.', 'Recorrido en barco.'],
+        ['e11-13', 'scad', 'reto', 1, 'Reto cruzado: {SCAD} vuela', 'Máquina voladora de slime/miel que recorra 100 bloques.', 'Vuelo completo.'],
+        ['e11-14', 'myth', 'reto', 1, 'Reto cruzado: {MYTH} forja Netherite', 'Una herramienta de Netherite forjada por él mismo con sus materiales.', 'Herramienta.'],
+        ['e11-15', 'scad', 'reto', 1, 'Reto cruzado: {SCAD} cartografía', 'Mapa mural de 3×3 mapas de {NSCAD}.', 'Mapa mural.']
       ])
     },
     /* ------------------------------------------------------------------ XII */
@@ -419,10 +419,10 @@ window.FW_ERAS_DATA = (() => {
         ['e12-10', 'scad', 'rol', 1, 'Juegos nacionales', 'Olimpiada con 3 pruebas (carrera, tiro, laberinto) y medallas.', 'Crónica + premios.'],
         ['e12-11', 'myth', 'rol', 1, 'Coronación o investidura', 'Ceremonia formal del jefe de cada Estado según su forma de gobierno.', 'Crónica.'],
         ['e12-12', 'ambos', 'eco', 1, 'Primer inversor externo', 'Un invitado (o el otro Estado) compra acciones y recibe un dividendo.', 'Movimientos en el Libro Mayor.'],
-        ['e12-13', 'myth', 'reto', 1, 'Reto cruzado: Mythstorm tiende la línea rápida', '1.000 bloques de vía o hielo hacia un destino nuevo.', 'Recorrido.'],
-        ['e12-14', 'scad', 'reto', 1, 'Reto cruzado: Scadrial automatiza', 'Una fábrica de crafters propia con 2 recetas.', 'Funciona.'],
-        ['e12-15', 'myth', 'reto', 1, 'Reto cruzado: Mythstorm esculpe', 'Una estatua o monumento ecuestre de 20+ bloques de alto.', 'Monumento.'],
-        ['e12-16', 'scad', 'reto', 1, 'Reto cruzado: Scadrial computa', 'Un contador o pantalla de 7 segmentos de redstone.', 'Funciona.']
+        ['e12-13', 'myth', 'reto', 1, 'Reto cruzado: {MYTH} tiende la línea rápida', '1.000 bloques de vía o hielo hacia un destino nuevo.', 'Recorrido.'],
+        ['e12-14', 'scad', 'reto', 1, 'Reto cruzado: {SCAD} automatiza', 'Una fábrica de crafters propia con 2 recetas.', 'Funciona.'],
+        ['e12-15', 'myth', 'reto', 1, 'Reto cruzado: {MYTH} esculpe', 'Una estatua o monumento ecuestre de 20+ bloques de alto.', 'Monumento.'],
+        ['e12-16', 'scad', 'reto', 1, 'Reto cruzado: {SCAD} computa', 'Un contador o pantalla de 7 segmentos de redstone.', 'Funciona.']
       ])
     },
     /* ------------------------------------------------------------------ XIII */
@@ -449,10 +449,10 @@ window.FW_ERAS_DATA = (() => {
         ['e13-09', 'myth', 'cul', 1, 'La Historia completa', 'Un libro (o varios) que resuma toda la historia de ambos Estados.', 'Libros en el Archivo.'],
         ['e13-10', 'scad', 'rol', 1, 'Gran Exposición Universal', 'Evento final con pabellones de cada Estado y de los invitados.', 'Crónica.'],
         ['e13-11', 'ambos', 'cul', 1, 'Megaobra terminada', 'Terminar la megaobra iniciada en la Edad de Oro.', 'Inauguración.'],
-        ['e13-12', 'myth', 'reto', 1, 'Reto cruzado: Mythstorm destila todo', 'Una poción de cada tipo del juego preparada por él.', 'Estante con todas.'],
-        ['e13-13', 'scad', 'reto', 1, 'Reto cruzado: Scadrial reúne discos', 'Conseguir por su cuenta 10 discos distintos.', '10 discos.'],
-        ['e13-14', 'myth', 'reto', 1, 'Reto cruzado: Mythstorm forja todo', 'Armadura completa de Netherite forjada por él mismo.', 'Armadura.'],
-        ['e13-15', 'scad', 'reto', 1, 'Reto cruzado: Scadrial escribe la crónica', 'Escribir la crónica de su Estado de todas las eras.', 'Libro en el Archivo.']
+        ['e13-12', 'myth', 'reto', 1, 'Reto cruzado: {MYTH} destila todo', 'Una poción de cada tipo del juego preparada por él.', 'Estante con todas.'],
+        ['e13-13', 'scad', 'reto', 1, 'Reto cruzado: {SCAD} reúne discos', 'Conseguir por su cuenta 10 discos distintos.', '10 discos.'],
+        ['e13-14', 'myth', 'reto', 1, 'Reto cruzado: {MYTH} forja todo', 'Armadura completa de Netherite forjada por él mismo.', 'Armadura.'],
+        ['e13-15', 'scad', 'reto', 1, 'Reto cruzado: {SCAD} escribe la crónica', 'Escribir la crónica de su Estado de todas las eras.', 'Libro en el Archivo.']
       ])
     }
   ];

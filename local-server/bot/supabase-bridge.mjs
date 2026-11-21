@@ -60,6 +60,7 @@ export class SupabaseBridge {
     this.D = null;
     this.E = null;
     this.cache = { at: 0, row: null };
+    this.writeQueue = Promise.resolve();
     this._loadRepoModules();
   }
 
@@ -926,5 +927,134 @@ export class SupabaseBridge {
       pending,
       recentAudited: audited.slice(-5).reverse()
     };
+  }
+
+  mutateWorld(mutatorFn, updatedBy = 'Bot', opts = {}) {
+    const run = () => this._mutateWorldUnlocked(mutatorFn, updatedBy, opts);
+    const queued = this.writeQueue.then(run, run);
+    this.writeQueue = queued.catch(() => {});
+    return queued;
+  }
+
+  async _mutateWorldUnlocked(mutatorFn, updatedBy = 'Bot', { maxRetries = 4 } = {}) {
+    const row = await this.fetchWorld(true);
+    if (!row || row.offlineFallback || !row.state) {
+      return { ok: false, msg: 'Supabase no está disponible ahora mismo.' };
+    }
+    let curRev = Number(row.rev) || 1;
+    let curState = row.state;
+    const tries = Math.max(1, Number(maxRetries) || 4);
+
+    for (let attempt = 0; attempt < tries; attempt++) {
+      const draft = JSON.parse(JSON.stringify(curState));
+      const mutRes = mutatorFn(draft, { rev: curRev });
+      if (mutRes && mutRes.ok === false) return mutRes;
+
+      const now = Date.now();
+      draft.updatedAt = now;
+      draft.updatedBy = String(updatedBy || 'Bot');
+
+      try {
+        const res = await fetch(`${this.cfg.url}/rest/v1/rpc/fw_save_world`, {
+          method: 'POST',
+          headers: {
+            apikey: this.cfg.anonKey,
+            Authorization: `Bearer ${this.cfg.anonKey}`,
+            'Content-Type': 'application/json'
+          },
+          signal: AbortSignal.timeout(10_000),
+          body: JSON.stringify({
+            p_id: this.cfg.worldId || 'main',
+            p_state: draft,
+            p_updated_at: now,
+            p_updated_by: draft.updatedBy,
+            p_expected_rev: curRev,
+            p_force: false
+          })
+        });
+        if (!res.ok) {
+          return { ok: false, msg: `Supabase RPC HTTP ${res.status}: ${await res.text()}` };
+        }
+        const rpc = await res.json();
+        if (rpc && rpc.ok) {
+          this.cache = {
+            at: now,
+            row: {
+              id: this.cfg.worldId || 'main',
+              rev: Number(rpc.rev),
+              updated_at: Number(rpc.updated_at) || now,
+              updated_by: rpc.updated_by || draft.updatedBy,
+              state: draft,
+              offlineFallback: false
+            }
+          };
+          return { ok: true, rev: Number(rpc.rev), state: draft, meta: mutRes || {} };
+        }
+        if (rpc && rpc.reason === 'conflict' && rpc.state) {
+          curRev = Number(rpc.rev) || (curRev + 1);
+          curState = rpc.state;
+          this.cache = {
+            at: now,
+            row: { id: this.cfg.worldId || 'main', rev: curRev, updated_at: Number(rpc.updated_at) || now, state: curState, offlineFallback: false }
+          };
+          continue;
+        }
+        return { ok: false, msg: rpc?.reason ? `Conflicto al guardar (${rpc.reason}).` : 'No se pudo guardar en Supabase.' };
+      } catch (err) {
+        return { ok: false, msg: `Error de red con Supabase: ${err.message}` };
+      }
+    }
+    return { ok: false, msg: 'Demasiados cambios simultáneos en la nube; intenta de nuevo en unos segundos.' };
+  }
+
+  resolveParticipantId(state, query) {
+    const q = normalizeText(query).trim();
+    if (!q) return null;
+    if (q === 'bank' || q === 'banco' || q === 'camara') return 'bank';
+    const m = this.nat(state, 'myth');
+    const s = this.nat(state, 'scad');
+    const mKeys = ['myth', 'mythstorm', normalizeText(m.player), normalizeText(m.nation), 'alejandria', 'dracma', 'dr'].filter(Boolean);
+    const sKeys = ['scad', 'scadrial', 'scadrial0523', normalizeText(s.player), normalizeText(s.nation), 'luthadel', 'cuarto', 'cu'].filter(Boolean);
+    if (mKeys.some(k => k === q || (q.length >= 3 && k.startsWith(q)))) return 'myth';
+    if (sKeys.some(k => k === q || (q.length >= 3 && k.startsWith(q)))) return 'scad';
+    const qCompact = q.replace(/of/g, '');
+    const guests = Array.isArray(state?.guests) ? state.guests : [];
+    for (const g of guests) {
+      const gId = normalizeText(g.id);
+      const gNick = normalizeText(g.nick);
+      if (q === gId || q === gNick || (q.length >= 3 && gNick.replace(/of/g, '') === qCompact) || (q === 'noc' && gNick.includes('notout'))) {
+        return g.id;
+      }
+    }
+    for (const g of guests) {
+      const gNick = normalizeText(g.nick);
+      if (q.length >= 3 && (gNick.startsWith(q) || gNick.includes(q))) return g.id;
+    }
+    return null;
+  }
+
+  parseCoords(raw) {
+    const nums = String(raw || '').match(/-?\d+(?:[.,]\d+)?/g);
+    if (!nums || nums.length < 2) return null;
+    const toN = s => Math.round(Number(String(s).replace(',', '.')));
+    if (nums.length >= 3) return { x: toN(nums[0]), y: toN(nums[1]), z: toN(nums[2]) };
+    return { x: toN(nums[0]), y: null, z: toN(nums[1]) };
+  }
+
+  getHolidaysContext(state, now = Date.now()) {
+    const cal = this.D.getHolidayCalendar ? this.D.getHolidayCalendar(now) : { active: [], upcoming: null, year: new Date(now).getFullYear() };
+    const lines = [];
+    for (const h of cal.active) {
+      const node = state?.holidays?.[h.seasonYear]?.[h.id] || {};
+      const tDone = h.tasks.map(t => {
+        const who = Object.entries(node[t.id] || {}).filter(([, ok]) => ok === true).map(([pid]) => this.pname(state, pid));
+        return `${t.title}${who.length ? ` (✔ ${who.join(', ')})` : ''}`;
+      }).join(' · ');
+      lines.push(`[ACTIVA HOY] ${h.emoji} ${h.name} (${h.dateLabel}): ${tDone}`);
+    }
+    if (cal.upcoming) {
+      lines.push(`[PRÓXIMA FESTIVIDAD] ${cal.upcoming.holiday?.name || cal.upcoming.name} en ${cal.upcoming.daysLeft} día(s) (${cal.upcoming.dateLabel}).`);
+    }
+    return { cal, text: lines.join('\n') };
   }
 }

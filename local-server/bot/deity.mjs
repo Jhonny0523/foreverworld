@@ -213,6 +213,7 @@ export class Deity {
     this.saved = this.load();
     this.rolls = new Map(); // jugador -> última tirada
     this.smiteOmenRolls = new Map(); // jugador -> último augurio por enfriamiento de castigo
+    this.offeringBoostUntil = new Map(); // jugador -> empujón sutil por !ofrenda / !estudio
     this.pendingSmiteAt = 0;
   }
 
@@ -226,13 +227,15 @@ export class Deity {
           log: Array.isArray(p.log) ? p.log : [],
           rescues: Array.isArray(p.rescues) ? p.rescues : [],
           finds: Array.isArray(p.finds) ? p.finds : [],
-          smites: Array.isArray(p.smites) ? p.smites : []
+          smites: Array.isArray(p.smites) ? p.smites : [],
+          offerings: Array.isArray(p.offerings) ? p.offerings : [],
+          pendingHolidayRewards: Array.isArray(p.pendingHolidayRewards) ? p.pendingHolidayRewards : []
         };
       }
     } catch (err) {
       console.warn('[Deidad] Error leyendo estado:', err.message);
     }
-    return { lastAnswerAt: 0, wishes: [], log: [], rescues: [], finds: [], smites: [] };
+    return { lastAnswerAt: 0, wishes: [], log: [], rescues: [], finds: [], smites: [], offerings: [], pendingHolidayRewards: [] };
   }
 
   save() {
@@ -363,7 +366,8 @@ export class Deity {
     if (now - (this.saved.lastAnswerAt || 0) < this.opts.minGapMinutes * 60_000) {
       return rand() < this.opts.signChance ? 'sign' : 'silence';
     }
-    const chance = Math.min(1, this.opts.answerChance * (isBeliever ? this.opts.believerBonus : 1) * (1 + this.opts.answerPerLevel * (isBeliever ? level : 0)));
+    const hasBoost = (this.offeringBoostUntil?.get(low) || 0) > now;
+    const chance = Math.min(1, (this.opts.answerChance + (hasBoost ? 0.06 : 0)) * (isBeliever ? this.opts.believerBonus : 1) * (1 + this.opts.answerPerLevel * (isBeliever ? level : 0)));
     if (rand() < chance) {
       // Se reserva ya: si otro invoca mientras la IA piensa, no debe colarse una segunda respuesta
       this.prevAnswerAt = this.saved.lastAnswerAt || 0;
@@ -676,5 +680,152 @@ export class Deity {
       await this.rcon.tellraw('@a', ['', { text: '[Hallazgo] ', color: 'aqua', bold: true }, { text: `la fortuna del método decidió ${f.label}${f.global ? '' : ` a ${player}`}.`, color: 'white', italic: true }]).catch(() => {});
       this.memory?.recordEvent('event', `${player} (la Razón) tuvo un hallazgo: ${f.label}`);
     }
+  }
+
+  /* ---------- Festividades de temporada + !ofrenda / !estudio ---------- */
+  resolveHolidayAnnouncer(state, pid, holiday) {
+    const dev = this.bridge.getDevotion(state, pid);
+    if (dev.path === 'fe' && dev.creed) {
+      const rel = (this.bridge.getReligions(state) || []).find(x => x.pid === dev.creed);
+      const deityName = rel?.names?.[0];
+      if (deityName) {
+        return {
+          path: 'fe',
+          badge: deityName,
+          badgeColor: 'light_purple',
+          msg: String(holiday?.reward?.deityMsg || '{DEITY} celebra esta festividad contigo.').replace(/\{DEITY\}/g, deityName)
+        };
+      }
+    }
+    return {
+      path: dev.path || 'razon',
+      badge: dev.path === 'razon' ? 'Academia' : 'Festividad',
+      badgeColor: dev.path === 'razon' ? 'aqua' : 'gold',
+      msg: String(holiday?.reward?.reasonMsg || '¡Feliz festividad en Miscolandia!')
+    };
+  }
+
+  async grantHolidayReward({ player, pid, holiday, year, state, isOnline = null, queueIfOffline = true }) {
+    if (!holiday || !player) return { ok: false, reason: 'missing_args' };
+    const onlineNow = isOnline !== null
+      ? Boolean(isOnline)
+      : Boolean(this.enforcer?.onlinePlayers?.has(player));
+
+    if (!onlineNow && queueIfOffline) {
+      if (!Array.isArray(this.saved.pendingHolidayRewards)) this.saved.pendingHolidayRewards = [];
+      const dup = this.saved.pendingHolidayRewards.some(r =>
+        String(r.player).toLowerCase() === String(player).toLowerCase() && r.holidayId === holiday.id && Number(r.year) === Number(year)
+      );
+      if (!dup) {
+        this.saved.pendingHolidayRewards.push({ ts: Date.now(), player, pid, holidayId: holiday.id, year: Number(year) });
+        this.saved.pendingHolidayRewards = this.saved.pendingHolidayRewards.slice(-40);
+        this.save();
+      }
+      return { ok: true, queued: true };
+    }
+
+    if (!SAFE_PLAYER_RE.test(player)) return { ok: false, reason: 'invalid_player' };
+    const ann = this.resolveHolidayAnnouncer(state, pid, holiday);
+    const items = Array.isArray(holiday.reward?.items) ? holiday.reward.items : [];
+    const fxList = Array.isArray(holiday.reward?.fx) ? holiday.reward.fx : [];
+
+    for (const it of items) {
+      if (it?.id && Number(it.count) > 0) {
+        await this.rcon.send(`give ${player} ${it.id} ${Math.min(32, Math.floor(Number(it.count)))}`).catch(() => {});
+      }
+    }
+    for (const rawFx of fxList) {
+      const [id, secs = 180, amp = 0] = String(rawFx).split(':');
+      if (id) await this.rcon.send(`effect give ${player} minecraft:${id} ${Number(secs) || 180} ${Number(amp) || 0} true`).catch(() => {});
+    }
+    await this.rcon.send(`execute at ${player} run particle minecraft:end_rod ~ ~1.5 ~ 0.9 0.9 0.9 0.03 50`).catch(() => {});
+    await this.rcon.send(`execute at ${player} run playsound minecraft:ui.toast.challenge_complete master @a ~ ~ ~ 0.8 1.05`).catch(() => {});
+    await this.rcon.tellraw('@a', [
+      '',
+      { text: `[${ann.badge}] `, color: ann.badgeColor, bold: true },
+      { text: `${ann.msg} `, color: 'white', italic: true },
+      { text: `(${holiday.emoji} ${holiday.name} · Premio para ${player}: ${holiday.reward?.label || 'regalo festivo'})`, color: 'gold' }
+    ]).catch(() => {});
+
+    this.memory?.recordEvent('event', `${ann.badge} entregó premio de ${holiday.name} a ${player}: ${holiday.reward?.label || ''}`);
+    return { ok: true, delivered: true, badge: ann.badge, path: ann.path };
+  }
+
+  async deliverPendingHolidayRewards(player, state) {
+    if (!SAFE_PLAYER_RE.test(player) || !Array.isArray(this.saved.pendingHolidayRewards) || !this.saved.pendingHolidayRewards.length) {
+      return 0;
+    }
+    const low = String(player).toLowerCase();
+    const keep = [];
+    const toDeliver = [];
+    for (const r of this.saved.pendingHolidayRewards) {
+      if (String(r.player || '').toLowerCase() === low) toDeliver.push(r);
+      else keep.push(r);
+    }
+    if (!toDeliver.length) return 0;
+    this.saved.pendingHolidayRewards = keep;
+    this.save();
+
+    const holidays = this.bridge.D.HOLIDAYS || [];
+    let count = 0;
+    for (const item of toDeliver) {
+      const hol = holidays.find(h => h.id === item.holidayId);
+      if (!hol) continue;
+      await this.grantHolidayReward({
+        player,
+        pid: item.pid,
+        holiday: hol,
+        year: item.year,
+        state,
+        isOnline: true,
+        queueIfOffline: false
+      });
+      count++;
+    }
+    return count;
+  }
+
+  offeringCooldownLeftMs(player, kind) {
+    const now = Date.now();
+    const low = String(player || '').toLowerCase();
+    const cooldownMs = 6 * 3_600_000;
+    const hit = (this.saved.offerings || []).slice().reverse()
+      .find(o => String(o.player || '').toLowerCase() === low && o.kind === kind && (now - o.ts) < cooldownMs);
+    return hit ? Math.max(0, cooldownMs - (now - hit.ts)) : 0;
+  }
+
+  async processOffering({ player, pid, kind, itemId, itemLabel, state }) {
+    if (!SAFE_PLAYER_RE.test(player)) return { ok: false, msg: 'Jugador inválido.' };
+    const now = Date.now();
+    const low = player.toLowerCase();
+    if (!Array.isArray(this.saved.offerings)) this.saved.offerings = [];
+    this.saved.offerings = [...this.saved.offerings, { ts: now, player, pid, kind, itemId }].slice(-80);
+    this.offeringBoostUntil.set(low, now + 2 * 3_600_000);
+    this.save();
+
+    if (kind === 'fe') {
+      const dev = this.bridge.getDevotion(state, pid);
+      const rel = (this.bridge.getReligions(state) || []).find(x => x.pid === dev.creed);
+      const name = rel?.names?.[0] || 'Lo divino';
+      await this.rcon.send(`execute at ${player} run particle minecraft:end_rod ~ ~1.3 ~ 0.7 0.7 0.7 0.02 45`).catch(() => {});
+      await this.rcon.send(`execute at ${player} run playsound minecraft:block.beacon.activate master @a ~ ~ ~ 0.6 1.3`).catch(() => {});
+      await this.rcon.tellraw('@a', [
+        '',
+        { text: `[${name}] `, color: 'light_purple', bold: true },
+        { text: `recibió en silencio la ofrenda de ${player} (${itemLabel}).`, color: 'white', italic: true }
+      ]).catch(() => {});
+      this.memory?.recordEvent('event', `${player} presentó ofrenda (${itemLabel}) ante ${name}`);
+      return { ok: true, badge: name };
+    }
+
+    await this.rcon.send(`execute at ${player} run particle minecraft:enchant ~ ~1.5 ~ 0.8 0.8 0.8 0.3 60`).catch(() => {});
+    await this.rcon.send(`execute at ${player} run playsound minecraft:entity.player.levelup master @a ~ ~ ~ 0.5 1.35`).catch(() => {});
+    await this.rcon.tellraw('@a', [
+      '',
+      { text: '[Academia] ', color: 'aqua', bold: true },
+      { text: `${player} dedicó ${itemLabel} al estudio metódico de Miscolandia.`, color: 'white', italic: true }
+    ]).catch(() => {});
+    this.memory?.recordEvent('event', `${player} (La Razón) dedicó ${itemLabel} al estudio`);
+    return { ok: true, badge: 'Academia' };
   }
 }

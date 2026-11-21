@@ -52,6 +52,11 @@
             <div id="hud-cloud-sub" class="font-mono text-muted" style="font-size: 10px;">Conectando...</div>
           </button>
 
+          <button id="hud-live-pill" class="mc-slot hud-pill" data-action="open-live" title="Estado en vivo del servidor Minecraft, eventos y expediente de Aduana">
+            <div id="hud-live-label" class="font-mono text-muted" style="font-size: 11px; font-weight: 700;"><span id="hud-live-dot" class="live-dot"></span>Servidor</div>
+            <div id="hud-live-sub" class="font-mono text-muted" style="font-size: 10px;">Sin pulso</div>
+          </button>
+
           <label class="hud-me-label text-xs text-muted font-mono">
             <span>Soy:</span>
             <select id="me-select" class="mc-select font-mono" style="width: auto; padding: 5px 8px;"></select>
@@ -167,6 +172,17 @@
       <input id="global-search-input" class="mc-input font-mono" placeholder="Buscar hitos, leyes, productos, cédulas o !comandos..." autocomplete="off" />
       <div id="global-search-results" class="mc-search-results"></div>
       <div class="text-xs text-muted font-mono" style="margin-top: 10px;">↑↓ navegar · Enter abrir/copiar · Esc cerrar · Atajo global: Ctrl+K o /</div>
+    </div>
+  </div>
+
+  <!-- Modal: monitor en vivo del servidor Minecraft -->
+  <div id="modal-live" class="mc-modal-backdrop">
+    <div class="mc-panel mc-modal p-lg" style="max-width: 720px;">
+      <div class="flex-between" style="margin-bottom: 10px;">
+        <h3 class="font-pixel text-emerald text-base" style="margin: 0;">SERVIDOR MINECRAFT · EN VIVO</h3>
+        <button class="mc-btn" data-action="close-modal" style="padding: 3px 8px;">✕</button>
+      </div>
+      <div id="live-modal-body" class="section-stack" style="gap: 10px;"></div>
     </div>
   </div>
 

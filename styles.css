@@ -1586,11 +1586,140 @@ body[data-biome="end"] .mc-amb-dot {
   border-radius: 2px;
 }
 
+/* ======================== MONITOR EN VIVO, FESTIVIDADES, MAPA 2D & ENCARGOS ======================== */
+
+.live-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 5px;
+  background: #6c6a74;
+  vertical-align: middle;
+}
+.live-dot.online {
+  background: var(--mc-emerald);
+  box-shadow: 0 0 8px rgba(23, 221, 98, 0.8);
+  animation: mcPulse 2s ease-in-out infinite;
+}
+@keyframes mcPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.25); opacity: 0.72; }
+}
+
+.live-feed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: 230px;
+  overflow-y: auto;
+}
+.live-feed-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 9px;
+  background: #141319;
+  border: 1px solid #2b2934;
+  border-radius: 2px;
+  font-size: 0.82rem;
+}
+
+.holiday-banner {
+  border-left: 4px solid var(--c-gold);
+  background: linear-gradient(135deg, rgba(255, 170, 0, 0.08), rgba(23, 221, 98, 0.05));
+}
+.holiday-card {
+  background: #17151f;
+  border: 2px solid var(--border-pixel);
+  box-shadow: inset 1px 1px 0 var(--bevel-soft);
+  padding: 12px;
+  border-radius: 2px;
+}
+.holiday-card.active {
+  border-color: var(--c-gold);
+  box-shadow: 0 0 0 1px rgba(255, 170, 0, 0.35), inset 1px 1px 0 var(--bevel-soft);
+}
+.holiday-task-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 8px;
+  background: #121118;
+  border: 1px solid #292734;
+  border-radius: 2px;
+  cursor: pointer;
+}
+.holiday-task-row:hover { border-color: #4b475c; }
+
+.mc-map-wrap {
+  position: relative;
+  background: #0f0e14;
+  border: 2px solid var(--border-pixel);
+  box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.65);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.mc-map-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #181620;
+  border-bottom: 2px solid var(--border-pixel);
+}
+.mc-map-canvas {
+  display: block;
+  width: 100%;
+  height: 360px;
+  cursor: grab;
+  touch-action: none;
+}
+.mc-map-canvas:active { cursor: grabbing; }
+.mc-map-canvas.rule-mode { cursor: crosshair; }
+.mc-map-tooltip {
+  position: absolute;
+  pointer-events: none;
+  display: none;
+  z-index: 8;
+  padding: 6px 9px;
+  background: rgba(15, 13, 20, 0.96);
+  border: 2px solid #55ffff;
+  border-radius: 2px;
+  font-size: 0.78rem;
+  color: var(--c-white);
+  max-width: 240px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+}
+.mc-map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  background: #15141c;
+  border-top: 2px solid var(--border-pixel);
+  font-size: 0.78rem;
+}
+
+.contract-card {
+  background: #16151e;
+  border: 2px solid var(--border-pixel);
+  box-shadow: inset 1px 1px 0 var(--bevel-soft);
+  padding: 12px;
+  border-radius: 2px;
+}
+
 /* ======================== ACCESIBILIDAD: MOVIMIENTO REDUCIDO ======================== */
 
 @media (prefers-reduced-motion: reduce) {
   #mc-ambient,
   .mc-particle { display: none !important; }
+  .live-dot.online,
   .enchanted-glint::after,
   .xp-bar-fill::after,
   .mc-splash,
