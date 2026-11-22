@@ -421,6 +421,7 @@ const BOT_COMMANDS_DOC = [
   '  * Banquero / Don Tesoro / Contador: tasa cambiaria DR/CU, reservas de la Cámara, saldos y precios de catálogo.',
   '  * Archivista / Auditor / Cronista / Bibliotecario: auditoría oficial de obras (Manual 003, TRD 120-01), lore del mundo, crónicas (TRD 140-01), cédulas (TRD 150-01) y recuerdos pasados.',
   '  * Cartógrafo / Topógrafo: estaciones, portales (con su equivalencia Overworld↔Nether), obras con coordenadas y moradas del censo registradas en la web.',
+  '  * Consejero / Filósofo / Guía / Sacerdote: voz imparcial que evoluciona por jugador (Consejero → Guía → Sacerdote de tu fe o Rector Filósofo) y ayuda a crear tu religión sin venderse al dinero.',
   '  * Pregonero: chismes de la plaza, opinión económica y libreta permanente ("pregonero recuerda que...").',
   '- Utilidades operativas que ejecutan acciones/permisos/registros reales en juego y web: !hitos, !obras, !duelo, !trato, !pase, !mod, !chat, !evento, !yo, !expediente, !memoria, !pagar, !cronica, !portal guardar, !estacion guardar, !gps, !contratos, !ofrenda, !estudio, !fiesta, !resumen, !ranking, !novedades, !anuncios y !ayuda.',
   '- Certificados y sellos oficiales (EXCLUSIVO Archivista NotOutContext): !certificado <Título> (sella en colores el Libro y Pluma en mano consumiéndolo, o !certificado <Título> | <Texto> / aval / obra / residencia / paz con 1 writable_book en inventario; admite autor: <Autor1 y Autor2> para coautoría), !papel <Nombre> [| <Lore>] (consume 1 papel real) y !colores.',
@@ -436,6 +437,7 @@ const NPC_HELP_DOCS = {
   banquero: 'Banquero (o Don Tesoro / contador): tasa DR/CU, reservas, saldos y precios. Ej: "banquero cuanto vale el trigo?"',
   archivista: 'Archivista (o auditor / cronista / bibliotecario): auditoria de obras (Manual 003), lore, cronicas, cedulas y recuerdos. Ej: "auditor como audito una granja?"',
   cartografo: 'Cartografo (o topografo): estaciones, portales y su equivalencia Overworld/Nether, obras con coordenadas y moradas. Ej: "cartografo donde queda el portal de casa?"',
+  consejero: 'Consejero (o filosofo / sabio / guia / sacerdote): voz imparcial personalizada que te ayuda a crear tu religion y evoluciona contigo (Consejero -> Guia -> Sacerdote). Ej: "filosofo ayudame a crear mi religion"',
   pregonero: 'Pregonero: chismes, economia y libreta de memoria. Ej: "pregonero recuerda que..."'
 };
 
@@ -483,7 +485,29 @@ const NPC_HELP_ALIASES = {
   'topógrafo': 'cartografo',
   mapa: 'cartografo',
   portales: 'cartografo',
-  estaciones: 'cartografo'
+  estaciones: 'cartografo',
+  consejera: 'consejero',
+  filosofo: 'consejero',
+  'filósofo': 'consejero',
+  filosofa: 'consejero',
+  'filósofa': 'consejero',
+  sabio: 'consejero',
+  sabia: 'consejero',
+  pensador: 'consejero',
+  pensadora: 'consejero',
+  mentor: 'consejero',
+  mentora: 'consejero',
+  etica: 'consejero',
+  'ética': 'consejero',
+  filosofia: 'consejero',
+  'filosofía': 'consejero',
+  guia: 'consejero',
+  'guía': 'consejero',
+  sacerdote: 'consejero',
+  sacerdotisa: 'consejero',
+  clerigo: 'consejero',
+  'clérigo': 'consejero',
+  monje: 'consejero'
 };
 
 const HELP_QUESTION_RE = /^(?:\?|ayuda|help|info|uso|qu[eé]\s+es\s+esto\??|para\s+qu[eé]\s+sirve\??|c[oó]mo\s+(?:se\s+usa|funciona)\??)$/i;
@@ -1242,6 +1266,9 @@ async function handleChatCommand(player, message, ctx) {
       { text: '  - ', color: 'gray' },
       { text: 'Cartografo', color: 'dark_aqua', bold: true },
       { text: ': portales, estaciones y coordenadas\n', color: 'white' },
+      { text: '  - ', color: 'gray' },
+      { text: 'Consejero', color: 'blue', bold: true },
+      { text: ': filosofia, creacion de religion y sacerdote personal\n', color: 'white' },
       { text: '  - ', color: 'gray' },
       { text: 'Pregonero', color: 'light_purple', bold: true },
       { text: ': chismes y "recuerda <dato>"\n', color: 'white' },
@@ -2292,6 +2319,74 @@ let lastDirectPregoneroAt = 0;
 let lastDirectNpcAt = 0;
 const npcCooldown = new Map(); // jugador -> último mensaje a un NPC
 
+function resolveConsejeroProfile(state, player, role, bridge, deity = null) {
+  const fallback = {
+    stage: 'filosofo',
+    pid: null,
+    dev: { path: null, creed: null, level: 0, total: 0 },
+    rel: null,
+    rawRel: null,
+    faithShort: '',
+    badge: 'Consejero',
+    badgeColor: 'blue',
+    logName: 'Consejero'
+  };
+  if (!state || !bridge) return fallback;
+  const pid = (role === 'myth' || role === 'scad')
+    ? role
+    : (deity?.playerPid?.(player, role, state)
+      || (state?.guests || []).find(g => String(g?.nick || '').toLowerCase() === String(player || '').toLowerCase())?.id
+      || null);
+  const dev = pid ? bridge.getDevotion(state, pid) : fallback.dev;
+  const rels = bridge.getReligions(state) || [];
+  const rawRel = pid && state?.religions?.[pid] && typeof state.religions[pid] === 'object' ? state.religions[pid] : null;
+  const rel = rels.find(r => r.pid === (dev.creed || pid)) || null;
+  const faithShort = (rel?.faith || rawRel?.faith || '').trim().slice(0, 22);
+  const hasDraft = Boolean(rawRel && ['faith', 'names', 'nature', 'pleases', 'angers', 'prayer', 'rites'].some(k => String(rawRel[k] || '').trim()));
+
+  if (dev.path === 'razon') {
+    const high = dev.level >= 3;
+    return {
+      stage: 'razon',
+      pid,
+      dev,
+      rel,
+      rawRel,
+      faithShort: 'La Razón',
+      badge: high ? 'Rector Filósofo' : 'Consejero',
+      badgeColor: high ? 'aqua' : 'blue',
+      logName: 'Consejero'
+    };
+  }
+  if (dev.path === 'fe' && dev.level >= 2) {
+    return {
+      stage: 'sacerdote',
+      pid,
+      dev,
+      rel,
+      rawRel,
+      faithShort,
+      badge: faithShort ? `Sacerdote · ${faithShort}` : 'Sacerdote',
+      badgeColor: 'dark_purple',
+      logName: 'Sacerdote'
+    };
+  }
+  if (dev.path === 'fe' || hasDraft) {
+    return {
+      stage: 'guia',
+      pid,
+      dev,
+      rel,
+      rawRel,
+      faithShort,
+      badge: faithShort ? `Guía · ${faithShort}` : 'Guía Espiritual',
+      badgeColor: 'blue',
+      logName: 'Guía'
+    };
+  }
+  return { ...fallback, pid, dev, rawRel };
+}
+
 const NPC_CAST = [
   {
     id: 'juez',
@@ -2472,6 +2567,71 @@ const NPC_CAST = [
         bridge.getEraExpectationsSummary(state)
       ].filter(Boolean);
     }
+  },
+  {
+    id: 'consejero',
+    badge: 'Consejero',
+    badgeColor: 'blue',
+    logName: 'Consejero',
+    re: /\b(?:consejer[oa]|fil[oó]sof[oa]|sabi[oa]|pensador(?:a)?|mentor(?:a)?|gu[ií]a(?:\s+espiritual)?|sacerdot(?:e|isa)|cl[eé]rig[oa]|monje|ermita[ñn][oa])\b/i,
+    stripRe: /\b(?:consejer[oa]|fil[oó]sof[oa]|sabi[oa]|pensador(?:a)?|mentor(?:a)?|gu[ií]a(?:\s+espiritual)?|sacerdot(?:e|isa)|cl[eé]rig[oa]|monje|ermita[ñn][oa])\b[:,!\s]*/gi,
+    buildPersona(clean, info = {}) {
+      const prof = resolveConsejeroProfile(info.state, info.player, info.role, info.bridge, info.deity);
+      const faithName = prof.rel?.faith || prof.rawRel?.faith || 'su fe';
+      const deities = prof.rel?.names?.length ? prof.rel.names.join(', ') : (prof.rawRel?.names || '').trim();
+      const stageDesc = prof.stage === 'sacerdote'
+        ? `Eres el Sacerdote ordenado de "${faithName}"${deities ? ` (culto a ${deities})` : ''}, elegido tras acompañar desde sus inicios como Consejero a ${info.player || 'este fiel'} (devoción ${prof.dev.level}/${prof.dev.total}). Guardas fidelidad a la doctrina que escribió en la web, guías sus ritos y ofrendas (!ofrenda) y ofreces consejo moral incorruptible sin dejarte comprar.`
+        : prof.stage === 'guia'
+          ? `Eres el Guía Espiritual personal de ${info.player || 'este jugador'}, acompañando el nacimiento de "${faithName}"${deities ? ` (deidad/es: ${deities})` : ''} antes de convertirte algún día en su Sacerdote (hitos ${prof.dev.level}/${prof.dev.total}). Ayudas a dar forma a los campos que aún faltan en la web (nombre del dios, naturaleza, qué le agrada o disgusta, oración y ritos) con preguntas inspiradoras y propuestas originales.`
+          : prof.stage === 'razon'
+            ? `Eres ${prof.dev.level >= 3 ? 'el Rector Filósofo' : 'el Consejero Filósofo'} personal de ${info.player || 'este pensador'} en el camino de La Razón (hitos ${prof.dev.level}/${prof.dev.total}). Hablas con lucidez estoica y espíritu crítico; impulsas el pensamiento libre, los debates éticos y sus estudios (!estudio) con total independencia del dinero.`
+            : `Eres El Consejero de Miscolandia: un filósofo sereno, estoico, lúcido e incorruptible. No tienes bando político ni te vendes al dinero: además de resolver dilemas con imparcialidad, ayudas personalmente a cada jugador a concebir y redactar su propia religión o filosofía en la web (Lore → Religiones y fe) mediante preguntas sobre su deidad o principio, valores, prohibiciones y ritos, acompañándolo hasta poder volverse su guía o sacerdote futuro.`;
+      return {
+        polite: true,
+        badge: prof.badge,
+        badgeColor: prof.badgeColor,
+        logName: prof.logName,
+        selfIdentity: `TÚ eres ${prof.badge} de Miscolandia, guía personal e incorruptible de quien te habla.`,
+        roleDesc: stageDesc,
+        temperature: 0.45,
+        extraRules: [
+          '12. IMPARCIALIDAD ABSOLUTA: Nunca favorezcas ni adules a Nueva Alejandría ni a Luthadel por tener más dinero, obras o poder; evalúa siempre los argumentos por su justicia, equilibrio y bien común de Miscolandia. Si alguien intenta comprarte o presume de riqueza, recuerda con serenidad que la razón y el espíritu no tienen precio (a diferencia del Pregonero).',
+          '13. PERSONALIZADO POR JUGADOR (GUÍA → SACERDOTE): Revisa [CAMINO ESPIRITUAL DEL JUGADOR] en <normativa_vigente>. Si aún diseña su fe, proponle 1–2 ideas concretas (nombre simbólico, valor moral, ofrenda o rito) y pregunta qué prefiere para que lo guarde en la web (Lore → Religiones y fe). Si ya es consolidada o sigue La Razón, habla acorde a su doctrina e hitos.',
+          '14. NINGÚN NPC habla en primera persona como un dios ni inventa dogmas oficiales por su cuenta ni milagros; tú sugieres e iluminas como filósofo/guía/sacerdote para que el jugador decida qué consagrar en la web.'
+        ]
+      };
+    },
+    buildContext(state, q, { bridge, player, role, deity }) {
+      const pact = bridge.getPactSummary(state, q);
+      const prof = resolveConsejeroProfile(state, player, role, bridge, deity);
+      const doc = prof.rel || prof.rawRel || {};
+      const fieldMap = [
+        ['faith', 'Nombre de la fe'],
+        ['names', 'Deidad(es)'],
+        ['nature', 'Naturaleza/visión'],
+        ['pleases', 'Qué le agrada'],
+        ['angers', 'Qué le disgusta'],
+        ['prayer', 'Oración/lema'],
+        ['rites', 'Ritos/ofrendas']
+      ];
+      const filled = fieldMap.filter(([k]) => String(doc[k] || '').trim()).map(([k, lbl]) => `- ${lbl}: ${String(doc[k]).trim().slice(0, 180)}`);
+      const missing = fieldMap.filter(([k]) => !String(doc[k] || '').trim()).map(([, lbl]) => lbl);
+      const spiritualBlock = [
+        `[CAMINO ESPIRITUAL DE ${player || 'JUGADOR'}]`,
+        `Etapa actual contigo: ${prof.stage.toUpperCase()} (título: ${prof.badge}) · Camino: ${prof.dev.path || 'sin definir'} · Hitos de devoción: ${prof.dev.level}/${prof.dev.total}`,
+        ...(filled.length ? filled : ['- Aún no ha redactado doctrina propia en la web (Lore → Religiones y fe).']),
+        missing.length && prof.stage !== 'razon' ? `Campos aún vacíos en su ficha web (puedes ayudarlo a diseñarlos): ${missing.join(', ')}.` : ''
+      ].filter(Boolean).join('\n');
+      return [
+        BOT_COMMANDS_DOC,
+        spiritualBlock,
+        bridge.getEraExpectationsSummary(state),
+        `Pacto entre naciones (visión neutral): ${pact.myth.nation} (${pact.myth.sectors.map(s => s.split(':')[0]).join(', ')}) | ${pact.scad.nation} (${pact.scad.sectors.map(s => s.split(':')[0]).join(', ')})`,
+        bridge.getLoreAndChroniclesContext(state, q, { compact: true }),
+        ...bridge.getSacredTexts(state, 3),
+        ...bridge.findRelevantNorms(state, q, { limit: 3, isJuez: false, includeOoc: true })
+      ].filter(Boolean);
+    }
   }
 ];
 
@@ -2614,7 +2774,10 @@ async function answerAsNpc(npc, player, clean, ctx) {
       ? clean
       : `El jugador te llamó directamente ("${clean}") para saludar o saber qué hay de nuevo en tu área.`;
 
-    const spec = npc.buildPersona(clean);
+    const spec = npc.buildPersona(clean, { player, role, state, bridge, deity: ctx.deity });
+    const outBadge = spec.badge || npc.badge;
+    const outColor = spec.badgeColor || npc.badgeColor;
+    const outLog = spec.logName || npc.logName;
     // El Cartógrafo sabe dónde está quien le habla y dónde murió por última vez
     const liveGeo = npc.id === 'cartografo' ? await playerGeoContext(player, ctx) : '';
     let reply;
@@ -2629,7 +2792,7 @@ async function answerAsNpc(npc, player, clean, ctx) {
         player,
         playerIdentity: buildPlayerIdentity(player, role, state, bridge),
         query,
-        contextText: [liveGeo, farmLocksText(state, bridge), ...npc.buildContext(state, clean, { ...ctx, player })].filter(Boolean).join('\n\n---\n\n'),
+        contextText: [liveGeo, farmLocksText(state, bridge), ...npc.buildContext(state, clean, { ...ctx, player, role })].filter(Boolean).join('\n\n---\n\n'),
         chatHistoryText: memory?.getRecentChatText(10) || '',
         memoryText: memory?.getPersistentMemoryText({ maxSessions: 5, maxNotes: 10 }) || ''
       });
@@ -2640,8 +2803,8 @@ async function answerAsNpc(npc, player, clean, ctx) {
     }
 
     if (reply?.respuesta_corta) {
-      memory?.recordBotMessage(npc.logName, reply.respuesta_corta);
-      await sendLine(rcon, '@a', npc.badge, npc.badgeColor, [
+      memory?.recordBotMessage(outLog, reply.respuesta_corta);
+      await sendLine(rcon, '@a', outBadge, outColor, [
         { text: reply.respuesta_corta, color: 'white' }
       ]);
       const metaLine = [
@@ -3295,6 +3458,31 @@ async function runSmokeTest(cfg) {
   console.log(`9f) NPC Archivista Auditor reply:`, auditRes);
   if (!auditRes.respuesta_corta || !/25/.test(auditRes.respuesta_corta) || !/(?:Manual\s*0*3|TRD\s*120-01|Archivista)/i.test(`${auditRes.respuesta_corta} ${auditRes.normas_citadas.join(' ')}`)) {
     throw new Error(`Respuesta de auditoría del Archivista incompleta: ${JSON.stringify(auditRes)}`);
+  }
+  if (
+    detectAddressedNpc('filosofo que opinas del estado con mas dinero?')?.id !== 'consejero' ||
+    detectAddressedNpc('consejero dame un consejo imparcial')?.id !== 'consejero' ||
+    detectAddressedNpc('sacerdote ayudame con un rito')?.id !== 'consejero' ||
+    detectAddressedNpc('guia espiritual quiero crear mi religion')?.id !== 'consejero'
+  ) {
+    throw new Error('Routing de Consejero / Filósofo / Guía / Sacerdote falló');
+  }
+  const cStateNone = { ...state, religions: {}, devotion: {} };
+  const cProfNone = resolveConsejeroProfile(cStateNone, 'MythStorm', 'myth', bridge);
+  const cStateDraft = { ...state, religions: { myth: { faith: 'Luz Astral', names: 'Aureón' } }, devotion: { myth: { creed: 'myth', marks: {} } } };
+  const cProfGuia = resolveConsejeroProfile(cStateDraft, 'MythStorm', 'myth', bridge);
+  const fMarks = (bridge.D.FAITH_MILESTONES || []).slice(0, 2).reduce((acc, m) => ({ ...acc, [m.id]: true }), {});
+  const cStatePriest = { ...cStateDraft, devotion: { myth: { creed: 'myth', marks: fMarks } } };
+  const cProfPriest = resolveConsejeroProfile(cStatePriest, 'MythStorm', 'myth', bridge);
+  const cStateRazon = { ...state, religions: {}, devotion: { scad: { creed: 'razon', marks: {} } } };
+  const cProfRazon = resolveConsejeroProfile(cStateRazon, 'Scadrial0523', 'scad', bridge);
+  if (
+    cProfNone.stage !== 'filosofo' || cProfNone.badge !== 'Consejero' ||
+    cProfGuia.stage !== 'guia' ||
+    cProfPriest.stage !== 'sacerdote' || cProfPriest.badgeColor !== 'dark_purple' ||
+    cProfRazon.stage !== 'razon'
+  ) {
+    throw new Error(`resolveConsejeroProfile falló: ${JSON.stringify({ cProfNone: cProfNone.stage, cProfGuia: cProfGuia.stage, cProfPriest: { s: cProfPriest.stage, c: cProfPriest.badgeColor }, cProfRazon: cProfRazon.stage })}`);
   }
   console.log(`9) Multi-NPC Cast & Judge Etiquette test: PASS`);
 

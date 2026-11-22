@@ -187,7 +187,8 @@ const NPC_OFFLINE_LINES = {
   arquitecto: 'El Arquitecto anda midiendo un terreno y no oyó. Pregúntale de nuevo en un momento.',
   banquero: 'Don Tesoro está contando monedas y perdió la cuenta por tu culpa. Vuelve en un momento.',
   archivista: 'El Archivista está buscando un folio en el sótano. Repite la consulta en un momento.',
-  cartografo: 'El Cartógrafo salió a medir el horizonte. Pregúntale otra vez en un rato.'
+  cartografo: 'El Cartógrafo salió a medir el horizonte. Pregúntale otra vez en un rato.',
+  consejero: 'El Consejero está meditando en silencio y no escuchó tu pregunta. Vuelve a consultarle en un momento.'
 };
 
 export function npcOfflineReply(mode) {

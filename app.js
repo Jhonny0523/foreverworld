@@ -2738,7 +2738,8 @@
     { cat: 'Eventos del mundo', cmd: '!evento lista', desc: 'Eventos ya desbloqueados por la Era actual (☾ de noche, ☀ de día).' },
     { cat: 'Eventos del mundo', cmd: '!evento lanzar luna_sangre', desc: 'Solo fundadores: dispara a mano un evento desbloqueado (!evento on|off pausa los espontáneos).' },
     { cat: 'Consola Admin', cmd: 'say !admin castiga a notoutcontext / cierra el servidor en 10s', desc: 'Orden libre desde consola del servidor o consola-admin.bat; entiende contexto, alias (noc, luthadel, alejandria) y comandos Vanilla 26.4.' },
-    { cat: 'NPCs en Chat', cmd: 'Su Majestad / Su Excelencia <consulta>', desc: 'Juez, Fiscal, Arquitecto, Banquero, Archivista, Cartógrafo o Pregonero (el Juez solo se indigna si lo insultan).' },
+    { cat: 'NPCs en Chat', cmd: 'Su Majestad / Su Excelencia <consulta>', desc: 'Juez, Fiscal, Arquitecto, Banquero, Archivista, Cartógrafo, Consejero o Pregonero (el Juez solo se indigna si lo insultan).' },
+    { cat: 'NPCs en Chat', cmd: 'consejero / filósofo / guía / sacerdote <dilema o fe>', desc: 'Consejero Filósofo personalizado: imparcial e incorruptible (no se vende al dinero como el Pregonero), te ayuda a crear tu religión y evoluciona contigo a Guía → Sacerdote o Rector Filósofo.' },
     { cat: 'NPCs en Chat', cmd: '<nombre de su dios>, escúchame…', desc: 'Si una fe (Lore → Religiones y fe) le dio nombre, escucha muy rara vez y puede dar favores… o castigar en seco a quien se burle de cualquier dios (La Razón nunca castiga).' },
     { cat: 'NPCs en Chat', cmd: 'cartógrafo dónde queda el portal de la fortaleza?', desc: 'Cartógrafo: portales, estaciones y obras con coordenadas registradas aquí en Territorio; convierte Overworld↔Nether.' },
     { cat: 'Puente Web & Mundo', cmd: '!pagar Scadrial0523 15 DR', desc: 'Transfiere dinero real desde el juego registrando en Supabase y Libro Mayor (TRD 130-01).' },
@@ -3003,7 +3004,7 @@
 
     const botGuideHtml = panel(`
       ${head('SERVIDOR EN VIVO', 'emerald', 'COMANDOS DEL BOT Y NPCS DE MISCOLANDIA',
-        'Escribe estos comandos en el chat de Minecraft o llama a cualquier NPC por su nombre (Juez, Fiscal, Arquitecto, Banquero, Archivista, Cartógrafo, Pregonero). Clic en copiar para pegar rápido.')}
+        'Escribe estos comandos en el chat de Minecraft o llama a cualquier NPC por su nombre (Juez, Fiscal, Arquitecto, Banquero, Archivista, Cartógrafo, Consejero, Pregonero). Clic en copiar para pegar rápido.')}
       <div class="grid-2" style="gap:8px;">
         ${BOT_CHEATSHEET.map(c => `
           <div class="mc-cmd-row">
