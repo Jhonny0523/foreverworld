@@ -1,4 +1,5 @@
 @echo off
+chcp 65001 >nul
 setlocal
 cd /d "%~dp0"
 title Servidor Forever World - Miscolandia
@@ -44,7 +45,7 @@ echo ===========================================================================
 echo [Minecraft] Direccion Hamachi para conectarse: 25.45.82.35:10310
 echo [Minecraft] Iniciando server.jar con Java 25+ (%JAVA_BIN%)...
 echo ============================================================================
-"%JAVA_BIN%" -Xms2G -Xmx6G -jar server.jar nogui
+"%JAVA_BIN%" -Dfile.encoding=UTF-8 -Dstdin.encoding=UTF-8 -Dstdout.encoding=UTF-8 -Xms2G -Xmx6G -jar server.jar nogui
 echo.
 echo [Minecraft] Servidor detenido. Puedes cerrar la ventana "Moderador IA Miscolandia".
 pause

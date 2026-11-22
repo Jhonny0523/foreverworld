@@ -491,7 +491,8 @@ export function homerIntents(wish, onlinePlayers = []) {
   const cmdPart = msgRaw ? w.replace(msgRaw, ' ') : w;
   const hasEffectWord = EFFECT_WORDS.some(([re]) => re.test(cmdPart));
   const hasItemNoun = /\b(un|una|unos|unas)\s+(?!(?:segundo|minuto|rayo|fuego|cohete|t[ií]tulo|mensaje|anuncio|poco|rato))/i.test(cmdPart);
-  const complex = COMPLEX_RE.test(cmdPart
+  const looksLikeInstruction = Boolean(msgRaw) && !/["“«']/.test(w) && !w.includes(':') && /^(?:pedir|disculpar\w*|agradecer\w*|felicit\w*|explicar\w*|contar\w*|dar\s+las\s+gracias)\b/i.test(msgRaw);
+  const complex = looksLikeInstruction || COMPLEX_RE.test(cmdPart
     .replace(/sin\s+dar\s+items?/gi, '')
     .replace(/\bpon(?:le)?\s+(?:en|por)\s+(?:la\s+)?pantalla\b/gi, '')
     .replace((hasEffectWord && !hasItemNoun) ? /\b(dale|dales|darle|darles|ponle|ponles)\b/gi : /a^/, ''));
@@ -897,7 +898,7 @@ export async function repairCommand({ config, wish, failedCmd, error, serverHelp
       think: false,
       keep_alive: config.ollamaKeepAlive || '10m',
       format: { type: 'object', properties: { comando: { type: 'string' }, explicacion: { type: 'string' } }, required: ['comando'] },
-      options: buildOllamaOptions(config, { temperature: 0.1, num_predict: 900, num_ctx: 8192 }),
+      options: buildOllamaOptions(config, { temperature: 0.1, num_predict: 450, num_ctx: 4096 }),
       messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }]
     })
   });
@@ -1034,7 +1035,7 @@ export async function planAdminWish({ config, wish, onlinePlayers = [], worldCon
     let lastParseErr = null;
     for (const temperature of temps) {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 60000);
+      const timer = setTimeout(() => controller.abort(), 120000);
       let data;
       try {
         const res = await fetch(`${config.ollamaUrl.replace(/\/+$/, '')}/api/chat`, {
@@ -1049,8 +1050,8 @@ export async function planAdminWish({ config, wish, onlinePlayers = [], worldCon
             format: ADMIN_PLAN_SCHEMA,
             options: buildOllamaOptions(config, {
               temperature,
-              num_predict: 2600,
-              num_ctx: 8192
+              num_predict: 1200,
+              num_ctx: 4096
             }),
             messages: [
               { role: 'system', content: systemPrompt },
@@ -1081,7 +1082,10 @@ export async function planAdminWish({ config, wish, onlinePlayers = [], worldCon
     const fb = deterministicFallbackPlan(clean);
     if (fb) return normalizePlan(fb, clean, resolved.targets);
     // Si la IA falló pero había partes que el intérprete sí entendió, al menos se hacen esas
-    if (homer.plan) return normalizePlan(homer.plan, clean, resolved.targets);
+    if (homer.plan) {
+      const fbPlan = normalizePlan(homer.plan, clean, resolved.targets);
+      return { ...fbPlan, respuesta_consola: `${fbPlan.respuesta_consola} (aviso: IA tardó demasiado, ejecutado parcial)` };
+    }
     throw err;
   }
 }

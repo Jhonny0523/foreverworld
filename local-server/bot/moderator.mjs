@@ -2830,16 +2830,18 @@ async function processLogLine(rawLine, ctx) {
   if (serverSayMatch) {
     const wish = extractAdminWish(serverSayMatch[2], ctx.cfg.prefix || '!');
     if (wish !== null && ctx.adminGenie) {
+      console.log(`[Admin] Recibido: "${wish}" (procesando...)`);
       ctx.adminGenie.fulfill(wish).then(r => {
         console.log(`[Admin (${serverSayMatch[1]})] ${r.respuesta_consola}`);
       }).catch(e => console.error('[Admin error]', e.message));
       return;
     }
   }
-  const directConsoleAdmin = line.match(/^(?:System chat:\s+)?([!A-Za-z0-9_].*?)<--\[HERE\]$/);
+  const directConsoleAdmin = line.match(/^(?:System chat:\s+)?\s*([!A-Za-z0-9_].*?)<--\[HERE\]$/);
   if (directConsoleAdmin && !directConsoleAdmin[1].startsWith('...')) {
     const wish = extractAdminWish(directConsoleAdmin[1], ctx.cfg.prefix || '!');
     if (wish !== null && ctx.adminGenie) {
+      console.log(`[Admin] Recibido: "${wish}" (procesando...)`);
       ctx.adminGenie.fulfill(wish).then(r => {
         console.log(`[Admin (Consola)] ${r.respuesta_consola}`);
       }).catch(e => console.error('[Admin error]', e.message));
