@@ -66,6 +66,7 @@
             <button id="hud-search-btn" type="button" class="mc-btn mc-btn-icon" data-action="open-search" title="Buscar hitos, leyes, tiendas o comandos (Ctrl+K)"><span class="btn-icon" data-icon="spyglass"></span><span class="search-label">Buscar</span><kbd class="mc-kbd">Ctrl+K</kbd></button>
             <button id="hud-biome-btn" type="button" class="mc-btn mc-btn-icon" title="Cambiar bioma Minecraft (Overworld / Bosque / Nether / End)"><span class="biome-icon" data-icon="grass_block"></span><span class="biome-label">Overworld</span></button>
             <button id="hud-sfx-btn" type="button" class="mc-btn mc-btn-icon" title="Sonidos estilo Minecraft desactivados (clic para activar)" aria-pressed="false"><span class="sfx-icon" data-icon="note_block"></span><span class="sfx-label">SFX</span></button>
+            <button id="hud-patch-btn" type="button" class="mc-btn mc-btn-gold" data-action="open-patchnotes" title="Ver novedades v2.4 y comandos !admin en pantalla">✨ v2.4</button>
             <button class="mc-btn mc-btn-diamond" data-action="open-report" title="Resumen para Discord">Resumen</button>
             <button class="mc-btn mc-btn-redstone" data-action="open-reset" title="Borrar todo">Reiniciar</button>
           </div>
@@ -183,6 +184,17 @@
         <button class="mc-btn" data-action="close-modal" style="padding: 3px 8px;">✕</button>
       </div>
       <div id="live-modal-body" class="section-stack" style="gap: 10px;"></div>
+    </div>
+  </div>
+
+  <!-- Modal: notas del parche & comandos !admin -->
+  <div id="modal-patchnotes" class="mc-modal-backdrop">
+    <div class="mc-panel mc-modal p-lg" style="max-width: 740px;">
+      <div class="flex-between" style="margin-bottom: 10px;">
+        <h3 id="patchnotes-modal-title" class="font-pixel text-gold text-base" style="margin: 0;">NOVEDADES DE MISCOLANDIA</h3>
+        <button class="mc-btn" data-action="close-modal" style="padding: 3px 8px;">✕</button>
+      </div>
+      <div id="patchnotes-modal-body" class="section-stack" style="gap: 10px;"></div>
     </div>
   </div>
 

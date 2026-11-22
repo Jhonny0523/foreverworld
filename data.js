@@ -1244,9 +1244,72 @@ window.FW_DATA = (() => {
     return { year, month: m, day: d, active, upcoming, all: enriched };
   }
 
+  const PATCH_NOTES = {
+    id: '20261121193000',
+    version: 'v2.4',
+    title: 'MISCOLANDIA · GRAN ACTUALIZACIÓN',
+    slides: [
+      {
+        titulo: 'MISCOLANDIA v2.4',
+        subtitulo: 'Puente Vivo Web ↔ Minecraft · Java 26.4',
+        chat: '¡Bienvenidos a la gran actualización de Miscolandia! La web y el servidor ya laten sincronizados en vivo.',
+        actionbar: '✨ Versión 2026.11 · Novedades 1/6',
+        color: 'gold',
+        subcolor: 'aqua',
+        sonido: 'minecraft:entity.player.levelup'
+      },
+      {
+        titulo: 'ANUNCIOS EN VIVO',
+        subtitulo: 'Hitos, Obras, Leyes y Cédulas al instante',
+        chat: 'Marcar hitos, auditar obras, avalar normas o emitir cédulas en la web ahora se celebra directo en Minecraft.',
+        actionbar: '📡 Monitor en vivo en el HUD web · 2/6',
+        color: 'green',
+        subcolor: 'yellow',
+        sonido: 'minecraft:block.note_block.chime'
+      },
+      {
+        titulo: 'FESTIVIDADES',
+        subtitulo: 'Velitas, Navidad, Halloween, Amor y Amistad…',
+        chat: '10 festividades colombianas e internacionales con tareas en Roadmap y premios según tu Deidad o La Razón (!fiesta).',
+        actionbar: '🕯️ Próxima: Noche de las Velitas · 3/6',
+        color: 'gold',
+        subcolor: 'light_purple',
+        sonido: 'minecraft:block.note_block.chime'
+      },
+      {
+        titulo: 'MAPA 2D + GPS',
+        subtitulo: 'Overworld ↔ Nether (÷8) y Regla de distancias',
+        chat: 'Nueva cartografía interactiva en Territorio + comandos !gps <destino>, !portal guardar y !estacion guardar.',
+        actionbar: '🧭 Calcula rumbos y túneles del Nether · 4/6',
+        color: 'aqua',
+        subcolor: 'green',
+        sonido: 'minecraft:block.amethyst_block.chime'
+      },
+      {
+        titulo: 'COMERCIO EN JUEGO',
+        subtitulo: 'Pagos reales y Tablón de Encargos',
+        chat: 'Usa !pagar <jug> <monto> [DR|CU|OE], acepta encargos con !contratos o publica en !cronica / !resumen.',
+        actionbar: '💰 Libro Mayor TRD 130-01 automático · 5/6',
+        color: 'yellow',
+        subcolor: 'green',
+        sonido: 'minecraft:entity.experience_orb.pickup'
+      },
+      {
+        titulo: 'FE, RAZÓN Y SHOWS',
+        subtitulo: 'Ofrendas, Estudios, Ranking y !admin',
+        chat: 'Prueba !ofrenda / !estudio, consulta !ranking o repite estas notas con !novedades show o say !admin patchnotes.',
+        actionbar: '🎆 ¡Disfruten Miscolandia v2.4! · 6/6',
+        color: 'light_purple',
+        subcolor: 'gold',
+        sonido: 'minecraft:ui.toast.challenge_complete',
+        fuegos: true
+      }
+    ]
+  };
+
   return {
     DEFAULT_BANK_NAME, DEFAULT_BASKET, DEFAULT_NATIONS, MONOPOLIES, PACT_RULES, PROFESSIONS, ANIMAL_SPECIES, WORK_CATEGORIES,
-    TRACKS, ERAS, SEASON_CHECKLIST, SEASON_POOLS, MEGAPROJECTS, HOLIDAYS, getHolidayCalendar,
+    TRACKS, ERAS, SEASON_CHECKLIST, SEASON_POOLS, MEGAPROJECTS, HOLIDAYS, getHolidayCalendar, PATCH_NOTES,
     WORLD_PROMPTS, NATION_PROMPTS, RELIGION_PROMPTS, FAITH_MILESTONES, REASON_MILESTONES, GUEST_QUESTS, DEFAULT_LAWS, DEFAULT_RP_LAWS,
     DOC_TYPES, DEFAULT_TRD, DEFAULT_PENAL_PACK, PRICE_GUIDE, RELICS, GLOSSARY, ECONOMY_MANUAL,
     FARM_LOCKS, farmLockForWork, activeFarmLocks, findFarmLock

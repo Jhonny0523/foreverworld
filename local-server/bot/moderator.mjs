@@ -12,7 +12,7 @@ import { SessionMemory, PERMIT_SCOPES } from './memory.mjs';
 import { WorldEvents } from './events.mjs';
 import { Deity, SMITES } from './deity.mjs';
 import { WebSyncAnnouncer, snapshotWorld, diffWorldSnapshots } from './web-sync.mjs';
-import { AdminGenie, extractAdminWish, planAdminWish, resolveWishPlayers, riskyReason, sanitizeRconCommand, setWikiCachePath } from './admin-genie.mjs';
+import { AdminGenie, buildPatchNotesPlan, extractAdminWish, parseCustomSlidesPlan, planAdminWish, resolveWishPlayers, riskyReason, sanitizeRconCommand, setWikiCachePath } from './admin-genie.mjs';
 import {
   COLOR_PALETTE_LIST,
   parseFormattedText,
@@ -235,6 +235,12 @@ async function handleJoin(player, ctx) {
       { text: ' · Habla con un NPC o usa ', color: 'gray' },
       { text: '!ayuda', color: 'aqua', bold: true }
     ]);
+    const recaps = webSync?.getRecentHighlights?.() || [];
+    if (recaps.length) {
+      await sendLine(rcon, player, 'Mientras no estabas', 'gold', [
+        { text: recaps.slice(0, 3).join(' · '), color: 'white' }
+      ]);
+    }
   } catch (err) {
     console.error(`[Join ${player}]`, err.message);
   }
@@ -328,7 +334,10 @@ const COMMAND_DOCS = {
   ofrenda: 'Presenta 1 ítem sagrado en mano ante tu dios (oro, diamante, flor, vela...). Uso: !ofrenda.',
   estudio: 'Para el camino de La Razón: entrega 1 libro, papel, mapa, brújula o catalejo en mano al estudio. Uso: !estudio.',
   fiesta: 'Muestra la festividad colombiana/internacional activa o próxima y tus tareas/premios pendientes. Uso: !fiesta.',
-  resumen: 'Compila el diario de eventos de esta sesión. Usa !resumen publicar para guardarlo en Lore -> Crónicas.'
+  resumen: 'Compila el diario de eventos de esta sesión. Usa !resumen publicar para guardarlo en Lore -> Crónicas.',
+  novedades: 'Muestra las notas del parche de Miscolandia. Fundadores: !novedades show (o !patchnotes show) reproduce la presentación multi-pantalla para todos.',
+  anuncios: 'Activa o pausa los anuncios instantáneos en Minecraft cuando alguien edita la web. Uso: !anuncios [on|off].',
+  ranking: 'Marcador vivo de Miscolandia: Era actual, respaldo en obras, cédulas, crónicas, contratos y festividades. Uso: !ranking.'
 };
 
 const COMMAND_ALIASES = {
@@ -391,7 +400,16 @@ const COMMAND_ALIASES = {
   festividad: 'fiesta',
   festividades: 'fiesta',
   temporada: 'fiesta',
-  diario: 'resumen'
+  diario: 'resumen',
+  patchnotes: 'novedades',
+  patch: 'novedades',
+  changelog: 'novedades',
+  anuncio: 'anuncios',
+  estadisticas: 'ranking',
+  'estadísticas': 'ranking',
+  stats: 'ranking',
+  marcador: 'ranking',
+  top: 'ranking'
 };
 
 const BOT_COMMANDS_DOC = [
@@ -404,7 +422,7 @@ const BOT_COMMANDS_DOC = [
   '  * Archivista / Auditor / Cronista / Bibliotecario: auditoría oficial de obras (Manual 003, TRD 120-01), lore del mundo, crónicas (TRD 140-01), cédulas (TRD 150-01) y recuerdos pasados.',
   '  * Cartógrafo / Topógrafo: estaciones, portales (con su equivalencia Overworld↔Nether), obras con coordenadas y moradas del censo registradas en la web.',
   '  * Pregonero: chismes de la plaza, opinión económica y libreta permanente ("pregonero recuerda que...").',
-  '- Utilidades operativas que ejecutan acciones/permisos/registros reales en juego y web: !hitos, !obras, !duelo, !trato, !pase, !mod, !chat, !evento, !yo, !expediente, !memoria, !pagar, !cronica, !portal guardar, !estacion guardar, !gps, !contratos, !ofrenda, !estudio, !fiesta, !resumen y !ayuda.',
+  '- Utilidades operativas que ejecutan acciones/permisos/registros reales en juego y web: !hitos, !obras, !duelo, !trato, !pase, !mod, !chat, !evento, !yo, !expediente, !memoria, !pagar, !cronica, !portal guardar, !estacion guardar, !gps, !contratos, !ofrenda, !estudio, !fiesta, !resumen, !ranking, !novedades, !anuncios y !ayuda.',
   '- Certificados y sellos oficiales (EXCLUSIVO Archivista NotOutContext): !certificado <Título> (sella en colores el Libro y Pluma en mano consumiéndolo, o !certificado <Título> | <Texto> / aval / obra / residencia / paz con 1 writable_book en inventario; admite autor: <Autor1 y Autor2> para coautoría), !papel <Nombre> [| <Lore>] (consume 1 papel real) y !colores.',
   '- Lo divino: si una fe de la web (Lore → Religiones y fe) le dio nombre a su dios, invocarlo en el chat puede, casi nunca, tener respuesta. NINGÚN NPC habla en nombre de los dioses ni inventa religión, dogmas o milagros.',
   '- Acuerdos en chat: "vamos a hacer un trato" o "pvp consensuado / vamos a hacer un duelo" pausan automáticamente al aduanero.',
@@ -1116,6 +1134,55 @@ async function handleSummaryCommand({ player, arg, bridge, rcon, memory, enforce
   await sendLine(rcon, player, 'Resumen sesión', 'green', [{ text: `${head}\n${topLines}\n(Publicar en web: !resumen publicar)`, color: 'white' }]);
 }
 
+async function handleNovedadesCommand({ player, arg, bridge, rcon, enforcer, adminGenie }) {
+  const pn = bridge.D.PATCH_NOTES;
+  if (!pn || !Array.isArray(pn.slides) || !pn.slides.length) {
+    return sendLine(rcon, player, 'Novedades', 'gray', [{ text: 'No hay notas del parche registradas todavía.', color: 'gray' }]);
+  }
+  const sub = String(arg || '').trim().toLowerCase();
+  if (/^(?:show|todos|mostrar|play|pantalla|reproducir)$/i.test(sub)) {
+    const { state } = await bridge.fetchWorld(false);
+    const role = enforcer.getPlayerRole(player, state);
+    if (role !== 'myth' && role !== 'scad') {
+      return sendLine(rcon, player, 'Novedades', 'red', [{ text: 'Solo los fundadores pueden lanzar la presentación en pantalla para todos.', color: 'yellow' }]);
+    }
+    if (!adminGenie) {
+      return sendLine(rcon, player, 'Novedades', 'red', [{ text: 'Genio !admin no disponible ahora.', color: 'yellow' }]);
+    }
+    adminGenie.fulfill('patchnotes').catch(e => console.warn('[Novedades show]', e.message));
+    return;
+  }
+  const summary = pn.slides.map((s, i) => `${i + 1}. ${s.titulo}: ${s.subtitulo}`).join('\n');
+  await sendLine(rcon, player, `Patch Notes ${pn.version}`, 'gold', [
+    { text: `${summary}\n`, color: 'white' },
+    { text: 'Fundadores: !novedades show (o en consola: say !admin patchnotes)', color: 'aqua' }
+  ]);
+}
+
+async function handleRankingCommand({ player, bridge, rcon }) {
+  const { state } = await bridge.fetchWorld(false);
+  const era = bridge.getCurrentEra(state);
+  const works = bridge.getWorksSummary(state);
+  const mythNat = bridge.nat(state, 'myth');
+  const scadNat = bridge.nat(state, 'scad');
+  const bal = bridge.getBalances(state);
+  const vil = Array.isArray(state.villagers) ? state.villagers.filter(v => !v.deceased) : [];
+  const ccCount = vil.filter(v => v.kind !== 'animal').length;
+  const caCount = vil.filter(v => v.kind === 'animal').length;
+  const paidContracts = (Array.isArray(state.contracts) ? state.contracts : []).filter(c => c.status === 'pagado').length;
+  const openContracts = (Array.isArray(state.contracts) ? state.contracts : []).filter(c => c.status !== 'pagado').length;
+  const hCtx = bridge.getHolidaysContext(state);
+  const nextH = hCtx.cal?.active?.[0] || hCtx.cal?.upcoming;
+
+  await sendLine(rcon, player, 'Marcador Miscolandia', 'gold', [
+    { text: `${era.code} (${era.name}): ${era.reqDone}/${era.reqTotal} obligatorios · Tasa ${bal.fxText}\n`, color: 'yellow' },
+    { text: `• ${mythNat.nation}: ${works.auditedByOwner.myth.count} obras (${works.auditedByOwner.myth.pts} pts) · ${bal.states[0]}\n`, color: 'aqua' },
+    { text: `• ${scadNat.nation}: ${works.auditedByOwner.scad.count} obras (${works.auditedByOwner.scad.pts} pts) · ${bal.states[1]}\n`, color: 'green' },
+    { text: `• Censo: ${ccCount} CC + ${caCount} CA · Crónicas: ${(state.chronicles || []).length} · Encargos: ${paidContracts} pagados / ${openContracts} activos`, color: 'white' },
+    ...(nextH ? [{ text: `\n• Festividad: ${nextH.emoji} ${nextH.name} (${nextH.active ? 'ACTIVA HOY' : `en ${nextH.daysLeft}d`})`, color: 'light_purple' }] : [])
+  ]);
+}
+
 async function handleChatCommand(player, message, ctx) {
   const { cfg, bridge, rcon, enforcer } = ctx;
   const prefix = cfg.prefix || '!';
@@ -1220,6 +1287,10 @@ async function handleChatCommand(player, message, ctx) {
       { text: '!estudio', color: 'aqua', bold: true },
       { text: ' · ', color: 'gray' },
       { text: '!resumen', color: 'green', bold: true },
+      { text: ' · ', color: 'gray' },
+      { text: '!ranking', color: 'gold', bold: true },
+      { text: ' · ', color: 'gray' },
+      { text: '!novedades', color: 'aqua', bold: true },
       { text: '\nArchivo: ', color: 'gray' },
       { text: '!certificado', color: 'gold', bold: true },
       { text: ' · ', color: 'gray' },
@@ -2038,6 +2109,34 @@ async function handleChatCommand(player, message, ctx) {
     return;
   }
 
+  if (cmd === 'novedades' || cmd === 'patchnotes' || cmd === 'patch' || cmd === 'changelog') {
+    await handleNovedadesCommand({ player, arg, bridge, rcon, enforcer, adminGenie: ctx.adminGenie });
+    return;
+  }
+
+  if (cmd === 'ranking' || cmd === 'estadisticas' || cmd === 'estadísticas' || cmd === 'stats' || cmd === 'marcador' || cmd === 'top') {
+    await handleRankingCommand({ player, bridge, rcon });
+    return;
+  }
+
+  if (cmd === 'anuncios' || cmd === 'anuncio') {
+    const { state } = await bridge.fetchWorld(false);
+    const role = enforcer.getPlayerRole(player, state);
+    if (role !== 'myth' && role !== 'scad') {
+      return sendLine(rcon, player, 'Anuncios', 'red', [{ text: 'Solo los fundadores pueden pausar o reanudar los anuncios web->MC.', color: 'yellow' }]);
+    }
+    const sub = String(arg || '').trim().toLowerCase();
+    if (sub === 'on' || sub === 'off') {
+      if (ctx.webSync) ctx.webSync.announcementsEnabled = sub === 'on';
+      return sendLine(rcon, '@a', 'Anuncios Web', sub === 'on' ? 'green' : 'gold', [
+        { text: `Anuncios web -> Minecraft ${sub === 'on' ? 'ACTIVADOS' : 'PAUSADOS'} por ${player}.`, color: 'white' }
+      ]);
+    }
+    return sendLine(rcon, player, 'Anuncios Web', 'aqua', [
+      { text: `Estado: ${ctx.webSync?.announcementsEnabled === false ? 'PAUSADOS' : 'ACTIVOS'}. Usa !anuncios on | off.`, color: 'white' }
+    ]);
+  }
+
   if (cmd === 'recuerda' || cmd === 'anota' || cmd === 'apunta') {
     if (!arg || isHelpQuestion(arg)) {
       await sendLine(rcon, player, 'Ayuda !recuerda', 'aqua', [{ text: COMMAND_DOCS.recuerda, color: 'white' }]);
@@ -2782,6 +2881,11 @@ async function processLogLine(rawLine, ctx) {
       const adv = rest.match(/^has made the advancement \[([^\]]+)\]/);
       if (adv) {
         ctx.memory?.recordEvent('event', `${canonical} consiguió el logro [${adv[1]}]`);
+        ctx.rcon?.send(`execute at ${canonical} run particle minecraft:end_rod ~ ~1.5 ~ 0.6 0.6 0.6 0.03 24`).catch(() => {});
+        ctx.rcon?.send(`execute at ${canonical} run playsound minecraft:entity.experience_orb.pickup master @a ~ ~ ~ 0.7 1.25`).catch(() => {});
+        if (/(?:Diamonds|Deeper|Enchanter|Free the End|Withering|Hero of the Village|Acquire Hardware|Iron Pick|Cover Me|Sneak 100|Trial|Bastion|Fortress|Return to Sender|Uneasy Alliance|Adventuring Time|Monsters Hunted|Two by Two|Balanced Diet|Sniper Duel)/i.test(adv[1])) {
+          ctx.rcon?.send(`execute at ${canonical} run summon minecraft:firework_rocket ~ ~2 ~ {LifeTime:18,FireworksItem:{id:"minecraft:firework_rocket",count:1,components:{"minecraft:fireworks":{flight_duration:1,explosions:[{shape:"star",colors:[I;16766720,5636095],has_twinkle:true,has_trail:true}]}}}}`).catch(() => {});
+        }
       } else if (/(?:was slain by|was shot by|was blown up by|blew up|fell |doomed to fall|hit the ground|drowned|burned|went up in flames|tried to swim in lava|lava|suffocated|starved|withered|killed|died|squashed|squished|impaled|froze|pricked|poked|struck by lightning|fireballed|stung|obliterated|discovered the floor|experienced kinetic|walked into|was roasted|didn't want to live|was pummeled)/i.test(rest)) {
         ctx.memory?.recordEvent('death', `${canonical} ${rest}`);
         // Coordenadas de la muerte, en privado (para volver por las cosas)
@@ -3486,6 +3590,50 @@ async function runSmokeTest(cfg) {
     try { fs.unlinkSync(hTestDeityPath); } catch {}
   }
   console.log(`16) Holidays Calendar (Colombia), GPS & Reward Routing test: PASS`);
+
+  // 17. Multi-slide !admin presenters + Expanded WebSync diff detection
+  const pnPlan = buildPatchNotesPlan(bridge.D.PATCH_NOTES);
+  const slideCustom = parseCustomSlidesPlan('slides Primer Aviso | Subtitulo 1 | Mensaje chat ;; Cierre | Todo listo');
+  const sPrev = snapshotWorld({
+    ...state,
+    guests: [{ id: 'g1', nick: 'Noc' }],
+    tasks: {},
+    guestTasks: {},
+    economy: { ...(state.economy || {}), works: [], loans: [], ledger: [] },
+    villagers: [],
+    portals: [],
+    chronicles: [],
+    devotion: {}
+  }, bridge);
+  const nextTestState = {
+    ...state,
+    guests: [{ id: 'g1', nick: 'Noc' }],
+    tasks: { 'e0-01': { myth: true, scad: false } },
+    guestTasks: { g1: { 'g-01': true } },
+    economy: { ...(state.economy || {}), works: [{ id: 'w-new', name: 'Faro', owner: 'myth', status: 'pendiente', proposed: 15 }], loans: [], ledger: [] },
+    villagers: [{ id: 'v-new', name: 'Mercurio', cedula: 'CC-MYTH-001', kind: 'villager', owner: 'myth' }],
+    portals: [{ id: 'p-new', label: 'Norte', ow: '100, 200', nh: '12, 25' }],
+    chronicles: [{ id: 'c-new', title: 'Acta 1', author: 'myth', type: 'Crónica' }],
+    devotion: { myth: { creed: 'razon', marks: { r1: true } } }
+  };
+  const sNext = snapshotWorld(nextTestState, bridge);
+  const expDiff = diffWorldSnapshots(sPrev, sNext, nextTestState, bridge);
+
+  if (
+    !pnPlan || pnPlan.pasos.length !== 6 || pnPlan.pasos.some(p => p.tipo !== 'slide') || !pnPlan.pasos[5].fuegos ||
+    pnPlan.pasos[1].delay_sec <= pnPlan.pasos[0].delay_sec ||
+    !slideCustom || slideCustom.pasos.length !== 2 || !slideCustom.pasos[1].fuegos ||
+    expDiff.partialTasks.length !== 1 ||
+    expDiff.completedGuestQuests.length !== 1 ||
+    expDiff.newPendingWorks.length !== 1 ||
+    expDiff.newCedulas.length !== 1 ||
+    expDiff.newPortals.length !== 1 ||
+    expDiff.newChronicles.length !== 1 ||
+    expDiff.newDevotionMarks.length !== 1
+  ) {
+    throw new Error(`Fallo Test 17 slides/WebSync expandido: ${JSON.stringify({ pnLen: pnPlan?.pasos?.length, expDiff })}`);
+  }
+  console.log(`17) Multi-slide !admin Presenter & Expanded WebSync Diff test: PASS`);
   console.log('=== TODOS LOS TESTS PASARON ===');
 }
 

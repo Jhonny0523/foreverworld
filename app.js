@@ -316,6 +316,12 @@
     }
     renderCloudPill();
     renderLivePill();
+    const patchBtn = $('hud-patch-btn');
+    if (patchBtn && D.PATCH_NOTES) {
+      const seen = safeGet('forever_world_patch_seen');
+      const unread = seen !== D.PATCH_NOTES.id;
+      patchBtn.innerHTML = `✨ ${esc(D.PATCH_NOTES.version || 'v2.4')}${unread ? '<span class="patch-new-dot" title="Novedades sin leer"></span>' : ''}`;
+    }
   }
 
   function renderLivePill() {
@@ -410,6 +416,41 @@
       </div>`;
   }
 
+  function renderPatchNotesModal() {
+    const body = $('patchnotes-modal-body');
+    const titleEl = $('patchnotes-modal-title');
+    const pn = D.PATCH_NOTES;
+    if (!body || !pn) return;
+    if (titleEl) titleEl.textContent = `${pn.title || 'NOVEDADES'} (${pn.version || ''})`;
+    const customSample = 'say !admin slides ¡Atención Miscolandia! | Reunión en la frontera | Nos vemos en 5 min ;; Recordatorio | Sesión de Tarifas abierta | Traer libros firmados';
+    body.innerHTML = `
+      <div class="mc-panel-dark p-md flex-between" style="gap:10px;border-left:4px solid var(--c-gold);">
+        <div class="text-xs text-muted">
+          <strong class="text-gold">🎬 Presentar en Minecraft en 1 solo comando:</strong><br>
+          Muestra estas ${pn.slides.length} pantallas con títulos, subtítulos, chat, sonidos y fuegos artificiales al final sin escribir 20 comandos.
+        </div>
+        <div class="flex-row-wrap" style="gap:6px;">
+          <button type="button" class="mc-btn mc-btn-gold" data-action="copy-text" data-copy="say !admin patchnotes">📋 say !admin patchnotes</button>
+          <button type="button" class="mc-btn mc-btn-diamond" data-action="copy-text" data-copy="!novedades show">📋 !novedades show (chat MC)</button>
+        </div>
+      </div>
+      <div class="grid-2" style="gap:8px;max-height:52vh;overflow-y:auto;">
+        ${(pn.slides || []).map((s, idx) => `
+          <div class="patch-slide-card">
+            <div class="flex-between" style="margin-bottom:4px;">
+              <strong class="font-pixel text-${esc(s.color || 'gold')} text-xs">${idx + 1}. ${esc(s.titulo)}</strong>
+              <span class="mc-tag tag-slate">${esc(s.actionbar || `Pantalla ${idx + 1}`)}</span>
+            </div>
+            <div class="text-xs text-aqua" style="font-weight:700;margin-bottom:4px;">${esc(s.subtitulo)}</div>
+            <div class="text-xs text-muted" style="line-height:1.45;">${esc(s.chat)}</div>
+          </div>`).join('')}
+      </div>
+      <div class="mc-slot p-sm flex-between" style="gap:8px;">
+        <div class="text-xs text-muted"><strong class="text-white">Plantilla propia multi-pantalla:</strong> separa pantallas con <code class="text-gold">;;</code> y campos con <code class="text-aqua">|</code>.</div>
+        <button type="button" class="mc-btn" style="white-space:nowrap;" data-action="copy-text" data-copy="${esc(customSample)}">📋 Copiar ejemplo slides</button>
+      </div>`;
+  }
+
   function renderCloudPill() {
     const label = $('hud-cloud-label');
     const sub = $('hud-cloud-sub');
@@ -450,6 +491,72 @@
     const deityNames = String(rel[creed]?.names || '').trim();
     if (creed && deityNames) return `${deityNames.split(',')[0].trim()} (tu deidad)`;
     return 'Espíritu Festivo de Miscolandia';
+  }
+
+  function renderKingdomScoreboard(curIdx) {
+    const eraObj = D.ERAS[curIdx] || D.ERAS[D.ERAS.length - 1];
+    const eraInfo = eraObj ? eraStats(eraObj) : { reqDone: 0, reqTotal: 0 };
+    const nextPending = eraObj ? (eraObj.tasks || []).find(t => t.req && !isTaskDone(t)) : null;
+    const mythPts = E.worksPoints(state, 'myth', CATS);
+    const scadPts = E.worksPoints(state, 'scad', CATS);
+    const mythH = E.holdings(state, 'myth');
+    const scadH = E.holdings(state, 'scad');
+    const r = E.rate(state);
+    const cedulasCount = (state.villagers || []).filter(v => !v.deceased).length;
+    const chronCount = (state.chronicles || []).length;
+    const cal = D.getHolidayCalendar ? D.getHolidayCalendar(Date.now()) : { active: [], upcoming: null };
+    const topHol = cal.active?.[0] || cal.upcoming;
+    const live = state.live || {};
+    const online = Array.isArray(live.online) ? live.online : [];
+    const ev = live.activeEvent;
+
+    return `<div class="kingdom-scoreboard">
+      <div class="mc-panel p-md">
+        <div class="flex-between" style="margin-bottom:4px;">
+          <span class="mc-tag tag-gold">${curIdx >= D.ERAS.length ? 'ERA ∞' : esc(eraObj.code)}</span>
+          <span class="font-mono text-xs text-muted">${eraInfo.reqDone}/${eraInfo.reqTotal} oblig.</span>
+        </div>
+        <div class="text-sm text-white" style="font-weight:700;">${curIdx >= D.ERAS.length ? 'Temporadas Perpetuas' : esc(tx(eraObj.name))}</div>
+        <div class="text-xs text-muted" style="margin-top:4px;line-height:1.4;">
+          ${nextPending
+            ? `Siguiente hito: <strong class="text-emerald">${esc(tx(nextPending.title))}</strong>`
+            : '¡Listos para la Era ∞ y temporadas!'}
+        </div>
+      </div>
+
+      <div class="mc-panel p-md">
+        <div class="flex-between" style="margin-bottom:4px;">
+          <span class="mc-tag tag-emerald">BALANZA &amp; ARCHIVO</span>
+          <span class="font-mono text-xs text-diamond">1 ${esc(sym('M'))} = ${r.toFixed(2)} ${esc(sym('S'))}</span>
+        </div>
+        <div class="text-xs font-mono text-royal">${esc(nat('myth').nation)}: <strong>${fmt(mythH.M)} ${esc(sym('M'))}</strong> · ${mythPts} pts obras</div>
+        <div class="text-xs font-mono text-emerald" style="margin-top:2px;">${esc(nat('scad').nation)}: <strong>${fmt(scadH.S)} ${esc(sym('S'))}</strong> · ${scadPts} pts obras</div>
+        <div class="text-xs text-muted" style="margin-top:4px;">Censo: <strong class="text-white">${cedulasCount}</strong> cédulas · Archivo: <strong class="text-white">${chronCount}</strong> crónicas</div>
+      </div>
+
+      <div class="mc-panel p-md">
+        <div class="flex-between" style="margin-bottom:4px;">
+          <span class="mc-tag tag-amethyst">FE &amp; FESTIVIDAD</span>
+          <span class="text-xs text-muted">${topHol ? (topHol.active ? 'Hoy' : `en ${topHol.daysLeft}d`) : 'Anual'}</span>
+        </div>
+        <div class="text-sm text-white" style="font-weight:700;">${topHol ? `${esc(topHol.emoji)} ${esc(topHol.name)}` : 'Calendario activo'}</div>
+        <div class="text-xs text-muted" style="margin-top:4px;">Tu vía: <strong class="text-gold">${esc(devotionAnnouncerLabel(me))}</strong></div>
+      </div>
+
+      <div class="mc-panel p-md">
+        <div class="flex-between" style="margin-bottom:4px;">
+          <span class="mc-tag ${online.length ? 'tag-emerald' : 'tag-slate'}">${online.length ? `${online.length} EN JUEGO` : 'SERVIDOR'}</span>
+          <span class="font-mono text-xs text-dim">${live.at ? when(live.at) : 'sin pulso'}</span>
+        </div>
+        <div class="text-xs text-white" style="margin-top:2px;font-weight:600;">
+          ${ev ? `⚡ ${esc(ev.name)} (~${ev.minsLeft || 0}m)` : (online.length ? esc(online.join(', ')) : 'En espera de jugadores')}
+        </div>
+        <div class="flex-row-wrap" style="gap:6px;margin-top:8px;">
+          <button type="button" class="mc-btn" style="padding:3px 8px;font-size:11px;" data-action="open-live">📡 En vivo</button>
+          <button type="button" class="mc-btn mc-btn-gold" style="padding:3px 8px;font-size:11px;" data-action="open-patchnotes">✨ Novedades</button>
+        </div>
+      </div>
+    </div>`;
   }
 
   function renderHolidaysSection() {
@@ -663,7 +770,7 @@
       </details>`;
     }).join('');
 
-    $('view-roadmap').innerHTML = intro + renderHolidaysSection() + eras + renderGuestQuests(curIdx) + renderSeasons(curIdx);
+    $('view-roadmap').innerHTML = intro + renderKingdomScoreboard(curIdx) + renderHolidaysSection() + eras + renderGuestQuests(curIdx) + renderSeasons(curIdx);
   }
 
   function taskCard(t, locked) {
@@ -2641,7 +2748,12 @@
     { cat: 'Puente Web & Mundo', cmd: '!contratos / !contrato aceptar 1 / !contrato entregar 1 / !contrato pagar 1', desc: 'Consulta, acepta, entrega y liquida encargos publicados en Economía → Encargos.' },
     { cat: 'Puente Web & Mundo', cmd: '!ofrenda / !estudio', desc: 'Entrega 1 ítem ceremonial en mano acorde a tu Fe o a La Razón.' },
     { cat: 'Puente Web & Mundo', cmd: '!fiesta', desc: 'Muestra la festividad colombiana/internacional activa o próxima y reclama premios pendientes.' },
-    { cat: 'Puente Web & Mundo', cmd: '!resumen [publicar]', desc: 'Compila el diario de eventos de la sesión actual (o lo publica como Crónica en la web).' }
+    { cat: 'Puente Web & Mundo', cmd: '!resumen [publicar]', desc: 'Compila el diario de eventos de la sesión actual (o lo publica como Crónica en la web).' },
+    { cat: 'Puente Web & Mundo', cmd: '!ranking', desc: 'Marcador vivo del reino: Era, obras, tesoros, cédulas, crónicas y festividades.' },
+    { cat: 'Puente Web & Mundo', cmd: '!novedades [show]', desc: 'Ver patch notes en chat; fundadores con "show" lanzan la presentación multi-pantalla para todos.' },
+    { cat: 'Puente Web & Mundo', cmd: '!anuncios [on|off]', desc: 'Activa o pausa los anuncios instantáneos web → Minecraft.' },
+    { cat: 'Consola Admin', cmd: 'say !admin patchnotes', desc: 'Presenta todas las pantallas del parche actual con títulos, subtítulos, chat, sonido y fuegos en 1 solo comando.' },
+    { cat: 'Consola Admin', cmd: 'say !admin slides Título 1 | Sub 1 | Chat 1 ;; Título 2 | Sub 2', desc: 'Crea tu propia presentación multi-pantalla en Minecraft con 1 sola línea.' }
   ];
 
   const MC_SWATCHES = [
@@ -2824,9 +2936,70 @@
 
   /* ======================== Vista: Manual ======================== */
 
+  const adminSlidesDraft = [
+    { titulo: '¡ATENCIÓN MISCOLANDIA!', subtitulo: 'Novedades y anuncios del reino', chat: 'Reunión general en la frontera al caer el sol.' },
+    { titulo: 'SESIÓN DE TARIFAS', subtitulo: 'Revisen tiendas y encargos web', chat: 'Usen !contratos en el chat o Economía → Encargos para ver pagos activos.' }
+  ];
+
+  function buildStudioCommand() {
+    const clean = s => String(s || '').replace(/;;/g, ';').replace(/\|/g, '/').trim();
+    const parts = adminSlidesDraft
+      .map(s => [clean(s.titulo), clean(s.subtitulo), clean(s.chat)].filter((v, idx, arr) => v || idx < arr.length - 1).join(' | '))
+      .filter(Boolean);
+    return parts.length >= 2
+      ? `say !admin slides ${parts.join(' ;; ')}`
+      : `say !admin slides ${parts[0] || 'Hola | Miscolandia'} ;; Cierre | ¡A construir!`;
+  }
+
   function renderManual() {
     const M = nat('myth'), S = nat('scad'), b = state.settings.bankName, u = state.settings.basket;
     const card = (title, color, body) => `<div class="mc-panel-dark p-md"><strong class="font-mono text-${color} text-xs">${title}</strong><div class="text-xs text-muted" style="margin-top:6px;line-height:1.6;">${body}</div></div>`;
+
+    const pn = D.PATCH_NOTES || { version: 'v2.4', slides: [] };
+    const patchStudioHtml = panel(`
+      ${head(`PATCH NOTES ${esc(pn.version || '')} &amp; !ADMIN STUDIO`, 'gold', 'NOVEDADES Y PRESENTACIONES MULTI-PANTALLA',
+        'Lanza notas del parche o anuncios largos en Minecraft usando <strong>un solo comando</strong> (títulos, subtítulos, chat y fuegos escalonados cada 5 segundos).')}
+      <div class="grid-3" style="gap:8px;margin-bottom:12px;">
+        <div class="mc-panel-dark p-md">
+          <div class="text-xs font-mono text-gold">🎬 Patch Notes completas (${pn.slides.length} pantallas)</div>
+          <div class="text-xs text-muted" style="margin:4px 0 8px 0;">Muestra el changelog completo con chimes y fuegos finales.</div>
+          <button type="button" class="mc-btn mc-btn-gold" data-action="copy-text" data-copy="say !admin patchnotes">📋 Copiar say !admin patchnotes</button>
+        </div>
+        <div class="mc-panel-dark p-md">
+          <div class="text-xs font-mono text-aqua">💬 Desde el chat del juego</div>
+          <div class="text-xs text-muted" style="margin:4px 0 8px 0;">Cualquier fundador puede lanzarlo directo en el chat sin abrir consola.</div>
+          <button type="button" class="mc-btn mc-btn-diamond" data-action="copy-text" data-copy="!novedades show">📋 Copiar !novedades show</button>
+        </div>
+        <div class="mc-panel-dark p-md">
+          <div class="text-xs font-mono text-emerald">🤖 Libre con IA (gemma4:12b)</div>
+          <div class="text-xs text-muted" style="margin:4px 0 8px 0;">También entiende multi-pantalla en lenguaje natural en 1 prompt.</div>
+          <button type="button" class="mc-btn mc-btn-emerald" data-action="copy-text" data-copy="say !admin haz una presentación en 3 pantallas cada 5 segundos celebrando el avance de la Era con fuegos artificiales al final">📋 Copiar ejemplo IA</button>
+        </div>
+      </div>
+      <div class="mc-panel-dark p-md">
+        <div class="flex-between" style="margin-bottom:8px;">
+          <strong class="font-mono text-white text-xs">CONSTRUCTOR DE DIAPOSITIVAS (!admin slides)</strong>
+          <button type="button" class="mc-btn" style="padding:3px 9px;" data-action="studio-add">+ Añadir pantalla</button>
+        </div>
+        <div id="admin-studio-rows" class="section-stack" style="gap:8px;margin-bottom:10px;">
+          ${adminSlidesDraft.map((sl, i) => `
+            <div class="admin-studio-row">
+              <div class="flex-between" style="margin-bottom:6px;">
+                <span class="mc-tag tag-gold">Pantalla ${i + 1} (+${i * 5}s)</span>
+                ${adminSlidesDraft.length > 1 ? `<button type="button" class="mc-btn mc-btn-redstone" style="padding:2px 6px;" data-action="studio-del" data-i="${i}">✕</button>` : ''}
+              </div>
+              <div class="grid-3" style="gap:8px;">
+                <input class="mc-input font-mono" data-studio-idx="${i}" data-studio-field="titulo" value="${esc(sl.titulo)}" placeholder="Título grande" />
+                <input class="mc-input font-mono" data-studio-idx="${i}" data-studio-field="subtitulo" value="${esc(sl.subtitulo)}" placeholder="Subtítulo" />
+                <input class="mc-input" data-studio-idx="${i}" data-studio-field="chat" value="${esc(sl.chat)}" placeholder="Mensaje en chat (opcional)" />
+              </div>
+            </div>`).join('')}
+        </div>
+        <div class="flex-between" style="gap:8px;align-items:center;">
+          <code id="admin-studio-cmd" style="flex:1;overflow-wrap:anywhere;font-size:11px;padding:6px 8px;background:#0e0d13;border:1px solid #2a2835;">${esc(buildStudioCommand())}</code>
+          <button type="button" class="mc-btn mc-btn-gold" style="white-space:nowrap;" data-action="studio-copy">📋 Copiar comando</button>
+        </div>
+      </div>`);
 
     const botGuideHtml = panel(`
       ${head('SERVIDOR EN VIVO', 'emerald', 'COMANDOS DEL BOT Y NPCS DE MISCOLANDIA',
@@ -2931,7 +3104,8 @@
           ${g.ex ? `<div class="text-xs text-muted" style="margin-top:4px;"><strong class="text-emerald">Ejemplo:</strong> ${esc(tx(g.ex))}</div>` : ''}</div>`).join('')}
       </div>`);
 
-    $('view-manual').innerHTML = fold('m-bot', '🤖 Comandos del Bot y NPCs en Minecraft', botGuideHtml, true)
+    $('view-manual').innerHTML = fold('m-patch', `✨ Novedades ${esc(pn.version || '')} y Estudio !admin Multi-Pantalla`, patchStudioHtml, true)
+      + fold('m-bot', '🤖 Comandos del Bot y NPCs en Minecraft', botGuideHtml, true)
       + fold('m-colors', '✒️ Probador de &colores para !certificado y !papel (Archivista)', colorTesterHtml, false)
       + glossary
       + fold('m-money', '💰 Cómo funciona el dinero (explicado)', money1 + money2)
@@ -4000,6 +4174,30 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
       renderLiveModal();
       $('modal-live')?.classList.add('open');
     },
+    'open-patchnotes': () => {
+      if (D.PATCH_NOTES?.id) safeSet('forever_world_patch_seen', D.PATCH_NOTES.id);
+      renderPatchNotesModal();
+      $('modal-patchnotes')?.classList.add('open');
+      renderHUD();
+    },
+    'studio-add': () => {
+      if (adminSlidesDraft.length >= 10) return fail('Máximo 10 pantallas seguidas.');
+      adminSlidesDraft.push({ titulo: `PANTALLA ${adminSlidesDraft.length + 1}`, subtitulo: 'Subtítulo', chat: '' });
+      renderManual();
+    },
+    'studio-del': el => {
+      const idx = Number(el.dataset.i);
+      if (adminSlidesDraft.length > 1 && Number.isInteger(idx)) {
+        adminSlidesDraft.splice(idx, 1);
+        renderManual();
+      }
+    },
+    'studio-copy': () => {
+      const cmd = buildStudioCommand();
+      copyText(cmd);
+      window.FW_FX?.burstAtLastClick?.('gold');
+      toast('!admin slides copiado', `${adminSlidesDraft.length} pantalla(s) en 1 solo comando.`, 'gold');
+    },
     'holiday-toggle-all': () => {
       state.ui.holidaysAllOpen = !state.ui.holidaysAllOpen;
       save(true);
@@ -4366,7 +4564,7 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
   /* ---------- Deshacer (guarda copias del estado antes de cada acción) ---------- */
   let editingLawId = null;
   const UNDO_KEY = 'forever_world_undo';
-  const NO_UNDO = new Set(['form', 'shop-edit', 'mode-simple', 'mode-advanced', 'eco-tab', 'mint-fill', 'ledger-filter', 'eco-manual-copy', 'state-tab', 'jump-era', 'law-template', 'law-edit', 'tip', 'filter', 'works-filter', 'law-doc-filter', 'law-rev-filter', 'law-book', 'vg-filter', 'vg-kind-btn', 'vg-copy-tag', 'vg-card', 'price-buy', 'price-challenge', 'open-reset', 'confirm-reset', 'open-backup', 'open-live', 'holiday-toggle-all', 'map-dim', 'map-layer', 'map-zoom', 'map-center', 'map-rule',
+  const NO_UNDO = new Set(['form', 'shop-edit', 'mode-simple', 'mode-advanced', 'eco-tab', 'mint-fill', 'ledger-filter', 'eco-manual-copy', 'state-tab', 'jump-era', 'law-template', 'law-edit', 'tip', 'filter', 'works-filter', 'law-doc-filter', 'law-rev-filter', 'law-book', 'vg-filter', 'vg-kind-btn', 'vg-copy-tag', 'vg-card', 'price-buy', 'price-challenge', 'open-reset', 'confirm-reset', 'open-backup', 'open-live', 'open-patchnotes', 'studio-add', 'studio-del', 'studio-copy', 'holiday-toggle-all', 'map-dim', 'map-layer', 'map-zoom', 'map-center', 'map-rule',
     'open-report', 'copy-report', 'close-modal', 'undo', 'open-search', 'search-pick', 'copy-text', 'color-insert', 'color-copy-cert', 'color-copy-papel',
     'law-approve-rev', 'law-return', 'law-submit', 'law-sign', 'law-repeal', 'law-upgrade-pack', 'law-defaults',
     'work-approve', 'work-reject', 'work-reopen', 'work-lost', 'guest-del',
@@ -4972,6 +5170,16 @@ El dinero sin respaldo causa inflación: tu moneda se devaluará en el acto, ${p
           }, 250);
         } else {
           liveTimer = setTimeout(save, 400);
+        }
+        return;
+      }
+      if (t.dataset.studioIdx !== undefined) {
+        const idx = Number(t.dataset.studioIdx);
+        const f = t.dataset.studioField;
+        if (adminSlidesDraft[idx] && f) {
+          adminSlidesDraft[idx][f] = t.value;
+          const cmdEl = $('admin-studio-cmd');
+          if (cmdEl) cmdEl.textContent = buildStudioCommand();
         }
         return;
       }

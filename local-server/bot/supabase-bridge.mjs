@@ -186,6 +186,25 @@ export class SupabaseBridge {
     };
   }
 
+  async peekRev() {
+    try {
+      const q = `/rest/v1/fw_worlds?id=eq.${encodeURIComponent(this.cfg.worldId || 'main')}&select=rev`;
+      const res = await fetch(`${this.cfg.url}${q}`, {
+        headers: {
+          apikey: this.cfg.anonKey,
+          Authorization: `Bearer ${this.cfg.anonKey}`
+        },
+        signal: AbortSignal.timeout(6_000)
+      });
+      if (!res.ok) return null;
+      const rows = await res.json();
+      const rev = Array.isArray(rows) && rows[0] ? Number(rows[0].rev) : NaN;
+      return Number.isFinite(rev) ? rev : null;
+    } catch {
+      return null;
+    }
+  }
+
   async fetchWorld(force = false) {
     const now = Date.now();
     if (!force && this.cache.row && (now - this.cache.at) < CACHE_TTL_MS) {
@@ -1053,7 +1072,7 @@ export class SupabaseBridge {
       lines.push(`[ACTIVA HOY] ${h.emoji} ${h.name} (${h.dateLabel}): ${tDone}`);
     }
     if (cal.upcoming) {
-      lines.push(`[PRÓXIMA FESTIVIDAD] ${cal.upcoming.holiday?.name || cal.upcoming.name} en ${cal.upcoming.daysLeft} día(s) (${cal.upcoming.dateLabel}).`);
+      lines.push(`[PRÓXIMA FESTIVIDAD] ${cal.upcoming.emoji || ''} ${cal.upcoming.name} en ${cal.upcoming.daysLeft} día(s) (${cal.upcoming.dateLabel}).`.trim());
     }
     return { cal, text: lines.join('\n') };
   }

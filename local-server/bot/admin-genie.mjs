@@ -24,7 +24,7 @@ const BOSSBAR_COLOR_MAP = {
   gray: 'white'
 };
 
-const CANCEL_RE = /\b(?:cancela|cancelar|aborta|abortar|deten|detén|detener|para|parar|anula|anular)\b.*\b(?:contador|cuenta|cierre|apagado|reinicio|timer|cron[oó]metro)\b|\b(?:cancela|cancelar|aborta)\b\s*$/i;
+const CANCEL_RE = /\b(?:cancela|cancelar|aborta|abortar|deten|detén|detener|para|parar|anula|anular)\b.*\b(?:contador|cuenta|cierre|apagado|reinicio|timer|cron[oó]metro|presentaci[oó]n|slides|anuncios)\b|\b(?:cancela|cancelar|aborta)\b\s*$/i;
 const SHUTDOWN_WISH_RE = /\b(?:cierr[aeo]|cerrar|cierre|apag[aeou]|apagar|apagado|deten(?:er)?\s+el\s+servidor|stop)\b/i;
 
 const ADMIN_PLAN_SCHEMA = {
@@ -38,14 +38,19 @@ const ADMIN_PLAN_SCHEMA = {
       items: {
         type: 'object',
         properties: {
-          tipo: { type: 'string', enum: ['command', 'countdown', 'broadcast', 'cancel_countdown'] },
+          tipo: { type: 'string', enum: ['command', 'countdown', 'broadcast', 'slide', 'cancel_countdown'] },
           delay_sec: { type: 'number' },
           comando: { type: 'string' },
           segundos: { type: 'integer' },
           titulo: { type: 'string' },
           subtitulo: { type: 'string' },
+          chat: { type: 'string' },
+          actionbar: { type: 'string' },
           color: { type: 'string' },
+          subcolor: { type: 'string' },
+          stay_sec: { type: 'number' },
           bossbar: { type: 'boolean' },
+          fuegos: { type: 'boolean' },
           sonido: { type: 'string' },
           mensaje_final: { type: 'string' },
           comandos_finales: {
@@ -433,7 +438,7 @@ const EFFECT_WORDS = [
   [/\b(mare\w*|n[aá]usea)\b/i, 'nausea', 0, false]
 ];
 // Lo que el intérprete NO sabe hacer: si aparece, se usa la IA (con parche de lo que olvide)
-const COMPLEX_RE = /\b(da|dale|dales|darle|darles|regal\w*|entreg\w*|quit\w*|qu[ií]tale\w*|borr\w*|limpi\w*|tp|teletransport\w*|lleva\w*|trae\w*|constru\w*|invoc\w*|spawn\w*|aparece\w*|mata\w*|mat[aá]\w*|explot\w*|cambia\w*|modo|gamemode|kick|ban\w*|op|deop|whitelist|dificultad|bloque\w*|cofre\w*|cuenta\s+regresiva|contador|cierra|apaga|reinicia|guarda\w*|castig\w*|trolle\w*|broma|susto|asust\w*|tortur\w*|humill\w*|premi\w*|bendic\w*|bendec\w*|sorprend\w*|show|espect[aá]culo|caos|locura|gana|quieras|[ií]tem\w*|objeto\w*|espada\w*|pico\w*|hacha\w*|arco\w*|armadura\w*|escudo\w*|poci[oó]n\w*|libro\w*|diamante\w*|galleta\w*|encant\w*|llamad[oa]|tama[ñn]o|escala|knockback|sharpness|mending|unbreaking|looting|fortune|efficiency|empuje|filo|irrompibilidad)\b/i;
+const COMPLEX_RE = /\b(presentaci[oó]n|diapositiva\w*|slides?|pantallas?|cada\s+\d+|por\s+partes|secuencia|da|dale|dales|darle|darles|regal\w*|entreg\w*|quit\w*|qu[ií]tale\w*|borr\w*|limpi\w*|tp|teletransport\w*|lleva\w*|trae\w*|constru\w*|invoc\w*|spawn\w*|aparece\w*|mata\w*|mat[aá]\w*|explot\w*|cambia\w*|modo|gamemode|kick|ban\w*|op|deop|whitelist|dificultad|bloque\w*|cofre\w*|cuenta\s+regresiva|contador|cierra|apaga|reinicia|guarda\w*|castig\w*|trolle\w*|broma|susto|asust\w*|tortur\w*|humill\w*|premi\w*|bendic\w*|bendec\w*|sorprend\w*|show|espect[aá]culo|caos|locura|gana|quieras|[ií]tem\w*|objeto\w*|espada\w*|pico\w*|hacha\w*|arco\w*|armadura\w*|escudo\w*|poci[oó]n\w*|libro\w*|diamante\w*|galleta\w*|encant\w*|llamad[oa]|tama[ñn]o|escala|knockback|sharpness|mending|unbreaking|looting|fortune|efficiency|empuje|filo|irrompibilidad)\b/i;
 
 function ownMessage(w) {
   // 1) Entre comillas  2) Después de ":"  3) Después del verbo de decir/pantalla/celebrar
@@ -538,6 +543,7 @@ export function homerIntents(wish, onlinePlayers = []) {
 
 // Si la IA planeó, se le agrega lo que olvidó de lo pedido (título en pantalla, fuegos, mensaje)
 export function patchForgotten(plan, wish, onlinePlayers = []) {
+  if (plan.pasos.some(p => p.tipo === 'slide')) return plan;
   const { plan: homer } = homerIntents(wish, onlinePlayers);
   if (!homer) return plan;
   const cmds = plan.pasos.map(p => p.comando || '').join('\n');
@@ -557,10 +563,70 @@ export function patchForgotten(plan, wish, onlinePlayers = []) {
   return plan;
 }
 
+// Presentador multi-pantalla determinista de Patch Notes desde data.js (FW_DATA.PATCH_NOTES)
+export function buildPatchNotesPlan(patchNotes) {
+  const slides = Array.isArray(patchNotes?.slides) ? patchNotes.slides : [];
+  if (!slides.length) return null;
+  const pasos = slides.map((s, idx) => ({
+    tipo: 'slide',
+    delay_sec: Number((idx * 5.5).toFixed(1)),
+    titulo: String(s.titulo || 'Miscolandia').slice(0, 70),
+    subtitulo: String(s.subtitulo || '').slice(0, 100),
+    chat: String(s.chat || '').slice(0, 420),
+    actionbar: String(s.actionbar || '').slice(0, 110),
+    color: normalizeColor(s.color, 'gold'),
+    subcolor: normalizeColor(s.subcolor, 'white'),
+    stay_sec: 4.5,
+    sonido: s.sonido || (idx === slides.length - 1 ? 'minecraft:ui.toast.challenge_complete' : 'minecraft:block.note_block.chime'),
+    fuegos: Boolean(s.fuegos ?? (idx === slides.length - 1))
+  }));
+  return {
+    resumen: `Presentación de Patch Notes (${patchNotes.version || 'Miscolandia'}, ${pasos.length} pantallas)`,
+    respuesta_consola: `Mostrando ${pasos.length} pantallas de ${patchNotes.version || 'novedades'} escalonadas cada 5.5s.`,
+    anuncio_chat: '',
+    pasos
+  };
+}
+
+// "!admin slides Titulo 1 | Sub 1 | Chat 1 ;; Titulo 2 | Sub 2 | Chat 2" -> presentación en un solo prompt
+export function parseCustomSlidesPlan(wish) {
+  const w = String(wish || '').trim();
+  const m = w.match(/^(?:slides|diapositivas|presentaci[oó]n|presentacion|anuncios)\s+(.+)$/i);
+  if (!m || !m[1].includes(';;')) return null;
+  const rawSlides = m[1].split(/\s*;;\s*/).map(s => s.trim()).filter(Boolean).slice(0, 14);
+  if (!rawSlides.length) return null;
+  const pasos = rawSlides.map((chunk, idx) => {
+    const parts = chunk.split(/\s*\|\s*/).map(p => p.trim());
+    const titulo = (parts[0] || 'Miscolandia').slice(0, 70);
+    const subtitulo = (parts[1] || '').slice(0, 100);
+    const chat = (parts[2] || '').slice(0, 420);
+    const last = idx === rawSlides.length - 1;
+    return {
+      tipo: 'slide',
+      delay_sec: idx * 5,
+      titulo,
+      subtitulo,
+      chat,
+      actionbar: `📢 Presentación (${idx + 1}/${rawSlides.length})`,
+      color: last ? 'aqua' : 'gold',
+      subcolor: 'white',
+      stay_sec: 4,
+      sonido: last ? 'minecraft:ui.toast.challenge_complete' : 'minecraft:block.note_block.chime',
+      fuegos: last
+    };
+  });
+  return {
+    resumen: `Presentación personalizada de ${pasos.length} pantalla(s)`,
+    respuesta_consola: `Reproduciendo ${pasos.length} pantallas en Minecraft escalonadas cada 5s.`,
+    anuncio_chat: '',
+    pasos
+  };
+}
+
 function normalizePlan(rawPlan, wish, resolvedTargets = null) {
   const plan = rawPlan && typeof rawPlan === 'object' ? { ...rawPlan } : {};
   const wantsShutdown = SHUTDOWN_WISH_RE.test(String(wish || ''));
-  const rawSteps = Array.isArray(plan.pasos) ? plan.pasos.slice(0, 25) : [];
+  const rawSteps = Array.isArray(plan.pasos) ? plan.pasos.slice(0, 40) : [];
   const pasos = [];
 
   for (const s of rawSteps) {
@@ -616,6 +682,31 @@ function normalizePlan(rawPlan, wish, resolvedTargets = null) {
       continue;
     }
 
+    if (tipo === 'slide') {
+      const titulo = String(s.titulo || '').trim().slice(0, 70);
+      const subtitulo = String(s.subtitulo || '').trim().slice(0, 100);
+      const chat = String(s.chat || '').trim().slice(0, 420);
+      const actionbar = String(s.actionbar || '').trim().slice(0, 110);
+      if (titulo || subtitulo || chat || actionbar) {
+        const rawSound = String(s.sonido || '').trim().replace(/^\/+/, '');
+        const sonido = /^[a-z0-9_.:/-]{3,80}$/i.test(rawSound) ? rawSound : 'minecraft:block.note_block.chime';
+        pasos.push({
+          tipo: 'slide',
+          delay_sec: delaySec,
+          titulo,
+          subtitulo,
+          chat,
+          actionbar,
+          color: normalizeColor(s.color, 'gold'),
+          subcolor: normalizeColor(s.subcolor, 'white'),
+          stay_sec: Math.max(1, Math.min(15, Number(s.stay_sec) || 4)),
+          sonido,
+          fuegos: Boolean(s.fuegos)
+        });
+      }
+      continue;
+    }
+
     if (tipo === 'command') {
       const comando = sanitizeRconCommand(s.comando);
       if (comando) {
@@ -647,6 +738,10 @@ function normalizePlan(rawPlan, wish, resolvedTargets = null) {
     const p = pasos[k];
     if (p.tipo === 'command' && !safe(p.comando)) pasos.splice(k, 1);
     if (p.tipo === 'countdown') p.comandos_finales = p.comandos_finales.filter(safe);
+  }
+  const slideSteps = pasos.filter(p => p.tipo === 'slide');
+  if (slideSteps.length && FIREWORK_RE.test(String(wish || '')) && !slideSteps.some(s => s.fuegos) && !pasos.some(p => p.tipo === 'command' && /firework_rocket/.test(p.comando || ''))) {
+    slideSteps[slideSteps.length - 1].fuegos = true;
   }
   if (blocked.length) {
     plan.respuesta_consola = `${plan.respuesta_consola || ''} [Bloqueado por seguridad: ${blocked.join('; ')}]`.trim();
@@ -870,12 +965,12 @@ export async function buildAdminWorldContext({ bridge = null, memory = null, cfg
   return lines.join('\n').slice(0, 1600);
 }
 
-export async function planAdminWish({ config, wish, onlinePlayers = [], worldContext = '', worldState = null }) {
+export async function planAdminWish({ config, wish, onlinePlayers = [], worldContext = '', worldState = null, patchNotes = null }) {
   const clean = String(wish || '').trim();
   if (!clean) {
     return {
       resumen: 'Sin instrucción',
-      respuesta_consola: 'Escribe lo que quieras después de !admin (ej. "!admin cierra el servidor en 10 segundos con contador").',
+      respuesta_consola: 'Escribe lo que quieras después de !admin (ej. "!admin patchnotes" o "!admin cierra el servidor en 10 segundos con contador").',
       anuncio_chat: '',
       pasos: []
     };
@@ -886,6 +981,16 @@ export async function planAdminWish({ config, wish, onlinePlayers = [], worldCon
   // Cancelación inmediata sin esperar al LLM
   if (CANCEL_RE.test(clean)) {
     return deterministicFallbackPlan(clean);
+  }
+
+  // Presentación instantánea de Patch Notes o diapositivas múltiples separadas por ";;"
+  if (patchNotes && /^(?:muestra|mostrar|pon|poner|anuncia|anunciar|lanza|lanzar|ver|reproducir|haz|hacer)?\s*(?:las?\s+|los\s+)?(?:patch\s*notes?|notas?\s+del?\s+parche|novedades|changelog|actualizaci[oó]n)\b/i.test(clean) && !clean.includes(';;')) {
+    const pnPlan = buildPatchNotesPlan(patchNotes);
+    if (pnPlan) return normalizePlan(pnPlan, clean, resolved.targets);
+  }
+  const customSlides = parseCustomSlidesPlan(clean);
+  if (customSlides) {
+    return normalizePlan(customSlides, clean, resolved.targets);
   }
 
   // Órdenes comunes (anuncio, título, fuegos artificiales) se resuelven sin IA: instantáneo y siempre igual
@@ -911,9 +1016,10 @@ export async function planAdminWish({ config, wish, onlinePlayers = [], worldCon
     '   - Tamaño/escala (solo si lo piden): attribute J minecraft:scale base set 1.5 (y volver a 1 con delay_sec si es temporal)',
     '4. Fuegos artificiales en 26.4 (usa has_twinkle:true,has_trail:true, nunca "flicker"): execute as @a at @s run summon minecraft:firework_rocket ~ ~1 ~ {LifeTime:20,FireworksItem:{id:"minecraft:firework_rocket",count:1,components:{"minecraft:fireworks":{flight_duration:1,explosions:[{shape:"large_ball",colors:[I;16755200,5636095],has_twinkle:true,has_trail:true}]}}}}',
     '5. Cuentas regresivas ("en N segundos con contador"): usa UN SOLO paso tipo:"countdown" con segundos, titulo, subtitulo con "{s}", color, bossbar:true, mensaje_final y comandos_finales (["save-all","stop"] si cierra el servidor).',
-    '6. Cancelar contador: tipo:"cancel_countdown". Anuncio solo chat/pantalla: tipo:"broadcast" (pantalla:true para título grande).',
+    '6. Cancelar contador/presentación: tipo:"cancel_countdown". Anuncio simple: tipo:"broadcast" (pantalla:true para título grande).',
+    '6b. PRESENTACIONES Y MULTI-PANTALLAS ("presentación", "en N pantallas", "diapositivas", "anuncia por partes", "patch notes"): usa varios pasos consecutivos tipo:"slide" con delay_sec escalonado (0, 4, 8, 12...), titulo, subtitulo, chat, actionbar, color, subcolor, stay_sec:4, sonido:"minecraft:block.note_block.chime" y fuegos:true en la última pantalla (hasta 12 slides en un solo JSON!).',
     '7. LÍMITES ANTI-GRIEF: salvo que el admin lo pida con esas palabras exactas, NUNCA uses ban/kick/op/stop/whitelist/clear completo ni invoques wither/ender_dragon/warden/tnt/lava.',
-    '8. Devuelve JSON válido con resumen, respuesta_consola, anuncio_chat y entre 3 y 8 pasos concisos como máximo (no repitas comandos ni llenes campos opcionales vacíos).'
+    '8. Devuelve JSON válido con resumen, respuesta_consola, anuncio_chat y pasos (entre 3 y 8 pasos para acciones normales, o hasta 12 pasos "slide" si piden una presentación).'
   ].join('\n');
 
   const userPrompt = [
@@ -991,6 +1097,7 @@ export class AdminGenie {
     this.tickMs = Math.max(10, Number(tickMs) || 1000);
     this.activeCountdown = null;
     this.pendingTimers = new Set();
+    this.pendingResolvers = new Set();
     this.currentTargets = null;
   }
 
@@ -1063,6 +1170,10 @@ export class AdminGenie {
     }
     for (const id of [...this.pendingTimers]) {
       this._clearTimer(id);
+    }
+    for (const r of [...this.pendingResolvers]) {
+      this.pendingResolvers.delete(r);
+      r();
     }
   }
 
@@ -1162,7 +1273,11 @@ export class AdminGenie {
 
   async _executeStep(step, errors) {
     if (step.tipo === 'cancel_countdown') {
-      await this.cancelCountdown({ announce: true });
+      const hadCountdown = await this.cancelCountdown({ announce: true });
+      if (!hadCountdown && this.pendingTimers.size) {
+        this.stopAll();
+        await this.rcon.tellraw('@a', ['', { text: '[Admin] ', color: 'gold', bold: true }, { text: 'Presentación / tareas diferidas canceladas.', color: 'yellow' }]).catch(() => {});
+      }
       return;
     }
     if (step.tipo === 'broadcast') {
@@ -1174,6 +1289,32 @@ export class AdminGenie {
       if (step.pantalla) {
         await this._safeSend(`title @a times 10 50 15`, errors);
         await this._safeSend(`title @a title ${JSON.stringify({ text: step.texto.slice(0, 60), color: normalizeColor(step.color, 'gold'), bold: true })}`, errors);
+      }
+      return;
+    }
+    if (step.tipo === 'slide') {
+      const stayTicks = Math.max(20, Math.min(300, Math.round((Number(step.stay_sec) || 4) * 20)));
+      if (step.titulo || step.subtitulo) {
+        await this._safeSend(`title @a times 10 ${stayTicks} 15`, errors);
+        await this._safeSend(`title @a subtitle ${JSON.stringify(step.subtitulo ? { text: step.subtitulo, color: normalizeColor(step.subcolor, 'white') } : { text: '' })}`, errors);
+        await this._safeSend(`title @a title ${JSON.stringify({ text: step.titulo || 'Miscolandia', color: normalizeColor(step.color, 'gold'), bold: true })}`, errors);
+      }
+      if (step.actionbar) {
+        await this._safeSend(`title @a actionbar ${JSON.stringify({ text: step.actionbar, color: normalizeColor(step.subcolor, 'aqua') })}`, errors);
+      }
+      if (step.chat) {
+        await this.rcon.tellraw('@a', [
+          '',
+          { text: '✦ ', color: normalizeColor(step.color, 'gold'), bold: true },
+          { text: step.chat, color: 'white' }
+        ]).catch(err => errors?.push(err.message));
+      }
+      if (step.sonido) {
+        await this._safeSend(`execute as @a at @s run playsound ${step.sonido} master @s ~ ~ ~ 0.8 1.1`, errors);
+      }
+      if (step.fuegos) {
+        await this._safeSend(fireworkCmd(FIREWORK_SPOTS[0], FIREWORK_COLORS[0], 0), errors);
+        await this._safeSend(fireworkCmd(FIREWORK_SPOTS[1], FIREWORK_COLORS[2], 1), errors);
       }
       return;
     }
@@ -1286,7 +1427,14 @@ export class AdminGenie {
       ? String(worldContext || '')
       : await buildAdminWorldContext({ bridge: this.bridge, memory: this.memory, cfg: this.cfg, onlinePlayers: players, worldState: state });
 
-    const plan = await planAdminWish({ config: this.cfg, wish, onlinePlayers: players, worldContext: contextStr, worldState: state });
+    const plan = await planAdminWish({
+      config: this.cfg,
+      wish,
+      onlinePlayers: players,
+      worldContext: contextStr,
+      worldState: state,
+      patchNotes: this.bridge?.D?.PATCH_NOTES || null
+    });
     this.onLog(`[Admin] Plan: ${plan.resumen} (${plan.pasos.length} paso(s))`);
 
     if (dryRun) {
@@ -1307,8 +1455,10 @@ export class AdminGenie {
       const delayMs = Math.max(0, Math.round((Number(step.delay_sec) || 0) * this.tickMs));
       if (delayMs > 0) {
         const p = new Promise(resolve => {
+          this.pendingResolvers.add(resolve);
           const tid = this._trackTimer(setTimeout(async () => {
             this.pendingTimers.delete(tid);
+            this.pendingResolvers.delete(resolve);
             // Un paso diferido que falla (RCON caído) no debe tumbar el bot con un rechazo sin atrapar
             try {
               await this._executeStep(step, errors);
